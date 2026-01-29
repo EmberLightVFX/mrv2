@@ -179,6 +179,8 @@ namespace mrv
                         conn_name = remove_card_prefix(conn_name);
                         std::string normalized = normalize_connector(conn_name);
 
+                        connections.push_back(normalized);
+                    
                         if (conn_name != target_connector &&
                             normalized != target_connector) continue;
                         
