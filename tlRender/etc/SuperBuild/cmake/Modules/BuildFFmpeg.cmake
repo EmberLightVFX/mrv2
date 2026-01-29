@@ -278,6 +278,7 @@ if(TLRENDER_FFMPEG_MINIMAL)
         --enable-demuxer=m4v
         --enable-demuxer=matroska
         --enable-demuxer=mjpeg
+        --enable-demuxer=mpegts
         --enable-demuxer=mov
         --enable-demuxer=mp3
         --enable-demuxer=mxf
@@ -391,6 +392,7 @@ if(TLRENDER_FFMPEG_MINIMAL)
         --enable-protocol=http
         --enable-protocol=httpproxy
         --enable-protocol=https
+	--enable-protocol=tls
         --enable-protocol=md5
         --enable-protocol=udp)
     if(APPLE)

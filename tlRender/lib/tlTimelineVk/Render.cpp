@@ -830,25 +830,6 @@ namespace tl
             _p(new Private)
         {
             TLRENDER_P();
-            
-            bool valid_colorspace = false;
-            
-            switch (ctx.colorSpace)
-            {
-            case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT:
-            case VK_COLOR_SPACE_HDR10_ST2084_EXT:
-            case VK_COLOR_SPACE_HDR10_HLG_EXT:
-            case VK_COLOR_SPACE_DOLBYVISION_EXT:
-                valid_colorspace = true;
-                break;
-            default:
-                break;
-            }
-
-            if (valid_colorspace)
-            {
-                p.hdrMonitorFound = true;
-            }
 
             for (int i = 0; i < vlk::MAX_FRAMES_IN_FLIGHT; ++i)
             {
@@ -2123,10 +2104,7 @@ namespace tl
             
                     pl_shader_reset(p.placeboData->shader, &shader_params);
 
-                    pl_color_map_params cmap = pl_color_map_high_quality_params;
-                    // cmap.desaturation_strength = 0.75f; 
-                    // cmap.desaturation_exponent = 1.5f;
-                    // cmap.desaturation_margin = 0.15f;
+                    pl_color_map_params cmap = pl_color_map_high_quality_params;x
 
                     // defaults, generates LUTs if state is set.
                     cmap.gamut_mapping = &pl_gamut_map_perceptual;
@@ -2262,11 +2240,6 @@ namespace tl
                         else if (
                             ctx.colorSpace == VK_COLOR_SPACE_DOLBYVISION_EXT)
                         {
-                            // \@todo:  How to handle this?
-                            // PL_COLOR_TRC_DOLBYVISION does not exist.
-                            // According to libplacebo:
-                            // "Unlikely to ever be implemented"
-                            // dst_colorspace.transfer = ???
                             dst_colorspace.transfer = PL_COLOR_TRC_PQ;
                         }
 
