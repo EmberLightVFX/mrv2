@@ -524,8 +524,8 @@ namespace mrv
             break;
         }
 
-        int screen_num = this->screen_num();
-        p.hdrCapabilities = getHDRCapabilities(screen_num);
+        p.screen_index = this->screen_num();
+        p.hdrCapabilities = getHDRCapabilities(p.screen_index);
         
         if (valid_colorspace && p.hdrCapabilities.supported)
         {
