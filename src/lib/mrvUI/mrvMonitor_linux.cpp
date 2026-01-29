@@ -25,15 +25,24 @@ namespace fs = std::filesystem;
 
 namespace
 {
-    std::string normalize_connector(std::string name) {
+    std::string remove_card_prefix(std::string name) {
         // 1. Remove the "cardX-" prefix
         // Matches "card" followed by digits and a dash at the start of the string
         name = std::regex_replace(name, std::regex(R"(^card\d+-)"), "");
+        return name;
+    }
+    
+    std::string normalize_connector(std::string name) {
 
-        // 2. Remove technical sub-types (HDMI-A-1 -> HDMI-1, DVI-I-1 -> DVI-1)
+        // 1. Remove technical sub-types (HDMI-A-1 -> HDMI-1, DVI-I-1 -> DVI-1)
         // Matches (HDMI or DVI) followed by a dash, a single letter, and another dash
         // We use a capture group ($1) to keep the "HDMI" or "DVI" part
-        name = std::regex_replace(name, std::regex(R"((HDMI|DVI)-[A-Z]-)"), "$1-");
+        name = std::regex_replace(name, std::regex(R"((HDMI|DVI|DP|eDP)-[A-Z]-)"), "$1-");
+        
+        // 2. Keep technical sub-types (HDMI-A-1 -> HDMI-1, DVI-I-1 -> DVI-1)
+        // Matches (HDMI or DVI) followed by a dash, a single letter, and another dash
+        // We use a capture group ($1) to keep the "HDMI-A" or "DVI-I" part
+        name = std::regex_replace(name, std::regex(R"((HDMI|DVI|DP|eDP)-[A-Z]-)"), "$1-");
 
         return name;
     }
@@ -167,8 +176,11 @@ namespace mrv
                     
                     if (conn_full_name.find(card_name + "-") == 0) {
                         // Match the FLTK label to the DRM connector name
-                        conn_name = normalize_connector(conn_name);
-                        if (conn_name != target_connector) continue;
+                        conn_name = remove_card_prefix(conn_name);
+                        std::string normalized = normalize_connector(conn_name);
+
+                        if (conn_name != target_connector &&
+                            normalized != target_connector) continue;
                         
                         std::ifstream status_file(conn_entry.path() / "status");
                         std::string status;

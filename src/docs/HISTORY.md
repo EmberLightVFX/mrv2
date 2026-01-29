@@ -66,6 +66,7 @@ ChangeLog
 - Fixed detecting HDR on Linux under Wayland correctly, even on multiple monitor setups.
 - Fixed device name on Windows and Linux which could not map the order in FLTK.
 - Added support for the .heif and .heic movie / picture formats.
+- Fixed monitor device look up on KDE Plasma not finding the right connector (it is different than GNOME).
 - Upgraded OpenJPH to v0.26.0.
 
 
