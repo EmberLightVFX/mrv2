@@ -61,7 +61,7 @@ namespace mrv
     namespace
     {
         monitor::HDRCapabilities
-        getHDRCapabilities(int screen_num, int screen_count)
+        getHDRCapabilities(int screen_num)
         {
             monitor::HDRCapabilities out;
             if (desktop::Wayland())
@@ -439,6 +439,8 @@ namespace mrv
         {
             TLRENDER_P();
 
+            // This call will try to set colorSpace() to the best color space
+            // possible based on what Vulkan returns.
             Fl_Vk_Window::init_colorspace();
 
             // Look for HDR10 or HLG if present
@@ -460,24 +462,23 @@ namespace mrv
                 break;
             }
             
-            std::string msg;
-            
             int screen_num = this->screen_num();
-            int screen_count = Fl::screen_count();
-
-            p.hdrCapabilities = getHDRCapabilities(screen_num, screen_count);
+            p.hdrCapabilities = getHDRCapabilities(screen_num);
             if (valid_colorspace)
             {
                 p.hdrMonitorFound = true;
                 LOG_STATUS(_("HDR monitor found."));
 
-                _getMonitorNits(false);    
+                _getMonitorNits(false);
             }
             else
             {
+                colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+                format() = VK_FORMAT_B8G8R8A8_UNORM;
                 LOG_STATUS(_("HDR monitor not found or not configured."));
             }
             
+            std::string msg;
             msg = string::Format(_("Vulkan color space is {0}")).arg(string_VkColorSpaceKHR(colorSpace()));
             LOG_STATUS(msg);
                     
@@ -613,9 +614,6 @@ namespace mrv
                     context->addSystem(timelineui_vk::ThumbnailSystem::create(context, ctx));
                 }
                 
-                int screen_num = this->screen_num();
-                int screen_count = Fl::screen_count();
-
                 // Set the renderers's max nits
                 vk.render = timeline_vlk::Render::create(ctx, context);
 
@@ -696,8 +694,7 @@ namespace mrv
             TLRENDER_P();
             MRV2_VK();
 
-            // If we changed screen from an HDR to an SDR one, recreate the
-            // Vulkan swapchain.
+            // Check if the window changed screen.
             bool changed_screen = false;
             if (p.screen_index != this->screen_num())
             {
@@ -707,9 +704,12 @@ namespace mrv
 
             if (changed_screen)
             {
-                auto hdrCapabilities = getHDRCapabilities(this->screen_num(),
-                                                          Fl::screen_count());
-                if (hdrCapabilities.supported != p.hdrCapabilities.supported)
+                // If we changed screen from an HDR to an SDR one, or one with
+                // different nits settings, recreate the Vulkan swapchain.
+                auto hdr = getHDRCapabilities(this->screen_num());
+                if (hdr.supported != p.hdrCapabilities.supported ||
+                    hdr.min_nits != p.hdrCapabilities.min_nits ||
+                    hdr.max_nits != p.hdrCapabilities.max_nits)
                 {
                     m_swapchain_needs_recreation = true;
                     redraw();

@@ -28,6 +28,7 @@ set(LIBRARIES
     mrvHDRWidgets
     NDI
     tlRender::tlVk
+    tlRender::tlCore
     ${FLTK_vk_LIBRARY} ${FLTK_LIBRARIES} 
     ${Intl_LIBRARIES}
 )

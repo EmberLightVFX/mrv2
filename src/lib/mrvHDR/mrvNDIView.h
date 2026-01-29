@@ -129,6 +129,9 @@ namespace mrv
         void addGPUTextures(const pl_shader_res*);
 
     protected:
+
+        void _getMonitorNits(bool quiet);
+        
         TLRENDER_PRIVATE();
     };
 

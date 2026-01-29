@@ -231,8 +231,7 @@ namespace
 
 namespace mrv
 {    
-    monitor::HDRCapabilities
-    getHDRCapabilities(int screen_num, int screen_count)
+    monitor::HDRCapabilities getHDRCapabilities(int screen_num)
     {
         monitor::HDRCapabilities out;
         if (desktop::Wayland())
@@ -392,6 +391,7 @@ namespace mrv
         bool useHDRMetadata = false;
 
         // HDR monitor variables
+        int screen_index = 0;
         monitor::HDRCapabilities hdrCapabilities;
 
         NDIlib_find_instance_t NDI_find = nullptr;
@@ -525,19 +525,14 @@ namespace mrv
         }
 
         int screen_num = this->screen_num();
-        int screen_count = Fl::screen_count();
-        p.hdrCapabilities = getHDRCapabilities(screen_num, screen_count);
+        p.hdrCapabilities = getHDRCapabilities(screen_num);
         
         if (valid_colorspace && p.hdrCapabilities.supported)
         {
             p.hdrMonitorFound = true;
             LOG_STATUS(_("HDR monitor found."));
-            std::string msg = string::Format(_("HDR monitor min. nits = {0}")).
-                              arg(p.hdrCapabilities.min_nits);
-            LOG_STATUS(msg);
-            msg = string::Format(_("HDR monitor max. nits = {0}")).
-                  arg(p.hdrCapabilities.max_nits);
-            LOG_STATUS(msg);
+            
+            _getMonitorNits(false);
         }
         else
         {
@@ -1296,6 +1291,29 @@ void main() {
     void NDIView::draw()
     {
         TLRENDER_P();
+        
+        // Check if the window changed screen.
+        bool changed_screen = false;
+        if (p.screen_index != this->screen_num())
+        {
+            p.screen_index = this->screen_num();
+            changed_screen = true;
+        }
+
+        if (changed_screen)
+        {
+            // If we changed screen from an HDR to an SDR one, or one with
+            // different nits settings, recreate the Vulkan swapchain.
+            auto hdr = getHDRCapabilities(this->screen_num());
+            if (hdr.supported != p.hdrCapabilities.supported ||
+                hdr.min_nits != p.hdrCapabilities.min_nits ||
+                hdr.max_nits != p.hdrCapabilities.max_nits)
+            {
+                m_swapchain_needs_recreation = true;
+                redraw();
+                return;
+            }
+        }
 
         VkCommandBuffer cmd = getCurrentCommandBuffer();
         
@@ -1351,6 +1369,57 @@ void main() {
         out.push_back(VK_EXT_HDR_METADATA_EXTENSION_NAME);
         return out;
     }
+
+    void NDIView::_getMonitorNits(bool quiet)
+    {
+        TLRENDER_P();
+            
+        if (!p.hdrCapabilities.supported)
+        {
+#ifdef __linux__
+            if (!quiet)
+            {
+                std::cerr << _("Could not determine monitor's nits.")
+                          << std::endl;
+            }
+            if (p.hdrMonitorFound)
+            {
+                p.hdrCapabilities.min_nits = 0.F;
+                p.hdrCapabilities.max_nits = 1000.F;
+            }
+            else
+            {
+                p.hdrCapabilities.min_nits = 0.F;
+                p.hdrCapabilities.max_nits = 100.F;
+            }
+#else
+            p.hdrMonitorFound = false;
+#endif
+        }
+            
+        if (!p.hdrMonitorFound)
+        {
+            std::cout << _("HDR monitor not found or not configured.")
+                      << std::endl;
+            colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+            format() = VK_FORMAT_B8G8R8A8_UNORM;
+        }
+        else
+        {
+            if (!quiet)
+            {
+                std::string msg =
+                    string::Format(_("HDR monitor min. nits = {0}")).
+                    arg(p.hdrCapabilities.min_nits);
+                std::cout << msg << std::endl;
+                
+                msg = string::Format(_("HDR monitor max. nits = {0}")).
+                      arg(p.hdrCapabilities.max_nits);
+                std::cout << msg << std::endl;
+            }
+        }
+    }
+
 
     void NDIView::_videoThread()
     {
