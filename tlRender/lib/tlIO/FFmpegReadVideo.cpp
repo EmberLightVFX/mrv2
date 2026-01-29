@@ -946,9 +946,7 @@ namespace tl
                 }
 
                 image::HDRData hdrData;
-                bool hasHDR = toHDRData(
-                    avVideoCodecParameters->coded_side_data,
-                    avVideoCodecParameters->nb_coded_side_data, hdrData);
+                bool hasHDR = toHDRData(avVideoStream, hdrData);
                 hdrData.eotf = toEOTF(_avColorTRC);
                 if (hdrData.eotf != image::EOTF_BT709 &&
                     hdrData.eotf != image::EOTF_BT601)
@@ -1407,22 +1405,15 @@ namespace tl
                     {
                         tags[tag->key] = tag->value;
                     }
-
-                    // \@bug: there's a bug in FFmpeg where the frame data is
-                    //        not updated properly, and the stream metadata
-                    //        should be used instead.
-                    auto i = tags.find("hdr");
-                    if (i == tags.end())
+                    
+                    image::HDRData hdrData;
+                    hdrData.eotf = toEOTF(_avColorTRC);
+                    if (hdrData.eotf != image::EOTF_BT709 &&
+                        hdrData.eotf != image::EOTF_BT601)
                     {
-                        image::HDRData hdrData;
-                        hdrData.eotf = toEOTF(_avColorTRC);
-                        if (hdrData.eotf != image::EOTF_BT709 &&
-                            hdrData.eotf != image::EOTF_BT601)
-                        {
-                            bool hasHDR = toHDRData(_avFrame, hdrData);
-                            if (hasHDR)
-                                tags["hdr"] = nlohmann::json(hdrData).dump();
-                        }
+                        bool hasHDR = toHDRData(_avFrame, hdrData);
+                        if (hasHDR)
+                            tags["hdr"] = nlohmann::json(hdrData).dump();
                     }
                     image->setTags(tags);
                     
@@ -1548,19 +1539,12 @@ namespace tl
         {
             float out = 0.F;
 
-            int32_t* displaymatrix = NULL;
+            const AVPacketSideData* psd = (const AVPacketSideData*)
+                get_stream_side_data(st, AV_PKT_DATA_DISPLAYMATRIX);
 
-            const AVPacketSideData* psd = av_packet_side_data_get(
-                st->codecpar->coded_side_data, st->codecpar->nb_coded_side_data,
-                AV_PKT_DATA_DISPLAYMATRIX);
             if (psd)
             {
-                displaymatrix = reinterpret_cast<int32_t*>(psd->data);
-            }
-            if (displaymatrix)
-            {
-                out = av_display_rotation_get(
-                    reinterpret_cast<int32_t*>(displaymatrix));
+                out = av_display_rotation_get(reinterpret_cast<const int32_t*>(psd));
             }
             return out;
         }
