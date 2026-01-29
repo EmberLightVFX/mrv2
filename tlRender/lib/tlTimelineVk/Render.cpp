@@ -2104,7 +2104,7 @@ namespace tl
             
                     pl_shader_reset(p.placeboData->shader, &shader_params);
 
-                    pl_color_map_params cmap = pl_color_map_high_quality_params;x
+                    pl_color_map_params cmap = pl_color_map_high_quality_params;
 
                     // defaults, generates LUTs if state is set.
                     cmap.gamut_mapping = &pl_gamut_map_perceptual;
