@@ -76,7 +76,10 @@ namespace tl
                                   SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP;
 
         //! Swap the numerator and denominator.
-        AVRational swap(AVRational);
+        inline AVRational swap(AVRational value)
+        {
+            return AVRational({value.den, value.num});
+        }
 
         //! Retrieve packet side data.
         inline const uint8_t *get_stream_side_data(const AVStream* st,

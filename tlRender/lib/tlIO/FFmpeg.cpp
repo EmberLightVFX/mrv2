@@ -39,11 +39,6 @@ namespace tl
             "VORBIS", "PCM_S16LE");
         TLRENDER_ENUM_SERIALIZE_IMPL(AudioCodec);
 
-        inline AVRational swap(AVRational value)
-        {
-            return AVRational({value.den, value.num});
-        }
-
         bool
         toHDRData(AVStream* st, image::HDRData& hdr)
         {
