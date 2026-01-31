@@ -28,7 +28,7 @@ namespace tl
         enum ShaderFlags {
             kShaderVertex = 1,
             kShaderFragment = 2,
-            kShaderCompute = 3,
+            kShaderCompute = 4,
         };
 
         inline VkShaderStageFlags getVulkanShaderFlags(ShaderFlags stageFlags)
@@ -162,10 +162,10 @@ namespace tl
                             const ShaderFlags stageFlags);
             
             //! Get the push stage flags.
-            VkShaderStageFlags getPushStageFlags() { return pushStageFlags; }
+            inline VkShaderStageFlags getPushStageFlags() { return pushStageFlags; }
 
             //! Get the push size.
-            std::size_t getPushSize() { return pushSize; }
+            inline std::size_t getPushSize() { return pushSize; }
 
             //! Add a textire to shader parameters.
             void addTexture(

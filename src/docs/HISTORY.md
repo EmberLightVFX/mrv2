@@ -68,6 +68,8 @@ ChangeLog
 - Added support for the .heif and .heic movie / picture formats.
 - Fixed monitor device look up on KDE Plasma not finding the right connector (it is different than GNOME).
 - Fixed HDR10+ metadata not getting passed from FFmpeg correctly on each frame.
+- Fixed levelsFunc in display shader on both backends.
+- Fixed validation error on compute flag on Vulkan backend.
 - Upgraded OpenJPH to v0.26.0.
 
 

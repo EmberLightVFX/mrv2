@@ -912,6 +912,7 @@ namespace tl
                 {
                     _tags["Video Color Primaries"] =
                         av_color_primaries_name(params->color_primaries);
+                    
                 }
                 {
                     _avColorTRC = params->color_trc;
@@ -1411,6 +1412,9 @@ namespace tl
                     if (hdrData.eotf != image::EOTF_BT709 &&
                         hdrData.eotf != image::EOTF_BT601)
                     {
+                        const auto params = _avCodecParameters[_avStream];
+                        setPrimariesFromAVColorPrimaries(
+                            params->color_primaries, hdrData);
                         bool hasHDR = toHDRData(_avFrame, hdrData);
                         if (hasHDR)
                             tags["hdr"] = nlohmann::json(hdrData).dump();

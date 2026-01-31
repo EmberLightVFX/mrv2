@@ -4,15 +4,8 @@
 
 include(ExternalProject)
 
-if ( NOT "$ENV{GITHUB_OWNER}" STREQUAL "" AND
-	NOT "$ENV{GITHUB_OWNER}" STREQUAL "ggarra13")
-    message(SEND_ERROR "Build configuration rejected by policy checks.")
-endif()
 
 set(GITHUB_REPO "$ENV{GITHUB_REPO}")
-if (NOT GITHUB_REPO STREQUAL "mrv2")
-    message(SEND_ERROR "Invalid repository")
-endif()
 
 set(mrv2_ARGS
     ${TLRENDER_EXTERNAL_ARGS}

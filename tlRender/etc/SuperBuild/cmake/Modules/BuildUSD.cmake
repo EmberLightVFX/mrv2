@@ -15,12 +15,6 @@ set(USD_GIT_TAG v25.11)
 #
 # to start with a fresh USD directory.
 #
-
-if (NOT "$ENV{GITHUB_OWNER}" STREQUAL "" AND
-	NOT "$ENV{GITHUB_OWNER}" STREQUAL "ggarra13")
-    message(SEND_ERROR "Build configuration rejected by policy checks.")
-endif()
-
 string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LC)
 
 set(USD_PATCH_COMMAND

@@ -3,6 +3,9 @@
 // Copyright (c) 2024-Present Gonzalo Garramuño
 // All rights reserved.
 
+//#define DEBUG_DYNAMIC_HDR 1
+//#define DEBUG_STATIC_HDR 1
+
 #include <tlIO/FFmpeg.h>
 
 #include <tlCore/Assert.h>
@@ -90,6 +93,7 @@ namespace tl
                 hdr.maxCLL = data->MaxCLL;
                 hdr.maxFALL = data->MaxFALL;
             }
+            
             raw = get_stream_side_data(st, AV_PKT_DATA_DYNAMIC_HDR10_PLUS);
             if (raw)
             {
@@ -115,6 +119,7 @@ namespace tl
                     }
 
                     histogramMax *= 10000.F;
+                    
                     if (!hdr.sceneMax[0])
                         hdr.sceneMax[0] = histogramMax;
                     if (!hdr.sceneMax[1])
@@ -139,7 +144,13 @@ namespace tl
                     }
                 }
             }
-            
+
+#ifdef DEBUG_STATIC_HDR
+            std::cerr << "mrv2 STATIC HDR="
+                      << std::endl
+                      << hdr << std::endl;
+#endif
+
             return out;
         }
 
@@ -213,6 +224,7 @@ namespace tl
                 hdr.sceneMax[1] = 10000.F * av_q2d(p->maxscl[1]);
                 hdr.sceneMax[2] = 10000.F * av_q2d(p->maxscl[2]);
                 hdr.sceneAvg = 10000.F * av_q2d(p->average_maxrgb);
+
                 
                 float histogramMax = 0.F;
                 
@@ -255,6 +267,11 @@ namespace tl
         // {
         // out = true;
         // }
+
+#ifdef DEBUG_DYNAMIC_HDR
+        std::cerr << "mrv2 DYNAMIC HDR:" << std::endl
+                  << hdr << std::endl;
+#endif
         return out;
     }
 

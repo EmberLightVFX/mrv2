@@ -2104,7 +2104,7 @@ namespace tl
             
                     pl_shader_reset(p.placeboData->shader, &shader_params);
 
-                    pl_color_map_params cmap = pl_color_map_high_quality_params;
+                    pl_color_map_params cmap = pl_color_map_default_params;
 
                     // defaults, generates LUTs if state is set.
                     cmap.gamut_mapping = &pl_gamut_map_perceptual;
@@ -2259,6 +2259,7 @@ namespace tl
                     {
                         dst_colorspace.primaries = PL_COLOR_PRIM_BT_709;
                         dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                        
                         dst_colorspace.hdr.min_luma = 0.F;
                         dst_colorspace.hdr.max_luma = 100.0F; // SDR peak in nits
 
@@ -2338,6 +2339,20 @@ namespace tl
                     }
                     color_map_args.state = &(p.placeboData->state);
 
+                    pl_bit_encoding bits;
+                    bits.sample_depth = 16;
+                    bits.color_depth = 10;
+                    bits.bit_shift = 0;
+
+                    pl_color_repr repr = pl_color_repr_unknown;
+                    repr.sys = PL_COLOR_SYSTEM_RGB;
+                    repr.levels = PL_COLOR_LEVELS_LIMITED;
+                    repr.alpha = PL_ALPHA_NONE;                    
+                    repr.bits = bits;
+                    
+                    // pl_shader_decode_color(p.placeboData->shader,
+                    //                        &repr, &pl_color_adjustment_neutral);
+                    
                     pl_shader_color_map_ex(p.placeboData->shader, &cmap,
                                            &color_map_args);
                     
@@ -2419,24 +2434,30 @@ namespace tl
                     }
 
                     s << "//" << std::endl
-                      << "// Variables"
+                      << "// Variables" << std::endl
                       << "//" << std::endl
                       << std::endl;
 
                     s << "layout(std430, push_constant) uniform PushC {\n";
-                    for (int i = 0; i < res->num_variables; ++i)
+                    for (int j = 0; j < 2; ++j)
                     {
-                        const struct pl_shader_var shader_var = res->variables[i];
-                        const struct pl_var var = shader_var.var;
-                        const std::string glsl_type = pl_var_glsl_type_name(var);
-                        struct pl_var_layout layout = pl_std430_layout(pushOffset, &var);
+                        for (int i = 0; i < res->num_variables; ++i)
+                        {
+                            const struct pl_shader_var shader_var = res->variables[i];
+                            const struct pl_var var = shader_var.var;
+                            const std::string glsl_type = pl_var_glsl_type_name(var);
+                            const struct pl_var_layout layout = pl_std430_layout(pushOffset, &var);
+                            const bool is_float = (glsl_type == "float");
+                            if (j == 0 && is_float)
+                                continue;
+                            else if (j == 1 && !is_float)
+                                continue;
 
-                        s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " " << var.name << ";\n";
-                        pushOffset = layout.offset + layout.size;
-    
-                    }
+                            s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " " << var.name << ";\n";
+                            pushOffset = layout.offset + layout.size;
+                        }
+                    }                   
                     s << "};\n";
-                    
                     s << std::endl
                       << "//" << std::endl
                       << "// Constants" << std::endl
@@ -2485,10 +2506,19 @@ namespace tl
                     toneMap = "outColor = ";
                     toneMap += res->name;
                     toneMap += "(outColor);\n";
-                
+
+#if DEBUG_TONEMAPPING
+                    std::cerr << "toneMapDef="
+                              << std::endl
+                              << toneMapDef
+                              << std::endl;
+                    std::cerr << "toneMap=" << std::endl
+                              << toneMap
+                              << std::endl;
+                    std::cerr << "pushOffset=" << pushOffset << std::endl;
+#endif
                 }
 #endif
-                
 #if defined(TLRENDER_OCIO)
                 if (p.ocioData && p.ocioData->icsDesc)
                 {
@@ -2514,6 +2544,9 @@ namespace tl
                 const std::string source = displayFragmentSource(
                     ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
                     p.lutOptions.order, toneMapDef, toneMap);
+#if DEBUG_DISPLAY_SHADER
+                std::cout << source << std::endl;
+#endif
                 if (auto context = _context.lock())
                 {
                     context->log(

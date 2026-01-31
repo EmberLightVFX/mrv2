@@ -28,6 +28,19 @@ namespace tl
             return !(other == *this);
         }
 
+        inline std::ostream& operator<<(std::ostream& s, const HDRBezier& o)
+        {
+            s << "targetLuma=" << o.targetLuma << std::endl
+              << "kneeX=" << o.kneeX << std::endl
+              << "kneeY=" << o.kneeY << std::endl
+              << "numAnchors=" << (int)o.numAnchors << std::endl;
+            for (int i = 0; i < o.numAnchors; ++i)
+            {
+                s << "\t" << o.anchors[i] << std::endl;
+            }
+            return s;
+        }
+        
         inline bool HDRData::operator==(const HDRData& other) const
         {
             return eotf == other.eotf && primaries == other.primaries &&
@@ -44,6 +57,32 @@ namespace tl
         inline bool HDRData::operator!=(const HDRData& other) const
         {
             return !(other == *this);
+        }
+        
+        inline std::ostream& operator<<(std::ostream& s, const HDRData& o)
+        {
+            s << "eotf=" << (int)o.eotf << std::endl
+              << "red    primaries=" << o.primaries[0].x << ", "
+              << o.primaries[0].y << std::endl
+              << "green  primaries=" << o.primaries[1].x << ", "
+              << o.primaries[1].y << std::endl
+              << "blue  primaries=" << o.primaries[2].x << ", "
+              << o.primaries[2].y << std::endl
+              << "white primaries=" << o.primaries[3].x << ", "
+              << o.primaries[3].y << std::endl
+              << "display luminance=" << o.displayMasteringLuminance.getMin()
+              << " to " << o.displayMasteringLuminance.getMax() << std::endl
+              << "maxCLL =" << o.maxCLL << std::endl
+              << "maxFALL=" << o.maxFALL << std::endl;
+            if (o.sceneMax[0] > 0.F)
+            {
+                s << "sceneMax=" << o.sceneMax[0] << ", "
+                  << o.sceneMax[1] << ", "
+                  << o.sceneMax[2] << std::endl
+                  << "sceneAvg=" << o.sceneAvg << std::endl
+                  << o.ootf; // print bezier info
+            }
+            return s;
         }
     } // namespace image
 } // namespace tl
