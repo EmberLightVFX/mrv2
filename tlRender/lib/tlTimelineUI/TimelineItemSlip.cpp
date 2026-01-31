@@ -71,7 +71,8 @@ namespace tl
                     
                 }
             }
-            break;
+            default:
+                break;
             }
         }
 
@@ -94,6 +95,8 @@ namespace tl
                 p.player->setTimeline(otioTimeline);
                 break;
             }
+            default:
+                break;
             }
         }
 
