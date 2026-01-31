@@ -3,6 +3,8 @@
 // Copyright (C) 2025-Present Gonzalo Garramuño.
 // All rights reserved.
 
+#define DEBUG_TONEMAPPING 1
+
 #include <tlTimelineGL/RenderPrivate.h>
 
 #include <tlGL/GL.h>
@@ -2109,8 +2111,8 @@ namespace tl
 
 
 #if DEBUG_TONEMAPPING
-                  std:cerr << toneMapDef << std::endl
-                           << toneMap << std::endl;
+                    std::cerr << toneMapDef << std::endl
+                              << toneMap << std::endl;
 #endif
                 }
 #endif
