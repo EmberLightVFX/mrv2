@@ -312,6 +312,12 @@ namespace tl
                 std::vector<std::shared_ptr<vlk::Texture> >& textures,
                 const pl_shader_res* res);
             std::string _debugPLVar(const struct pl_shader_var& var);
+
+            void _parseVariables(std::stringstream& s,
+                                 std::size_t& currentOffset,
+                                 const struct pl_shader_res* res,
+                                 const size_t pushConstantsMaxSize);
+
 #endif
 
 #if defined(TLRENDER_OCIO)

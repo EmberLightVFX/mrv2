@@ -1186,15 +1186,35 @@ namespace tl
                     vkCmdPushConstants(p.cmd, pipelineLayout,
                                        VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                        pushData.size(), pushData.data());
-#endif
                 }
-
+#endif
             
                 fbo->beginLoadRenderPass(p.cmd);
 
                 p.shaders["display"]->bind(p.frameIndex);
                 p.shaders["display"]->setUniform("transform.mvp", oldTransform, vlk::kShaderVertex);
                 p.shaders["display"]->setFBO("textureSampler", p.buffers["video"]);
+
+#if defined(TLRENDER_LIBPLACEBO)
+                if (p.placeboData && p.placeboData->pcUBOSize > 0)
+                {
+                    std::size_t currentOffset = 0;
+                    for (const auto &shader_var : p.placeboData->pcUBOvars)
+                    {
+                        const struct pl_var var = shader_var.var;
+                        const struct pl_var_layout dst_layout = pl_std140_layout(currentOffset, &var);
+                        const struct pl_var_layout& src_layout = pl_var_host_layout(0, &var);
+
+                        memcpy_layout(p.placeboData->pcUBOData, dst_layout,
+                                      shader_var.data, src_layout);
+
+                        currentOffset = dst_layout.offset + dst_layout.size;
+                    }
+                
+                    p.shaders["display"]->setUniformData("pcUBO", p.placeboData->pcUBOData,
+                                                         p.placeboData->pcUBOSize);
+                }
+#endif
 
                 UBOLevels uboLevels;
                 uboLevels.enabled = displayOptions.levels.enabled;

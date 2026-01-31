@@ -408,7 +408,7 @@ namespace mrv
         hdr.get("hdr_data", tmp, 0);
         uiPrefs->uiPrefsHDRInfo->value(tmp);
         
-        hdr.get("tonemap_algorithm", tmp, 8);  // Hable is default, as VLC
+        hdr.get("tonemap_algorithm", tmp, 5);  // spline is default as libplacebo and mpv
         uiPrefs->uiPrefsTonemapAlgorithm->value(tmp);
         
         hdr.get("gamut_mapping", tmp, 0);  // Auto is default

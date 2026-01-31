@@ -3,7 +3,8 @@
 // Copyright (C) 2025-Present Gonzalo Garramuño.
 // All rights reserved.
 
-#define DEBUG_TONEMAPPING 1
+#define DEBUG_TONEMAPPING 0
+#define DEBUG_DISPLAY_SHADER 0
 
 #include <tlTimelineGL/RenderPrivate.h>
 
@@ -1860,8 +1861,12 @@ namespace tl
                     dst_colorspace.primaries = PL_COLOR_PRIM_BT_709;
                     dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
                     
-                    dst_colorspace.hdr.min_luma = 0.20F;
-                    dst_colorspace.hdr.max_luma = 203.0F;  // SDR peak in nits
+                    dst_colorspace.hdr.min_luma = 0.0F;
+                    
+                    // SDR peak in nits
+                    // See ITU-R Report BT.2408 for more information.
+                    // or libplacebo's colorspace.h
+                    dst_colorspace.hdr.max_luma = 203.0F;  
                     pl_color_space_infer(&dst_colorspace);
 
                     pl_color_map_args color_map_args;
@@ -1879,9 +1884,7 @@ namespace tl
                     pl_color_repr repr = pl_color_repr_unknown;
                     repr.sys = PL_COLOR_SYSTEM_RGB;
                     repr.levels = PL_COLOR_LEVELS_LIMITED;
-                    //repr.alpha = PL_ALPHA_INDEPENDENT;                
-                    repr.alpha = PL_ALPHA_PREMULTIPLIED;      
-                    // repr.alpha = PL_ALPHA_NONE;         
+                    repr.alpha = PL_ALPHA_INDEPENDENT;    
                     
                     repr.bits = bits;
                     
@@ -1975,7 +1978,11 @@ namespace tl
                             }
                         }
 
-                        s << "// Variables" << std::endl << std::endl;
+                        s << std::endl
+                          << "//" << std::endl
+                          << "// Variables" << std::endl
+                          << "//" << std::endl
+                          << std::endl;
                         for (int i = 0; i < res->num_variables; ++i)
                         {
                             const struct pl_shader_var shader_var =
@@ -2119,6 +2126,9 @@ namespace tl
                 const std::string source = displayFragmentSource(
                     ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
                     p.lutOptions.order, toneMapDef, toneMap);
+#ifdef DEBUG_DISPLAY_SHADER
+                std::cerr << source << std::endl;
+#endif
                 if (auto context = _context.lock())
                 {
                     context->log("tl::gl::GLRender", "Creating display shader");

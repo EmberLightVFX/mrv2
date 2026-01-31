@@ -117,6 +117,10 @@ namespace tl
             pl_shader shader;
             pl_shader_obj state = nullptr;
             const pl_shader_res* res = nullptr;
+
+            std::vector<pl_shader_var> pcUBOvars;
+            void* pcUBOData = nullptr;
+            size_t pcUBOSize = 0;
             std::vector<std::shared_ptr<vlk::Texture> > textures;
         };
 #endif

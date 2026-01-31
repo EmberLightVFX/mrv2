@@ -800,6 +800,9 @@ namespace tl
                 pl_shader_obj_destroy(&state);
                 state = nullptr;
             }
+            pcUBOvars.clear();
+            free(pcUBOData);
+            pcUBOSize = 0;
             pl_gpu_dummy_destroy(&gpu);
             pl_log_destroy(&log);
         }
@@ -1709,6 +1712,95 @@ namespace tl
 #endif // TLRENDER_OCIO
 
 #if defined(TLRENDER_LIBPLACEBO)
+        void Render::_parseVariables(std::stringstream& s,
+                                     std::size_t& currentOffset,
+                                     const struct pl_shader_res* res,
+                                     const std::size_t pushConstantsMaxSize)
+        {
+            TLRENDER_P();
+            
+            // Collect non-floats and floats separately to optimize push constants
+            std::vector<struct pl_shader_var> non_floats;
+            std::vector<struct pl_shader_var> floats;
+    
+            for (int i = 0; i < res->num_variables; ++i) {
+                const struct pl_shader_var shader_var = res->variables[i];
+                const struct pl_var var = shader_var.var;
+                const std::string glsl_type = pl_var_glsl_type_name(var);
+                const bool is_float = (glsl_type == "float");
+        
+                if (is_float) {
+                    floats.push_back(shader_var);
+                } else {
+                    non_floats.push_back(shader_var);
+                }
+            }
+    
+            // Combine into a grouped list: non-floats first, then floats
+            std::vector<struct pl_shader_var> all_grouped;
+            all_grouped.reserve(non_floats.size() + floats.size());
+            all_grouped.insert(all_grouped.end(), non_floats.begin(), non_floats.end());
+            all_grouped.insert(all_grouped.end(), floats.begin(), floats.end());
+    
+            // Now pack into push constants until we can't fit more
+            std::vector<struct pl_shader_var> push_vars;
+            std::vector<struct pl_shader_var> ubo_vars;
+    
+            for (const auto &shader_var : all_grouped)
+            {
+                const struct pl_var var = shader_var.var;
+                const struct pl_var_layout layout = pl_std430_layout(currentOffset, &var);
+        
+                if (layout.offset + layout.size > pushConstantsMaxSize) {
+                    ubo_vars.push_back(shader_var);
+                } else {
+                    push_vars.push_back(shader_var);
+                    currentOffset = layout.offset + layout.size;
+                }
+            }
+    
+            // Generate push constant block if there are variables for it
+            if (!push_vars.empty())
+            {
+                s << "layout(std430, push_constant) uniform PushC {\n";
+                size_t offset = 0;
+                for (const auto &shader_var : push_vars)
+                {
+                    const struct pl_var var = shader_var.var;
+                    const std::string glsl_type = pl_var_glsl_type_name(var);
+                    const struct pl_var_layout layout = pl_std430_layout(offset, &var);
+                    s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " " << var.name << ";\n";
+                    offset = layout.offset + layout.size;
+                }
+                s << "};\n";
+            }
+    
+            // Generate UBO block if there are remaining variables
+            if (!ubo_vars.empty())
+            {
+                s << "layout(std140, binding=" << p.bindingIndex++ << ") uniform pcUBO {\n";
+                size_t offset = 0;
+                for (const auto &shader_var : ubo_vars) {
+                    const struct pl_var var = shader_var.var;
+                    const std::string glsl_type = pl_var_glsl_type_name(var);
+                    const struct pl_var_layout layout = pl_std140_layout(offset, &var);
+                    s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " "
+                      << var.name << ";\n";
+                    offset = layout.offset + layout.size;
+                }
+                s << "};\n";
+
+                // Create a unifor pcUBO parameter
+                if (p.shaders["display"])
+                    p.shaders["display"]->createUniformData("pcUBO", offset);
+                p.placeboData->pcUBOData = malloc(offset);
+                p.placeboData->pcUBOSize = offset;
+                memset(p.placeboData->pcUBOData, 0, offset);
+            }
+
+            p.placeboData->pcUBOvars = ubo_vars;
+        }
+        
         void Render::_addTextures(
             std::vector<std::shared_ptr<vlk::Texture> >& textures,
             const pl_shader_res* res)
@@ -2015,8 +2107,7 @@ namespace tl
                 p.lutData->shaderDesc->setLanguage(OCIO::GPU_LANGUAGE_GLSL_4_0);
                 p.lutData->shaderDesc->setFunctionName("lutFunc");
                 p.lutData->shaderDesc->setResourcePrefix("lut");
-                p.lutData->gpuProcessor->extractGpuShaderInfo(
-                    p.lutData->shaderDesc);
+                p.lutData->gpuProcessor->extractGpuShaderInfo(p.lutData->shaderDesc);
                 try
                 {
                     _addTextures(p.lutData->textures, p.lutData->shaderDesc);
@@ -2089,9 +2180,10 @@ namespace tl
                 std::string lut;
                 std::string toneMap;
 
-                // Start of binding index
+                // Start of binding index (0 to 5 are the standard UBOs in
+                // tlRender).
                 p.bindingIndex = 6;
-                std::size_t pushOffset = 0;
+                std::size_t pushSize = 0;
 #if defined(TLRENDER_LIBPLACEBO)
                 if (p.placeboData)
                 {
@@ -2104,7 +2196,7 @@ namespace tl
             
                     pl_shader_reset(p.placeboData->shader, &shader_params);
 
-                    pl_color_map_params cmap = pl_color_map_default_params;
+                    pl_color_map_params cmap = pl_color_map_high_quality_params;
 
                     // defaults, generates LUTs if state is set.
                     cmap.gamut_mapping = &pl_gamut_map_perceptual;
@@ -2180,22 +2272,14 @@ namespace tl
                         pl_hdr_metadata& hdr = src_colorspace.hdr;
                         hdr.min_luma = data.displayMasteringLuminance.getMin();
                         hdr.max_luma = data.displayMasteringLuminance.getMax();
-                        hdr.prim.red.x =
-                            data.primaries[image::HDRPrimaries::Red][0];
-                        hdr.prim.red.y =
-                            data.primaries[image::HDRPrimaries::Red][1];
-                        hdr.prim.green.x =
-                            data.primaries[image::HDRPrimaries::Green][0];
-                        hdr.prim.green.y =
-                            data.primaries[image::HDRPrimaries::Green][1];
-                        hdr.prim.blue.x =
-                            data.primaries[image::HDRPrimaries::Blue][0];
-                        hdr.prim.blue.y =
-                            data.primaries[image::HDRPrimaries::Blue][1];
-                        hdr.prim.white.x =
-                            data.primaries[image::HDRPrimaries::White][0];
-                        hdr.prim.white.y =
-                            data.primaries[image::HDRPrimaries::White][1];
+                        hdr.prim.red.x = data.primaries[image::HDRPrimaries::Red][0];
+                        hdr.prim.red.y = data.primaries[image::HDRPrimaries::Red][1];
+                        hdr.prim.green.x = data.primaries[image::HDRPrimaries::Green][0];
+                        hdr.prim.green.y = data.primaries[image::HDRPrimaries::Green][1];
+                        hdr.prim.blue.x = data.primaries[image::HDRPrimaries::Blue][0];
+                        hdr.prim.blue.y = data.primaries[image::HDRPrimaries::Blue][1];
+                        hdr.prim.white.x = data.primaries[image::HDRPrimaries::White][0];
+                        hdr.prim.white.y = data.primaries[image::HDRPrimaries::White][1];
                         hdr.max_cll = data.maxCLL;
                         hdr.max_fall = data.maxFALL;
                         hdr.scene_max[0] = data.sceneMax[0];
@@ -2261,7 +2345,11 @@ namespace tl
                         dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
                         
                         dst_colorspace.hdr.min_luma = 0.F;
-                        dst_colorspace.hdr.max_luma = 100.0F; // SDR peak in nits
+
+                        // SDR peak in nits
+                        // See ITU-R Report BT.2408 for more information.
+                        // or libplacebo's colorspace.h
+                        dst_colorspace.hdr.max_luma = 203.F; 
 
                         if (hasHDR)
                         {
@@ -2340,24 +2428,23 @@ namespace tl
                     color_map_args.state = &(p.placeboData->state);
 
                     pl_bit_encoding bits;
-                    bits.sample_depth = 16;
+                    bits.sample_depth = 10;
                     bits.color_depth = 10;
                     bits.bit_shift = 0;
 
                     pl_color_repr repr = pl_color_repr_unknown;
                     repr.sys = PL_COLOR_SYSTEM_RGB;
                     repr.levels = PL_COLOR_LEVELS_LIMITED;
-                    repr.alpha = PL_ALPHA_NONE;                    
+                    repr.alpha = PL_ALPHA_INDEPENDENT;                    
                     repr.bits = bits;
                     
-                    // pl_shader_decode_color(p.placeboData->shader,
-                    //                        &repr, &pl_color_adjustment_neutral);
+                    pl_shader_decode_color(p.placeboData->shader,
+                                           &repr, &pl_color_adjustment_neutral);
                     
                     pl_shader_color_map_ex(p.placeboData->shader, &cmap,
                                            &color_map_args);
                     
-                    const pl_shader_res* res =
-                        pl_shader_finalize(p.placeboData->shader);
+                    const pl_shader_res* res = pl_shader_finalize(p.placeboData->shader);
                     p.placeboData->res = res;
                     if (!res)
                     {
@@ -2438,26 +2525,8 @@ namespace tl
                       << "//" << std::endl
                       << std::endl;
 
-                    s << "layout(std430, push_constant) uniform PushC {\n";
-                    for (int j = 0; j < 2; ++j)
-                    {
-                        for (int i = 0; i < res->num_variables; ++i)
-                        {
-                            const struct pl_shader_var shader_var = res->variables[i];
-                            const struct pl_var var = shader_var.var;
-                            const std::string glsl_type = pl_var_glsl_type_name(var);
-                            const struct pl_var_layout layout = pl_std430_layout(pushOffset, &var);
-                            const bool is_float = (glsl_type == "float");
-                            if (j == 0 && is_float)
-                                continue;
-                            else if (j == 1 && !is_float)
-                                continue;
-
-                            s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " " << var.name << ";\n";
-                            pushOffset = layout.offset + layout.size;
-                        }
-                    }                   
-                    s << "};\n";
+                    _parseVariables(s, pushSize, res, ctx.gpu_props.limits.maxPushConstantsSize);
+                    
                     s << std::endl
                       << "//" << std::endl
                       << "// Constants" << std::endl
@@ -2515,7 +2584,6 @@ namespace tl
                     std::cerr << "toneMap=" << std::endl
                               << toneMap
                               << std::endl;
-                    std::cerr << "pushOffset=" << pushOffset << std::endl;
 #endif
                 }
 #endif
@@ -2545,7 +2613,7 @@ namespace tl
                     ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
                     p.lutOptions.order, toneMapDef, toneMap);
 #if DEBUG_DISPLAY_SHADER
-                std::cout << source << std::endl;
+                std::cerr << source << std::endl;
 #endif
                 if (auto context = _context.lock())
                 {
@@ -2580,6 +2648,7 @@ namespace tl
                 p.shaders["display"] =
                     vlk::Shader::create(ctx, vertexSource(), source, "display");
 #endif
+
                 p.shaders["display"]->createUniform(
                     "transform.mvp", p.transform, vlk::kShaderVertex);
                 p.shaders["display"]->addFBO("textureSampler");
@@ -2601,6 +2670,7 @@ namespace tl
 
                 UBOOptions ubo;
                 p.shaders["display"]->createUniform("ubo", ubo);
+                
 #if defined(TLRENDER_LIBPLACEBO)
                 if (p.placeboData)
                 {
@@ -2626,7 +2696,28 @@ namespace tl
                     }
                 }
 #endif // TLRENDER_OCIO
-                p.shaders["display"]->createPush("libplacebo", pushOffset, vlk::kShaderFragment);
+
+#if defined(TLRENDER_LIBPLACEBO)
+                // This UBO must be added last for binding insdex to be correct.
+                if (p.placeboData && p.placeboData->pcUBOSize > 0)
+                {
+                    const size_t size = p.placeboData->pcUBOSize;
+                    p.shaders["display"]->createUniformData("pcUBO", size);
+
+                    size_t offset = 0;
+                    p.placeboData->pcUBOData = malloc(size);
+                    memset(p.placeboData->pcUBOData, 0, size);
+                    
+                    for (const auto &shader_var : p.placeboData->pcUBOvars)
+                    {
+                        const struct pl_var var = shader_var.var;
+                        const std::string glsl_type = pl_var_glsl_type_name(var);
+                        const struct pl_var_layout layout = pl_std140_layout(offset, &var);
+                        offset = layout.offset + layout.size;
+                    }
+                }
+#endif
+                p.shaders["display"]->createPush("libplacebo", pushSize, vlk::kShaderFragment);
                 
                 _createBindingSet(p.shaders["display"]);
             }

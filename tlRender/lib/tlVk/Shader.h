@@ -143,12 +143,20 @@ namespace tl
             void createUniform(
                 const std::string&, const T& value,
                 const ShaderFlags stageFlags = kShaderFragment);
+            
+            // Create uniform UBO from a size
+            inline void createUniformData(const std::string&, const size_t size,
+                                   const ShaderFlags stageFlags = kShaderFragment);
 
             //! Set and upload a uniform UBO variable
             template <typename T>
             void setUniform(
                 const std::string&, const T& value,
                 const ShaderFlags stageFlags = kShaderFragment);
+
+            // Set and upload a uniform UBO from a void* and size
+            inline void setUniformData(const std::string&, const void* data, const size_t size,
+                                       const ShaderFlags stageFlags = kShaderFragment);
             ///@}
 
             //! Add a push block.

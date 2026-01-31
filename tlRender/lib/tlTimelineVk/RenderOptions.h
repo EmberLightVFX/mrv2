@@ -29,7 +29,7 @@
 //
 // Use 1 to output tonemapping shader code.
 //
-#define DEBUG_TONEMAPPING 1
+#define DEBUG_TONEMAPPING 0
 
 //
 // Use 1 to output display shader code.

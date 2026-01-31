@@ -780,6 +780,72 @@ namespace mrv
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
+            
+            idx = menu->add(
+                _("Render/HDR Data/From File"), kHDRDataFromFile.hotkey(),
+                (Fl_Callback*)hdr_data_from_file_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (displayOptions.hdrInfo == timeline::HDRInformation::FromFile)
+                item->set();
+            
+            idx = menu->add(
+                _("Render/HDR Data/Inactive"), kHDRDataFalse.hotkey(),
+                (Fl_Callback*)hdr_data_inactive_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (displayOptions.hdrInfo == timeline::HDRInformation::Inactive)
+                item->set();
+            
+            idx = menu->add(
+                _("Render/HDR Data/Active"), kHDRDataTrue.hotkey(),
+                (Fl_Callback*)hdr_data_active_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (displayOptions.hdrInfo == timeline::HDRInformation::Active)
+                item->set();
+            
+
+            const timeline::HDROptions& hdrOptions = uiView->getHDROptions();
+            int selected = static_cast<int>(hdrOptions.algorithm);
+            
+            mode = FL_MENU_RADIO;
+            if (numFiles == 0)
+                mode |= FL_MENU_INACTIVE;
+            std::string tonemap_root = _("Render/HDR/Tonemap");
+            int tonemap = 0;
+            for (const auto& algorithm :
+                     timeline::getHDRTonemapAlgorithmLabels())
+            {
+                const std::string entry = tonemap_root + "/" + algorithm;
+                idx = menu->add(
+                    entry.c_str(), 0, (Fl_Callback*)select_hdr_tonemap_cb, ui,
+                    mode);
+                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+                if (tonemap == selected)
+                    item->set();
+                ++tonemap;
+            }
+            
+            selected = static_cast<int>(hdrOptions.gamutMapping);
+            mode = FL_MENU_RADIO;
+            if (numFiles == 0)
+                mode |= FL_MENU_INACTIVE;
+            std::string gamut_root = _("Render/HDR/Gamut Mapping");
+            int gammut = 0;
+            for (const auto& algorithm : timeline::getHDRGamutMappingLabels())
+            {
+                const std::string entry = gamut_root + "/" + algorithm;
+                idx = menu->add(
+                    entry.c_str(), 0,
+                    (Fl_Callback*)select_hdr_gamut_mapping_cb, ui,
+                    mode);
+                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+                if (gammut == selected)
+                    item->set();
+                ++gammut;
+            }
+
+            mode = FL_MENU_RADIO;
+            if (numFiles == 0)
+                mode |= FL_MENU_INACTIVE;
 
             unsigned filtering_linear = 0;
             unsigned filtering_nearest = 0;
@@ -828,8 +894,7 @@ namespace mrv
             if (displayOptions.imageFilters.magnify ==
                 timeline::ImageFilter::Linear)
                 item->set();
-
-
+            
             mode = FL_MENU_TOGGLE;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
@@ -855,75 +920,8 @@ namespace mrv
             item = (Fl_Menu_Item*)&(menu->menu()[idx]);
             if (displayOptions.ignoreChromaticities)
                 item->set();
-
-            
-            mode = FL_MENU_RADIO;
-            if (numFiles == 0)
-                mode |= FL_MENU_INACTIVE;
-            
-            idx = menu->add(
-                _("Render/HDR Data/From File"), kHDRDataFromFile.hotkey(),
-                (Fl_Callback*)hdr_data_from_file_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (displayOptions.hdrInfo == timeline::HDRInformation::FromFile)
-                item->set();
-            
-            idx = menu->add(
-                _("Render/HDR Data/Inactive"), kHDRDataFalse.hotkey(),
-                (Fl_Callback*)hdr_data_inactive_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (displayOptions.hdrInfo == timeline::HDRInformation::Inactive)
-                item->set();
-            
-            idx = menu->add(
-                _("Render/HDR Data/Active"), kHDRDataTrue.hotkey(),
-                (Fl_Callback*)hdr_data_active_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (displayOptions.hdrInfo == timeline::HDRInformation::Active)
-                item->set();
-            
-
-            const timeline::HDROptions& hdrOptions = uiView->getHDROptions();
-
-            int selected = static_cast<int>(hdrOptions.algorithm);
-            mode = FL_MENU_RADIO;
-            if (numFiles == 0)
-                mode |= FL_MENU_INACTIVE;
-            std::string tonemap_root = _("Render/HDR/Tonemap");
-            int tonemap = 0;
-            for (const auto& algorithm :
-                 timeline::getHDRTonemapAlgorithmLabels())
-            {
-                const std::string entry = tonemap_root + "/" + algorithm;
-                idx = menu->add(
-                    entry.c_str(), 0, (Fl_Callback*)select_hdr_tonemap_cb, ui,
-                    mode);
-                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-                if (tonemap == selected)
-                    item->set();
-                ++tonemap;
-            }
-            
-            selected = static_cast<int>(hdrOptions.gamutMapping);
-            mode = FL_MENU_RADIO;
-            if (numFiles == 0)
-                mode |= FL_MENU_INACTIVE;
-            std::string gamut_root = _("Render/HDR/Gamut Mapping");
-            int gammut = 0;
-            for (const auto& algorithm : timeline::getHDRGamutMappingLabels())
-            {
-                const std::string entry = gamut_root + "/" + algorithm;
-                idx = menu->add(
-                    entry.c_str(), 0,
-                    (Fl_Callback*)select_hdr_gamut_mapping_cb, ui,
-                    mode);
-                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-                if (gammut == selected)
-                    item->set();
-                ++gammut;
-            }
         }
-            
+
 
         timeline::Playback playback = timeline::Playback::Stop;
 
