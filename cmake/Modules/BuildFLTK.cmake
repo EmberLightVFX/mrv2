@@ -4,7 +4,7 @@
 
 include( ExternalProject )
 
-set(FLTK_GIT_TAG v1.5.9)  # was v1.5.6
+set(FLTK_GIT_TAG v1.6.0)  # was v1.5.6
 
 #set(FLTK_GIT_TAG vk)  # Cutting edge!
 #set(FLTK_GIT_TAG vk_merge) # Testing branch
@@ -48,10 +48,6 @@ elseif(UNIX)
     list(APPEND FLTK_CXX_FLAGS -fPIC)
 endif()
 
-set(GITHUB_REPO "$ENV{GITHUB_REPO}")
-if (NOT GITHUB_REPO STREQUAL "mrv2")
-    message(SEND_ERROR "Invalid repository")
-endif()
 
 # These two are always built by tlRender
 set(FLTK_USE_SYSTEM_ZLIB TRUE)

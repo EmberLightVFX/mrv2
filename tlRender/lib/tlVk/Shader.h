@@ -28,7 +28,7 @@ namespace tl
         enum ShaderFlags {
             kShaderVertex = 1,
             kShaderFragment = 2,
-            kShaderCompute = 3,
+            kShaderCompute = 4,
         };
 
         inline VkShaderStageFlags getVulkanShaderFlags(ShaderFlags stageFlags)
@@ -143,12 +143,20 @@ namespace tl
             void createUniform(
                 const std::string&, const T& value,
                 const ShaderFlags stageFlags = kShaderFragment);
+            
+            // Create uniform UBO from a size
+            inline void createUniformData(const std::string&, const size_t size,
+                                   const ShaderFlags stageFlags = kShaderFragment);
 
             //! Set and upload a uniform UBO variable
             template <typename T>
             void setUniform(
                 const std::string&, const T& value,
                 const ShaderFlags stageFlags = kShaderFragment);
+
+            // Set and upload a uniform UBO from a void* and size
+            inline void setUniformData(const std::string&, const void* data, const size_t size,
+                                       const ShaderFlags stageFlags = kShaderFragment);
             ///@}
 
             //! Add a push block.
@@ -162,10 +170,10 @@ namespace tl
                             const ShaderFlags stageFlags);
             
             //! Get the push stage flags.
-            VkShaderStageFlags getPushStageFlags() { return pushStageFlags; }
+            inline VkShaderStageFlags getPushStageFlags() { return pushStageFlags; }
 
             //! Get the push size.
-            std::size_t getPushSize() { return pushSize; }
+            inline std::size_t getPushSize() { return pushSize; }
 
             //! Add a textire to shader parameters.
             void addTexture(

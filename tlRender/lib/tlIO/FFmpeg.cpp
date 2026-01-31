@@ -3,6 +3,9 @@
 // Copyright (c) 2024-Present Gonzalo Garramuño
 // All rights reserved.
 
+//#define DEBUG_DYNAMIC_HDR 1
+//#define DEBUG_STATIC_HDR 1
+
 #include <tlIO/FFmpeg.h>
 
 #include <tlCore/Assert.h>
@@ -39,189 +42,64 @@ namespace tl
             "VORBIS", "PCM_S16LE");
         TLRENDER_ENUM_SERIALIZE_IMPL(AudioCodec);
 
-        AVRational swap(AVRational value)
-        {
-            return AVRational({value.den, value.num});
-        }
-
         bool
-        toHDRData(AVPacketSideData* sideData, int size, image::HDRData& hdr)
+        toHDRData(AVStream* st, image::HDRData& hdr)
         {
             bool out = false;
-            for (int i = 0; i < size; ++i)
-            {
-                switch (sideData[i].type)
-                {
-                case AV_PKT_DATA_MASTERING_DISPLAY_METADATA:
-                {
-                    out = true;
-                    auto data = reinterpret_cast<AVMasteringDisplayMetadata*>(
-                        sideData[i].data);
-                    if (data->has_luminance)
-                    {
-                        float max_luma = av_q2d(data->max_luminance);
-                        float min_luma = av_q2d(data->min_luminance);
-                        if (max_luma < 5.0F || min_luma >= max_luma)
-                            max_luma = min_luma = 0.F;
-
-                        hdr.displayMasteringLuminance =
-                            math::FloatRange(min_luma, max_luma);
-                    }
-                    if (data->has_primaries)
-                    {
-                        hdr.primaries[image::HDRPrimaries::Red].x =
-                            av_q2d(data->display_primaries[0][0]);
-                        hdr.primaries[image::HDRPrimaries::Red].y =
-                            av_q2d(data->display_primaries[0][1]);
-
-                        hdr.primaries[image::HDRPrimaries::Green].x =
-                            av_q2d(data->display_primaries[1][0]);
-                        hdr.primaries[image::HDRPrimaries::Green].y =
-                            av_q2d(data->display_primaries[1][1]);
-
-                        hdr.primaries[image::HDRPrimaries::Blue].x =
-                            av_q2d(data->display_primaries[2][0]);
-                        hdr.primaries[image::HDRPrimaries::Blue].y =
-                            av_q2d(data->display_primaries[2][1]);
-
-                        hdr.primaries[image::HDRPrimaries::White].x =
-                            av_q2d(data->white_point[0]);
-                        hdr.primaries[image::HDRPrimaries::White].y =
-                            av_q2d(data->white_point[1]);
-                    }
-                    break;
-                }
-                case AV_PKT_DATA_CONTENT_LIGHT_LEVEL:
-                {
-                    out = true;
-                    auto data = reinterpret_cast<AVContentLightMetadata*>(
-                        sideData[i].data);
-                    hdr.maxCLL = data->MaxCLL;
-                    hdr.maxFALL = data->MaxFALL;
-                    break;
-                }
-                case AV_PKT_DATA_DYNAMIC_HDR10_PLUS:
-                {
-                    out = true;
-                    auto data =
-                        reinterpret_cast<AVDynamicHDRPlus*>(sideData[i].data);
-                    if (data->application_version < 1)
-                    {
-                        const AVHDRPlusColorTransformParams* p = data->params;
-                        hdr.sceneMax[0] = 10000.F * av_q2d(p->maxscl[0]);
-                        hdr.sceneMax[1] = 10000.F * av_q2d(p->maxscl[1]);
-                        hdr.sceneMax[2] = 10000.F * av_q2d(p->maxscl[2]);
-                        hdr.sceneAvg = 10000.F * av_q2d(p->average_maxrgb);
-
-                        float histogramMax = 0.F;
-
-                        for (int i = 0;
-                             i < p->num_distribution_maxrgb_percentiles; i++)
-                        {
-                            float value =
-                                av_q2d(p->distribution_maxrgb[i].percentile);
-                            if (value > histogramMax)
-                                histogramMax = value;
-                        }
-
-                        histogramMax *= 10000.F;
-                        if (!hdr.sceneMax[0])
-                            hdr.sceneMax[0] = histogramMax;
-                        if (!hdr.sceneMax[1])
-                            hdr.sceneMax[1] = histogramMax;
-                        if (!hdr.sceneMax[2])
-                            hdr.sceneMax[2] = histogramMax;
-
-                        if (p->tone_mapping_flag == 1)
-                        {
-                            hdr.ootf.targetLuma = av_q2d(
-                                data->targeted_system_display_maximum_luminance);
-                            hdr.ootf.kneeX = av_q2d(p->knee_point_x);
-                            hdr.ootf.kneeY = av_q2d(p->knee_point_y);
-                            if (p->num_bezier_curve_anchors < 16)
-                            {
-                                hdr.ootf.numAnchors =
-                                    p->num_bezier_curve_anchors;
-                                for (int i = 0; i < hdr.ootf.numAnchors; ++i)
-                                    hdr.ootf.anchors[i] =
-                                        av_q2d(p->bezier_curve_anchors[i]);
-                            }
-                        }
-                    }
-                    break;
-                }
-                default:
-                    break;
-                }
-            }
-            return out;
-        }
-        
-        inline void *get_side_data_raw(const AVFrame *frame,
-                                       enum AVFrameSideDataType type)
-        {
-            const AVFrameSideData *sd = av_frame_get_side_data(frame, type);
-            return sd ? (void *) sd->data : NULL;
-        }
-        
-        bool
-        toHDRData(AVFrame* frame, image::HDRData& hdr)
-        {
-            bool out = false;
-            auto raw = get_side_data_raw(frame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
-            {
-                auto data = reinterpret_cast<AVMasteringDisplayMetadata*>(raw);
-                if (data)
-                {
-                    out = true;
-                    if (data->has_luminance)
-                    {
-                        float max_luma = av_q2d(data->max_luminance);
-                        float min_luma = av_q2d(data->min_luminance);
-                        if (max_luma < 5.0F || min_luma >= max_luma)
-                            max_luma = min_luma = 0.F;
-
-                        hdr.displayMasteringLuminance =
-                            math::FloatRange(min_luma, max_luma);
-                    }
-                    if (data->has_primaries)
-                    {
-                        hdr.primaries[image::HDRPrimaries::Red].x =
-                            av_q2d(data->display_primaries[0][0]);
-                        hdr.primaries[image::HDRPrimaries::Red].y =
-                            av_q2d(data->display_primaries[0][1]);
-
-                        hdr.primaries[image::HDRPrimaries::Green].x =
-                            av_q2d(data->display_primaries[1][0]);
-                        hdr.primaries[image::HDRPrimaries::Green].y =
-                            av_q2d(data->display_primaries[1][1]);
-
-                        hdr.primaries[image::HDRPrimaries::Blue].x =
-                            av_q2d(data->display_primaries[2][0]);
-                        hdr.primaries[image::HDRPrimaries::Blue].y =
-                            av_q2d(data->display_primaries[2][1]);
-
-                        hdr.primaries[image::HDRPrimaries::White].x =
-                            av_q2d(data->white_point[0]);
-                        hdr.primaries[image::HDRPrimaries::White].y =
-                            av_q2d(data->white_point[1]);
-                    }
-                }
-            }
-            raw = get_side_data_raw(frame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+            auto raw = get_stream_side_data(st, AV_PKT_DATA_MASTERING_DISPLAY_METADATA);
             if (raw)
             {
                 out = true;
-                auto data = reinterpret_cast<AVContentLightMetadata*>(raw);
+                auto data = reinterpret_cast<const AVMasteringDisplayMetadata*>(raw);
+                if (data->has_luminance)
+                {
+                    float max_luma = av_q2d(data->max_luminance);
+                    float min_luma = av_q2d(data->min_luminance);
+                    if (max_luma < 5.0F || min_luma >= max_luma)
+                        max_luma = min_luma = 0.F;
+
+                    hdr.displayMasteringLuminance =
+                        math::FloatRange(min_luma, max_luma);
+                }
+                if (data->has_primaries)
+                {
+                    hdr.primaries[image::HDRPrimaries::Red].x =
+                        av_q2d(data->display_primaries[0][0]);
+                    hdr.primaries[image::HDRPrimaries::Red].y =
+                        av_q2d(data->display_primaries[0][1]);
+
+                    hdr.primaries[image::HDRPrimaries::Green].x =
+                        av_q2d(data->display_primaries[1][0]);
+                    hdr.primaries[image::HDRPrimaries::Green].y =
+                        av_q2d(data->display_primaries[1][1]);
+                    
+                    hdr.primaries[image::HDRPrimaries::Blue].x =
+                        av_q2d(data->display_primaries[2][0]);
+                    hdr.primaries[image::HDRPrimaries::Blue].y =
+                        av_q2d(data->display_primaries[2][1]);
+
+                    hdr.primaries[image::HDRPrimaries::White].x =
+                        av_q2d(data->white_point[0]);
+                    hdr.primaries[image::HDRPrimaries::White].y =
+                        av_q2d(data->white_point[1]);
+                }
+            }
+                
+            raw = get_stream_side_data(st, AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
+            if (raw)
+            {
+                out = true;
+                auto data = reinterpret_cast<const AVContentLightMetadata*>(raw);
                 hdr.maxCLL = data->MaxCLL;
                 hdr.maxFALL = data->MaxFALL;
             }
-            raw = get_side_data_raw(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
+            
+            raw = get_stream_side_data(st, AV_PKT_DATA_DYNAMIC_HDR10_PLUS);
             if (raw)
             {
                 out = true;
-                auto data = reinterpret_cast<AVDynamicHDRPlus*>(raw);
-                if (data->application_version < 1)
+                auto data = reinterpret_cast<const AVDynamicHDRPlus*>(raw);
+                if (data->application_version < 2)
                 {
                     const AVHDRPlusColorTransformParams* p = data->params;
                     hdr.sceneMax[0] = 10000.F * av_q2d(p->maxscl[0]);
@@ -241,6 +119,7 @@ namespace tl
                     }
 
                     histogramMax *= 10000.F;
+                    
                     if (!hdr.sceneMax[0])
                         hdr.sceneMax[0] = histogramMax;
                     if (!hdr.sceneMax[1])
@@ -265,13 +144,136 @@ namespace tl
                     }
                 }
             }
-            // raw = get_side_data_raw(frame, AV_FRAME_DATA_DOVI_METADATA):
-            // if (raw)
-            // {
-                    // out = true;
-            // }
+
+#ifdef DEBUG_STATIC_HDR
+            std::cerr << "mrv2 STATIC HDR="
+                      << std::endl
+                      << hdr << std::endl;
+#endif
+
             return out;
         }
+
+        inline void *get_side_data_raw(const AVFrame *frame,
+                                       enum AVFrameSideDataType type)
+        {
+            const AVFrameSideData *sd = av_frame_get_side_data(frame, type);
+            return sd ? (void *) sd->data : NULL;
+        }
+        
+        bool
+        toHDRData(AVFrame* frame, image::HDRData& hdr)
+        {
+            bool out = false;
+            auto raw = get_side_data_raw(frame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+            if (raw)
+            {
+                auto data = reinterpret_cast<AVMasteringDisplayMetadata*>(raw);
+                out = true;
+                if (data->has_luminance)
+                {
+                    float max_luma = av_q2d(data->max_luminance);
+                    float min_luma = av_q2d(data->min_luminance);
+                    if (max_luma < 5.0F || min_luma >= max_luma)
+                        max_luma = min_luma = 0.F;
+
+                    hdr.displayMasteringLuminance =
+                        math::FloatRange(min_luma, max_luma);
+                }
+                if (data->has_primaries)
+                {
+                    hdr.primaries[image::HDRPrimaries::Red].x =
+                        av_q2d(data->display_primaries[0][0]);
+                    hdr.primaries[image::HDRPrimaries::Red].y =
+                        av_q2d(data->display_primaries[0][1]);
+                    
+                    hdr.primaries[image::HDRPrimaries::Green].x =
+                        av_q2d(data->display_primaries[1][0]);
+                    hdr.primaries[image::HDRPrimaries::Green].y =
+                        av_q2d(data->display_primaries[1][1]);
+                    
+                    hdr.primaries[image::HDRPrimaries::Blue].x =
+                        av_q2d(data->display_primaries[2][0]);
+                    hdr.primaries[image::HDRPrimaries::Blue].y =
+                        av_q2d(data->display_primaries[2][1]);
+
+                    hdr.primaries[image::HDRPrimaries::White].x =
+                        av_q2d(data->white_point[0]);
+                    hdr.primaries[image::HDRPrimaries::White].y =
+                        av_q2d(data->white_point[1]);
+                }
+            }
+        
+        raw = get_side_data_raw(frame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+        if (raw)
+        {
+            out = true;
+            auto data = reinterpret_cast<AVContentLightMetadata*>(raw);
+            hdr.maxCLL = data->MaxCLL;
+            hdr.maxFALL = data->MaxFALL;
+        }
+        raw = get_side_data_raw(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
+        if (raw)
+        {
+            out = true;
+            auto data = reinterpret_cast<AVDynamicHDRPlus*>(raw);
+            if (data->application_version < 2)
+            {
+                const AVHDRPlusColorTransformParams* p = data->params;
+                hdr.sceneMax[0] = 10000.F * av_q2d(p->maxscl[0]);
+                hdr.sceneMax[1] = 10000.F * av_q2d(p->maxscl[1]);
+                hdr.sceneMax[2] = 10000.F * av_q2d(p->maxscl[2]);
+                hdr.sceneAvg = 10000.F * av_q2d(p->average_maxrgb);
+
+                
+                float histogramMax = 0.F;
+                
+                for (int i = 0;
+                     i < p->num_distribution_maxrgb_percentiles; i++)
+                {
+                    float value = av_q2d(p->distribution_maxrgb[i].percentile);
+                    if (value > histogramMax)
+                        histogramMax = value;
+                }
+
+                histogramMax *= 10000.F;
+                if (!hdr.sceneMax[0])
+                    hdr.sceneMax[0] = histogramMax;
+                if (!hdr.sceneMax[1])
+                    hdr.sceneMax[1] = histogramMax;
+                if (!hdr.sceneMax[2])
+                    hdr.sceneMax[2] = histogramMax;
+
+                if (p->tone_mapping_flag == 1)
+                {
+                    hdr.ootf.targetLuma = av_q2d(
+                        data->targeted_system_display_maximum_luminance);
+                    hdr.ootf.kneeX = av_q2d(p->knee_point_x);
+                    hdr.ootf.kneeY = av_q2d(p->knee_point_y);
+                    if (p->num_bezier_curve_anchors < 16)
+                    {
+                        hdr.ootf.numAnchors =
+                            p->num_bezier_curve_anchors;
+                        for (int i = 0; i < hdr.ootf.numAnchors; ++i)
+                            hdr.ootf.anchors[i] =
+                                av_q2d(p->bezier_curve_anchors[i]);
+                    }
+                }
+            }
+        }
+        // Maybe in the future?  For now, we'll have to use libdovi
+        // raw = get_side_data_raw(frame, AV_FRAME_DATA_DOVI_METADATA):
+        // if (raw)
+        // {
+        // out = true;
+        // }
+
+#ifdef DEBUG_DYNAMIC_HDR
+        std::cerr << "mrv2 DYNAMIC HDR:" << std::endl
+                  << hdr << std::endl;
+#endif
+        return out;
+    }
 
         audio::DataType toAudioType(AVSampleFormat value)
         {
@@ -378,7 +380,7 @@ namespace tl
             return timecode;
         }
 
-        Packet::Packet()
+        Packet ::Packet()
         {
             p = av_packet_alloc();
         }

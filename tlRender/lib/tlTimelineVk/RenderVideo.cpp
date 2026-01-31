@@ -1156,48 +1156,65 @@ namespace tl
 #if defined(TLRENDER_LIBPLACEBO)
                     std::size_t currentOffset = 0;
                     const pl_shader_res* res = p.placeboData->res;
-                    for (int i = 0; i < res->num_variables; ++i)
+                    for (int j = 0; j < 2; ++j)
                     {
-                        const struct pl_shader_var& shader_var = res->variables[i];
-                        const struct pl_var& var = shader_var.var;
-                        const struct pl_var_layout& layout = pl_std430_layout(currentOffset, &var);
+                        for (int i = 0; i < res->num_variables; ++i)
+                        {
+                            const struct pl_shader_var& shader_var = res->variables[i];
+                            const struct pl_var& var = shader_var.var;
+                            const std::string glsl_type = pl_var_glsl_type_name(var);
+                            const bool is_float = (glsl_type == "float");
+                            if (j == 0 && is_float)
+                                continue;
+                            if (j == 1 && !is_float)
+                                continue;
                             
-                        // Handle matrix types (dim_m > 1 && dim_v > 1)
-                        if (var.dim_m > 1 && var.dim_v > 1)
-                        {
-                            // For column-major matrices, we pad each column according to layout.stride
-                            const float* src = reinterpret_cast<const float*>(shader_var.data);
-                            uint8_t* dst = pushData.data() + layout.offset;
-
-                            // Fill each column (dim_m = #columns, dim_v = #rows)
-                            for (int col = 0; col < var.dim_m; ++col)
+                            // Ensure the variable type is float-based
+                            if (var.type != PL_VAR_FLOAT)
                             {
-                                const float* src_col = src + col * var.dim_v;
-                                float* dst_col = reinterpret_cast<float*>(dst + layout.stride * col);
-                                memcpy(dst_col, src_col, sizeof(float) * var.dim_v);
+                                throw std::runtime_error("libplacebo created a variable that is not float");
                             }
+                            
+                            const struct pl_var_layout& dst_layout = pl_std430_layout(currentOffset, &var);
+                            const struct pl_var_layout& src_layout = pl_var_host_layout(0, &var);
+                            
+                            memcpy_layout(pushData.data(), dst_layout, shader_var.data, src_layout);
+                            currentOffset = dst_layout.offset + dst_layout.size;
                         }
-                        else
-                        {
-                            // Scalars, vectors, or arrays thereof — copy the block directly
-                            memcpy(pushData.data() + layout.offset, shader_var.data, layout.size);
-                        }
-
-                        currentOffset = layout.offset + layout.size;
                     }
-                        
+                    
                     vkCmdPushConstants(p.cmd, pipelineLayout,
                                        VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                        pushData.size(), pushData.data());
-#endif
                 }
-
+#endif
             
                 fbo->beginLoadRenderPass(p.cmd);
 
                 p.shaders["display"]->bind(p.frameIndex);
                 p.shaders["display"]->setUniform("transform.mvp", oldTransform, vlk::kShaderVertex);
                 p.shaders["display"]->setFBO("textureSampler", p.buffers["video"]);
+
+#if defined(TLRENDER_LIBPLACEBO)
+                if (p.placeboData && p.placeboData->pcUBOSize > 0)
+                {
+                    std::size_t currentOffset = 0;
+                    for (const auto &shader_var : p.placeboData->pcUBOvars)
+                    {
+                        const struct pl_var var = shader_var.var;
+                        const struct pl_var_layout dst_layout = pl_std140_layout(currentOffset, &var);
+                        const struct pl_var_layout& src_layout = pl_var_host_layout(0, &var);
+
+                        memcpy_layout(p.placeboData->pcUBOData, dst_layout,
+                                      shader_var.data, src_layout);
+
+                        currentOffset = dst_layout.offset + dst_layout.size;
+                    }
+                
+                    p.shaders["display"]->setUniformData("pcUBO", p.placeboData->pcUBOData,
+                                                         p.placeboData->pcUBOSize);
+                }
+#endif
 
                 UBOLevels uboLevels;
                 uboLevels.enabled = displayOptions.levels.enabled;

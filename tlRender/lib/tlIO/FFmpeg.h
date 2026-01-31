@@ -76,11 +76,25 @@ namespace tl
                                   SWS_FULL_CHR_H_INT | SWS_FULL_CHR_H_INP;
 
         //! Swap the numerator and denominator.
-        AVRational swap(AVRational);
+        inline AVRational swap(AVRational value)
+        {
+            return AVRational({value.den, value.num});
+        }
 
+        //! Retrieve packet side data.
+        inline const uint8_t *get_stream_side_data(const AVStream* st,
+                                                   enum AVPacketSideDataType type)
+        {
+            const AVPacketSideData *sd;
+            sd = av_packet_side_data_get(st->codecpar->coded_side_data,
+                                         st->codecpar->nb_coded_side_data,
+                                         type);
+            return sd ? sd->data : NULL;
+        }
+        
         //! Convert to HDR data.
         bool
-        toHDRData(AVPacketSideData* sideData, int size, image::HDRData& hdr);
+        toHDRData(AVStream*, image::HDRData&);
 
         //! Convert to HDR data.
         bool toHDRData(AVFrame*, image::HDRData&);

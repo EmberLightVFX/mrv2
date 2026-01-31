@@ -57,6 +57,7 @@ ChangeLog
 
 - Fixed some HDR clipping issues when displaying HDR content on an SDR monitor.
 - Same fix added to hdr utility.
+- Made vmrv2 and mrv2 match libplacebo's plplay output.  What a pain it was!
 - Improved emoji multipoint support and cleaned up code.
 - Fixed deleting and moving among Emoji flags.
 - Fixed a bug where Presentation mode did not cover the whole screen completely, leaving a one pixel gap to the right of the screen on Windows.
@@ -67,12 +68,18 @@ ChangeLog
 - Fixed device name on Windows and Linux which could not map the order in FLTK.
 - Added support for the .heif and .heic movie / picture formats.
 - Fixed monitor device look up on KDE Plasma not finding the right connector (it is different than GNOME).
+- Fixed HDR10+ metadata not getting passed from FFmpeg correctly on each frame.
+- Fixed levelsFunc in display shader on both backends.
+- Fixed validation error on compute flag on Vulkan backend.
+- Fixed validation error on program exit when in Presentation mode.
+- Made push constants size smaller on Vulkan backed (minor speed improvent).
+- Moved Render/HDR/HDR Data, Render/HDR/Tonemap and Render/HDR/Gamut Mapping earlier in the menu, as they will now get used more often.
+- Improved performance of Vulkan backend by compressing the push constants.  If they don't fit in your graphics card constant limits, they are split into a an UBO.  My RTX 3080 has only 256 bytes of push_constants which libplacebo now eats.
 - Upgraded OpenJPH to v0.26.0.
 
 
 v1.5.3
 ======
-
 
 ChangeLog
 ---------

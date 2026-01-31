@@ -14,7 +14,8 @@
 #
 . etc/build_dir.sh
 
-echo "BUILD_DIR=$BUILD_DIR"
+echo "This script will clear OpenUSD at $BUILD_DIR"
+ask_to_continue
 
 export INSTALL=$BUILD_DIR/install
 

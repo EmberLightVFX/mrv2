@@ -407,7 +407,7 @@ const uint Channels_Red   = 1;
 const uint Channels_Green = 2;
 const uint Channels_Blue  = 3;
 const uint Channels_Alpha = 4;
-const uint Channels_Lumma = 5;
+const uint Channels_Luma = 5;
 
 struct Levels
 {
@@ -477,9 +477,10 @@ vec4 colorFunc(vec4 value, vec3 add, mat4 m)
 vec4 levelsFunc(vec4 value, Levels data)
 {
     vec4 tmp;
-    tmp[0] = (value[0] - data.inLow) / data.inHigh;
-    tmp[1] = (value[1] - data.inLow) / data.inHigh;
-    tmp[2] = (value[2] - data.inLow) / data.inHigh;
+    float levelsRange = data.inHigh - data.inLow;
+    tmp[0] = clamp((value[0] - data.inLow) / levelsRange, 0, 1);
+    tmp[1] = clamp((value[1] - data.inLow) / levelsRange, 0, 1);
+    tmp[2] = clamp((value[2] - data.inLow) / levelsRange, 0, 1);
     if (tmp[0] >= 0.0)
         tmp[0] = pow(tmp[0], data.gamma);
     if (tmp[1] >= 0.0)
@@ -621,7 +622,7 @@ void main()
         outColor.g = outColor.a;
         outColor.b = outColor.a;
     }
-    else if (Channels_Lumma == ubo.channels)
+    else if (Channels_Luma == ubo.channels)
     {
         float t = (outColor.r + outColor.g + outColor.b) / 3.0;
         outColor.r = t;

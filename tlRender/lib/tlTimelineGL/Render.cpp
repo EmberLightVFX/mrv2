@@ -3,6 +3,9 @@
 // Copyright (C) 2025-Present Gonzalo Garramuño.
 // All rights reserved.
 
+#define DEBUG_TONEMAPPING 0
+#define DEBUG_DISPLAY_SHADER 0
+
 #include <tlTimelineGL/RenderPrivate.h>
 
 #include <tlGL/GL.h>
@@ -1859,7 +1862,11 @@ namespace tl
                     dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
                     
                     dst_colorspace.hdr.min_luma = 0.0F;
-                    dst_colorspace.hdr.max_luma = 100.0F;  // SDR peak in nits
+                    
+                    // SDR peak in nits
+                    // See ITU-R Report BT.2408 for more information.
+                    // or libplacebo's colorspace.h
+                    dst_colorspace.hdr.max_luma = 203.0F;  
                     pl_color_space_infer(&dst_colorspace);
 
                     pl_color_map_args color_map_args;
@@ -1869,6 +1876,26 @@ namespace tl
                     color_map_args.dst = dst_colorspace;
                     color_map_args.prelinearized = false;
 
+                    pl_bit_encoding bits;
+                    bits.sample_depth = 10;
+                    bits.color_depth = 10;
+                    bits.bit_shift = 0;
+
+                    pl_color_repr repr = pl_color_repr_unknown;
+                    repr.sys = PL_COLOR_SYSTEM_RGB;
+                    repr.levels = PL_COLOR_LEVELS_LIMITED;
+                    repr.alpha = PL_ALPHA_INDEPENDENT;    
+                    
+                    repr.bits = bits;
+                    
+                    pl_shader_decode_color(shader,
+                                           &repr,
+                                           &pl_color_adjustment_neutral);
+
+                    if (p.placeboData->state) {
+                        pl_shader_obj_destroy(&p.placeboData->state);
+                        p.placeboData->state = NULL;
+                    }
                     color_map_args.state = &(p.placeboData->state);
                     
                     pl_shader_color_map_ex(shader, &cmap, &color_map_args);
@@ -1951,7 +1978,11 @@ namespace tl
                             }
                         }
 
-                        s << "// Variables" << std::endl << std::endl;
+                        s << std::endl
+                          << "//" << std::endl
+                          << "// Variables" << std::endl
+                          << "//" << std::endl
+                          << std::endl;
                         for (int i = 0; i < res->num_variables; ++i)
                         {
                             const struct pl_shader_var shader_var =
@@ -2082,13 +2113,22 @@ namespace tl
                     s << "outColor = " << res->name << "(outColor);"
                       << std::endl;
                     toneMap = s.str();
-
+                    
                     pl_shader_free(&shader);
+
+
+#if DEBUG_TONEMAPPING
+                    std::cerr << toneMapDef << std::endl
+                              << toneMap << std::endl;
+#endif
                 }
 #endif
                 const std::string source = displayFragmentSource(
                     ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
                     p.lutOptions.order, toneMapDef, toneMap);
+#ifdef DEBUG_DISPLAY_SHADER
+                std::cerr << source << std::endl;
+#endif
                 if (auto context = _context.lock())
                 {
                     context->log("tl::gl::GLRender", "Creating display shader");

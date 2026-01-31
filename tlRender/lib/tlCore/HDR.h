@@ -29,12 +29,12 @@ namespace tl
 
         //! Bezier curve for HDR metadata
         struct HDRBezier
-        {
-            float targetLuma = 100.F;
-            float kneeX = 0.5F;
-            float kneeY = 0.5F;
-            uint8_t numAnchors = 0;
+        { 
+            float targetLuma = 0.F;
+            float kneeX = 0.F;
+            float kneeY = 0.F;
             float anchors[15];
+            uint8_t numAnchors = 0;
 
             bool operator==(const HDRBezier&) const;
             bool operator!=(const HDRBezier&) const;
@@ -69,7 +69,7 @@ namespace tl
                 math::FloatRange(0.F, 1000.F);
             float maxCLL = 1000.F;
             float maxFALL = 400.F;
-
+            
             //! HDR10+ Metadata
             float sceneMax[3] = {0.F, 0.F, 0.F};
             float sceneAvg = 0.F;
