@@ -180,28 +180,6 @@ namespace tl
                     hdr.displayMasteringLuminance =
                         math::FloatRange(min_luma, max_luma);
                 }
-                if (data->has_primaries)
-                {
-                    hdr.primaries[image::HDRPrimaries::Red].x =
-                        av_q2d(data->display_primaries[0][0]);
-                    hdr.primaries[image::HDRPrimaries::Red].y =
-                        av_q2d(data->display_primaries[0][1]);
-                    
-                    hdr.primaries[image::HDRPrimaries::Green].x =
-                        av_q2d(data->display_primaries[1][0]);
-                    hdr.primaries[image::HDRPrimaries::Green].y =
-                        av_q2d(data->display_primaries[1][1]);
-                    
-                    hdr.primaries[image::HDRPrimaries::Blue].x =
-                        av_q2d(data->display_primaries[2][0]);
-                    hdr.primaries[image::HDRPrimaries::Blue].y =
-                        av_q2d(data->display_primaries[2][1]);
-
-                    hdr.primaries[image::HDRPrimaries::White].x =
-                        av_q2d(data->white_point[0]);
-                    hdr.primaries[image::HDRPrimaries::White].y =
-                        av_q2d(data->white_point[1]);
-                }
             }
         
         raw = get_side_data_raw(frame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);

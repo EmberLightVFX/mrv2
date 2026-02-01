@@ -57,7 +57,7 @@ namespace tl
 
         namespace
         {   
-        
+            
             void setPrimariesFromAVColorPrimaries(int ffmpegPrimaries,
                                                   image::HDRData& hdrData)
             {
@@ -946,18 +946,17 @@ namespace tl
                     _tags["Video Speed"] = ss.str();
                 }
 
-                image::HDRData hdrData;
-                bool hasHDR = toHDRData(avVideoStream, hdrData);
-                hdrData.eotf = toEOTF(_avColorTRC);
-                if (hdrData.eotf != image::EOTF_BT709 &&
-                    hdrData.eotf != image::EOTF_BT601)
+                bool hasHDR = toHDRData(avVideoStream, _hdr);
+                _hdr.eotf = toEOTF(_avColorTRC);
+                if (_hdr.eotf != image::EOTF_BT709 &&
+                    _hdr.eotf != image::EOTF_BT601)
                 {
                     hasHDR = true;
                     setPrimariesFromAVColorPrimaries(params->color_primaries,
-                                                     hdrData);
+                                                     _hdr);
                 }
                 if (hasHDR)
-                    _tags["hdr"] = nlohmann::json(hdrData).dump();
+                    _tags["hdr"] = nlohmann::json(_hdr).dump();
             }
         }
 
@@ -1407,17 +1406,16 @@ namespace tl
                         tags[tag->key] = tag->value;
                     }
                     
-                    image::HDRData hdrData;
-                    hdrData.eotf = toEOTF(_avColorTRC);
-                    if (hdrData.eotf != image::EOTF_BT709 &&
-                        hdrData.eotf != image::EOTF_BT601)
+                    if (_hdr.eotf != image::EOTF_BT709 &&
+                        _hdr.eotf != image::EOTF_BT601)
                     {
                         const auto params = _avCodecParameters[_avStream];
-                        setPrimariesFromAVColorPrimaries(
-                            params->color_primaries, hdrData);
-                        bool hasHDR = toHDRData(_avFrame, hdrData);
+                        setPrimariesFromAVColorPrimaries(_avFrame->color_primaries,
+                                                         _hdr);
+                        _hdr.eotf = toEOTF(_avFrame->color_trc);
+                        bool hasHDR = toHDRData(_avFrame, _hdr);
                         if (hasHDR)
-                            tags["hdr"] = nlohmann::json(hdrData).dump();
+                            tags["hdr"] = nlohmann::json(_hdr).dump();
                     }
                     image->setTags(tags);
                     

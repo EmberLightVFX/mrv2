@@ -89,6 +89,7 @@ namespace tl
             std::string _fileName;
             Options _options;
             image::Info _info;
+            image::HDRData _hdr;
             otime::TimeRange _timeRange = time::invalidTimeRange;
             image::Tags _tags;
             float _rotation = 0.F;
