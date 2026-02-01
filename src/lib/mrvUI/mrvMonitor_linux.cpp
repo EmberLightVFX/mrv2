@@ -25,6 +25,7 @@ namespace fs = std::filesystem;
 
 namespace
 {
+    
     std::string remove_card_prefix(std::string name) {
         // 1. Remove the "cardX-" prefix
         // Matches "card" followed by digits and a dash at the start of the string
@@ -155,6 +156,7 @@ namespace mrv
             HDRCapabilities out;
             const std::string drm_path = "/sys/class/drm/";
 
+
             std::vector<std::string> connections;
             
             for (const auto& card_entry : fs::directory_iterator(drm_path)) {
@@ -185,9 +187,19 @@ namespace mrv
                             normalized != target_connector) continue;
                         
                         std::ifstream status_file(conn_entry.path() / "status");
+                        if (!status_file.is_open())
+                        {
+                            LOG_ERROR("Failed to open "
+                                      << (conn_entry.path() / "status"));
+                            continue;
+                        }
                         std::string status;
                         status_file >> status;
-                        if (status != "connected") continue;
+                        if (status != "connected")
+                        {
+                            LOG_ERROR("Target connector " << target_connector << " is not connected");
+                            continue;
+                        }
                         
                         // 3. Read EDID and Parse
                         std::ifstream edid_file(conn_entry.path() / "edid", std::ios::binary);

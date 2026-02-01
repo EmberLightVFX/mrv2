@@ -9,6 +9,15 @@
 
 #include "mrvUI/mrvMonitor.h"
 
+#include "mrvFl/mrvIO.h"
+
+
+namespace
+{
+    const char* kModule = "mntr";
+}
+
+
 #ifdef _WIN32
 #    include "mrvUI/mrvMonitor_win32.cpp"
 #endif
@@ -33,10 +42,6 @@ extern "C" {
 #undef None
 #include "mrvFl/mrvIO.h"
 
-namespace
-{
-    const char* kModule = "monitor";
-}
 
 namespace mrv
 {
@@ -168,7 +173,7 @@ namespace mrv
 
             // Check for HDR presence (supported if any HDR-related EOTF is true)
             bool has_hdr = hdr->traditional_hdr || hdr->pq || hdr->hlg || hdr->type1;
-
+            
             out.supported = has_hdr;
             
             // Retrieve min and max nits (0.0 if unset)
