@@ -2126,7 +2126,7 @@ namespace tl
                 const std::string source = displayFragmentSource(
                     ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
                     p.lutOptions.order, toneMapDef, toneMap);
-#ifdef DEBUG_DISPLAY_SHADER
+#if DEBUG_DISPLAY_SHADER
                 std::cerr << source << std::endl;
 #endif
                 if (auto context = _context.lock())

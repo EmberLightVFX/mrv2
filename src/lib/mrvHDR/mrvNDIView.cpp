@@ -1390,7 +1390,7 @@ void main() {
             else
             {
                 p.hdrCapabilities.min_nits = 0.F;
-                p.hdrCapabilities.max_nits = 100.F;
+                p.hdrCapabilities.max_nits = 203.F;
             }
 #else
             p.hdrMonitorFound = false;
@@ -1827,21 +1827,12 @@ void main() {
         }
         else
         {
-            cmap.lut3d_size[0] = 48;
-            cmap.lut3d_size[1] = 32;
-            cmap.lut3d_size[2] = 256;
-            cmap.lut_size = 256;
-            cmap.visualize_rect.x0 = 0;
-            cmap.visualize_rect.y0 = 0;
-            cmap.visualize_rect.x1 = 1;
-            cmap.visualize_rect.y1 = 1;
-            cmap.contrast_smoothness = 3.5f;
 
             dst_colorspace.primaries = PL_COLOR_PRIM_BT_709;
             dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
 
             dst_colorspace.hdr.min_luma = 0.F;
-            dst_colorspace.hdr.max_luma = 100.0F; // SDR peak
+            dst_colorspace.hdr.max_luma = 203.0F; // SDR peak
                             
             if (p.hasHDR)
                 cmap.tone_mapping_function = &pl_tone_map_hable;
