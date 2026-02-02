@@ -14,13 +14,6 @@ if(APPLE)
     message(STATUS "-------------------------------------------------")
 endif()
 
-#
-# Turn on optimizations for all code under Linux, including static libraries.
-#
-if (UNIX AND NOT APPLE)
-    set(CMAKE_C_FLAGS "-O3 -flto -fno-math-errno -fno-trapping-math -DNDEBUG")
-    set(CMAKE_CXX_FLAGS "-O3 -flto -fno-math-errno -fno-trapping-math -DNDEBUG")
-endif()
 
 #
 # Sanity checks
