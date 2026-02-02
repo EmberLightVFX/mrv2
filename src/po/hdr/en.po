@@ -195,14 +195,17 @@ msgstr "Quit hdr"
 msgid "HDR monitor found."
 msgstr "HDR monitor found."
 
+msgid "HDR monitor not found or not configured."
+msgstr "HDR monitor not found or not configured."
+
+msgid "Could not determine monitor's nits."
+msgstr "Could not determine monitor's nits."
+
 msgid "HDR monitor min. nits = {0}"
 msgstr "HDR monitor min. nits = {0}"
 
 msgid "HDR monitor max. nits = {0}"
 msgstr "HDR monitor max. nits = {0}"
-
-msgid "HDR monitor not found or not configured."
-msgstr "HDR monitor not found or not configured."
 
 msgid "Connection/"
 msgstr "Connection/"

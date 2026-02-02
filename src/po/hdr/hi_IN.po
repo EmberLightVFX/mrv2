@@ -194,14 +194,17 @@ msgstr "hdr से बाहर निकलें"
 msgid "HDR monitor found."
 msgstr "HDR मॉनिटर मिला।"
 
+msgid "HDR monitor not found or not configured."
+msgstr "HDR मॉनिटर नहीं मिला या कॉन्फ़िगर नहीं किया गया है।"
+
+msgid "Could not determine monitor's nits."
+msgstr "मॉनिटर की निट्स निर्धारित नहीं की जा सकीं।"
+
 msgid "HDR monitor min. nits = {0}"
 msgstr "HDR मॉनिटर की न्यूनतम ब्राइटनेस (निट्स) = {0}"
 
 msgid "HDR monitor max. nits = {0}"
 msgstr "HDR मॉनिटर की अधिकतम ब्राइटनेस (निट्स) = {0}"
-
-msgid "HDR monitor not found or not configured."
-msgstr "HDR मॉनिटर नहीं मिला या कॉन्फ़िगर नहीं किया गया है।"
 
 msgid "Connection/"
 msgstr "कनेक्शन/"
