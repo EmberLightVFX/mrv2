@@ -2184,7 +2184,7 @@ namespace mrv
         if (!p.activeFiles.empty() && isRunning() && p.player)
         {
             p.activeFiles[0]->speed = p.player->speed();
-            // p.activeFiles[0]->playback = p.player->playback();
+            p.activeFiles[0]->playback = p.player->playback();
             p.activeFiles[0]->loop = p.player->loop();
             p.activeFiles[0]->currentTime = p.player->currentTime();
             p.activeFiles[0]->inOutRange = p.player->inOutRange();
