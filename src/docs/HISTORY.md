@@ -76,6 +76,7 @@ ChangeLog
 - Made push constants size smaller on Vulkan backed (minor speed improvent).
 - Moved Render/HDR/HDR Data, Render/HDR/Tonemap and Render/HDR/Gamut Mapping earlier in the menu, as they will now get used more often.
 - Improved performance of Vulkan backend by compressing the push constants.  If they don't fit in your graphics card constant limits, they are split into a an UBO.  My RTX 3080 has only 256 bytes of push_constants which libplacebo now eats.
+- Fixed playback when switching clips always playing them even if they had been stopped.
 - Upgraded FLTK to v1.6.1.
 - Upgraded OpenJPH to v0.26.0.
 
