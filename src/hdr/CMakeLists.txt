@@ -55,9 +55,18 @@ endif()
 add_executable(hdr WIN32 ${SOURCES} ${HEADERS})
 target_include_directories(hdr BEFORE PRIVATE . )
 target_link_libraries(hdr PUBLIC ${LIBRARIES} PRIVATE ${LIBRARIES_PRIVATE})
+
+if(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+        set(HOMEBREW_PREFIX "/opt/homebrew")
+    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        set(HOMEBREW_PREFIX "/usr/local")
+    endif()
+endif()
 target_link_directories(hdr
     BEFORE
-    PUBLIC ${CMAKE_INSTALL_PREFIX}/lib /opt/homebrew/lib /usr/local/lib )
+    PUBLIC ${CMAKE_INSTALL_PREFIX}/lib ${HOMEBREW_PREFIX}/lib)
+
 
 install(TARGETS hdr
     RUNTIME DESTINATION bin COMPONENT applications

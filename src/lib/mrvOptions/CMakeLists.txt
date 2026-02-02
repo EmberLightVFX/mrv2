@@ -27,9 +27,12 @@ set(SOURCES
     mrvLUTOptions.cpp
     mrvStereo3DOptions.cpp
     mrvTimelineItemOptions.cpp
-    mrvUSD.cpp
-    mrvUSDInline.cpp
 )
+
+if(TLRENDER_USD)
+    list(APPEND SOURCES mrvUSD.cpp mrvUSDInline.cpp)
+    list(APPEND HEADERS mrvUSD.h)
+endif()
 
 add_library(mrvOptions ${SOURCES} ${HEADERS})
 files_to_absolute_paths()
