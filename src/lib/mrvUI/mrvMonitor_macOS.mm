@@ -5,11 +5,16 @@
 #include <string>
 #include <vector>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #import <Foundation/Foundation.h>
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <IOKit/graphics/IOGraphicsLib.h>
 #import <IOKit/IOKitLib.h>
+
+#pragma clang diagnostic pop
 
 #import <iostream>
 #import <string>
