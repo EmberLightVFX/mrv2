@@ -2438,8 +2438,8 @@ namespace tl
                     repr.alpha = PL_ALPHA_INDEPENDENT;                    
                     repr.bits = bits;
                     
-                    pl_shader_decode_color(p.placeboData->shader,
-                                           &repr, &pl_color_adjustment_neutral);
+                    // pl_shader_decode_color(p.placeboData->shader,
+                    //                        &repr, &pl_color_adjustment_neutral);
                     
                     pl_shader_color_map_ex(p.placeboData->shader, &cmap,
                                            &color_map_args);

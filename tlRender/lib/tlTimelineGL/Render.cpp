@@ -1876,22 +1876,6 @@ namespace tl
                     color_map_args.dst = dst_colorspace;
                     color_map_args.prelinearized = false;
 
-                    pl_bit_encoding bits;
-                    bits.sample_depth = 10;
-                    bits.color_depth = 10;
-                    bits.bit_shift = 0;
-
-                    pl_color_repr repr = pl_color_repr_unknown;
-                    repr.sys = PL_COLOR_SYSTEM_RGB;
-                    repr.levels = PL_COLOR_LEVELS_LIMITED;
-                    repr.alpha = PL_ALPHA_INDEPENDENT;    
-                    
-                    repr.bits = bits;
-                    
-                    pl_shader_decode_color(shader,
-                                           &repr,
-                                           &pl_color_adjustment_neutral);
-
                     if (p.placeboData->state) {
                         pl_shader_obj_destroy(&p.placeboData->state);
                         p.placeboData->state = NULL;

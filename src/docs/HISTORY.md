@@ -57,7 +57,7 @@ ChangeLog
 
 - Fixed some HDR clipping issues when displaying HDR content on an SDR monitor.
 - Same fix added to hdr utility.
-- Made vmrv2 and mrv2 match libplacebo's plplay output.  What a pain it was!
+- Made vmrv2 and mrv2 match libplacebo's plplay output, without hdr peak detection.
 - Improved emoji multipoint support and cleaned up code.
 - Fixed deleting and moving among Emoji flags.
 - Fixed a bug where Presentation mode did not cover the whole screen completely, leaving a one pixel gap to the right of the screen on Windows.
