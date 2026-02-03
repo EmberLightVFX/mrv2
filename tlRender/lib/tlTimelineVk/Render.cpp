@@ -2389,62 +2389,6 @@ namespace tl
                     }
 
                     pl_color_space_infer(&dst_colorspace);
-
-                    if (hasHDR)
-                    {
-                        switch (p.hdrOptions.algorithm)
-                        {
-                        case timeline::HDRTonemapAlgorithm::kNone:
-                            cmap.tone_mapping_function = nullptr;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Clip:
-                            break;
-                        case timeline::HDRTonemapAlgorithm::ST2094_10:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_st2094_10;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::BT2390:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_bt2390;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::BT2446A:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_bt2446a;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Spline:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_spline;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Reinhard:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_reinhard;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Mobius:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_mobius;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Hable:
-                            cmap.tone_mapping_function = &pl_tone_map_hable;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Gamma:
-                            cmap.tone_mapping_function = &pl_tone_map_gamma;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Linear:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_linear;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::LinearLight:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_linear_light;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::ST2094_40:
-                            cmap.tone_mapping_function =
-                                &pl_tone_map_st2094_40;
-                            break;
-                        default:
-                            break;
-                        }
-                    }
                         
                     pl_color_map_args color_map_args;
                     memset(&color_map_args, 0, sizeof(pl_color_map_args));
