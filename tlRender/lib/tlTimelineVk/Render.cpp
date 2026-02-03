@@ -2198,41 +2198,7 @@ namespace tl
 
                     pl_color_map_params cmap = pl_color_map_high_quality_params;
 
-                    // defaults, generates LUTs if state is set.
-                    cmap.gamut_mapping = &pl_gamut_map_perceptual;
-                    switch (p.hdrOptions.gamutMapping)
-                    {
-                    case timeline::HDRGamutMapping::Clip:
-                        cmap.gamut_mapping = &pl_gamut_map_clip;
-                        break;
-                    case timeline::HDRGamutMapping::Perceptual:
-                        cmap.gamut_mapping = &pl_gamut_map_perceptual;
-                        break;
-                    case timeline::HDRGamutMapping::Relative:
-                        cmap.gamut_mapping = &pl_gamut_map_relative;
-                        break;
-                    case timeline::HDRGamutMapping::Saturation:
-                        cmap.gamut_mapping = &pl_gamut_map_saturation;
-                        break;
-                    case timeline::HDRGamutMapping::Absolute:
-                        cmap.gamut_mapping = &pl_gamut_map_absolute;
-                        break;
-                    case timeline::HDRGamutMapping::Desaturate:
-                        cmap.gamut_mapping = &pl_gamut_map_desaturate;
-                        break;
-                    case timeline::HDRGamutMapping::Darken:
-                        cmap.gamut_mapping = &pl_gamut_map_darken;
-                        break;
-                    case timeline::HDRGamutMapping::Highlight:
-                        cmap.gamut_mapping = &pl_gamut_map_highlight;
-                        break;
-                    case timeline::HDRGamutMapping::Linear:
-                        cmap.gamut_mapping = &pl_gamut_map_linear;
-                        break;
-                    default:
-                        break;
-                    }
-
+                    cmap.gamut_mapping = nullptr;
                     cmap.tone_mapping_function = nullptr;
 
                     const image::HDRData& data = p.hdrOptions.hdrData;
@@ -2241,6 +2207,9 @@ namespace tl
                     memset(&src_colorspace, 0, sizeof(pl_color_space));
 
                     bool hasHDR = false;
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+                    src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                    
                     switch (data.eotf)
                     {
                     case image::EOTFType::EOTF_BT2100_PQ: // PQ (HDR10)
@@ -2267,6 +2236,85 @@ namespace tl
 
                     if (hasHDR)
                     {
+                        // defaults, generates LUTs if state is set.
+                        cmap.gamut_mapping = &pl_gamut_map_perceptual;
+                        switch (p.hdrOptions.gamutMapping)
+                        {
+                        case timeline::HDRGamutMapping::Clip:
+                            cmap.gamut_mapping = &pl_gamut_map_clip;
+                            break;
+                        case timeline::HDRGamutMapping::Perceptual:
+                            cmap.gamut_mapping = &pl_gamut_map_perceptual;
+                            break;
+                        case timeline::HDRGamutMapping::Relative:
+                            cmap.gamut_mapping = &pl_gamut_map_relative;
+                            break;
+                        case timeline::HDRGamutMapping::Saturation:
+                            cmap.gamut_mapping = &pl_gamut_map_saturation;
+                            break;
+                        case timeline::HDRGamutMapping::Absolute:
+                            cmap.gamut_mapping = &pl_gamut_map_absolute;
+                            break;
+                        case timeline::HDRGamutMapping::Desaturate:
+                            cmap.gamut_mapping = &pl_gamut_map_desaturate;
+                            break;
+                        case timeline::HDRGamutMapping::Darken:
+                            cmap.gamut_mapping = &pl_gamut_map_darken;
+                            break;
+                        case timeline::HDRGamutMapping::Highlight:
+                            cmap.gamut_mapping = &pl_gamut_map_highlight;
+                            break;
+                        case timeline::HDRGamutMapping::Linear:
+                            cmap.gamut_mapping = &pl_gamut_map_linear;
+                            break;
+                        default:
+                            break;
+                        }
+                    
+
+                        switch (p.hdrOptions.algorithm)
+                        {
+                        case timeline::HDRTonemapAlgorithm::kNone:
+                            cmap.tone_mapping_function = nullptr;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Clip:
+                            break;
+                        case timeline::HDRTonemapAlgorithm::ST2094_10:
+                            cmap.tone_mapping_function = &pl_tone_map_st2094_10;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::BT2390:
+                            cmap.tone_mapping_function = &pl_tone_map_bt2390;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::BT2446A:
+                            cmap.tone_mapping_function = &pl_tone_map_bt2446a;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Spline:
+                            cmap.tone_mapping_function = &pl_tone_map_spline;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Reinhard:
+                            cmap.tone_mapping_function = &pl_tone_map_reinhard;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Mobius:
+                            cmap.tone_mapping_function = &pl_tone_map_mobius;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Hable:
+                            cmap.tone_mapping_function = &pl_tone_map_hable;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Gamma:
+                            cmap.tone_mapping_function = &pl_tone_map_gamma;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Linear:
+                            cmap.tone_mapping_function = &pl_tone_map_linear;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::LinearLight:
+                            cmap.tone_mapping_function = &pl_tone_map_linear_light;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::ST2094_40:
+                        default:
+                            cmap.tone_mapping_function = &pl_tone_map_st2094_40;
+                            break;
+                        }
+                        
                         cmap.metadata = PL_HDR_METADATA_ANY;
 
                         pl_hdr_metadata& hdr = src_colorspace.hdr;
@@ -2292,11 +2340,11 @@ namespace tl
                         hdr.ootf.num_anchors = data.ootf.numAnchors;
                         for (int i = 0; i < hdr.ootf.num_anchors; i++)
                             hdr.ootf.anchors[i] = data.ootf.anchors[i];
-                    }
+                    }  // hasHDR
                     else
                     {
-                        src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
-                        src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                        cmap.gamut_mapping = nullptr;
+                        cmap.tone_mapping_function = nullptr;
                     }
 
                     pl_color_space_infer(&src_colorspace);
@@ -2326,18 +2374,6 @@ namespace tl
                         {
                             dst_colorspace.transfer = PL_COLOR_TRC_PQ;
                         }
-
-                        // For SDR content on HDR monitor, enable tone mapping
-                        // to fit SDR into HDR
-                        if (!hasHDR)
-                        {
-                            cmap.tone_mapping_function = &pl_tone_map_st2094_40;
-                            cmap.metadata = PL_HDR_METADATA_NONE; // Simplify
-                        }
-                        else
-                        {
-                            cmap.tone_mapping_function = &pl_tone_map_spline;
-                        }
                     }
                     else
                     {
@@ -2350,70 +2386,66 @@ namespace tl
                         // See ITU-R Report BT.2408 for more information.
                         // or libplacebo's colorspace.h
                         dst_colorspace.hdr.max_luma = 203.F; 
-
-                        if (hasHDR)
-                        {
-                            switch (p.hdrOptions.algorithm)
-                            {
-                            case timeline::HDRTonemapAlgorithm::kNone:
-                                cmap.tone_mapping_function = nullptr;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Clip:
-                                break;
-                            case timeline::HDRTonemapAlgorithm::ST2094_10:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_st2094_10;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::BT2390:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_bt2390;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::BT2446A:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_bt2446a;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Spline:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_spline;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Reinhard:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_reinhard;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Mobius:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_mobius;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Hable:
-                                cmap.tone_mapping_function = &pl_tone_map_hable;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Gamma:
-                                cmap.tone_mapping_function = &pl_tone_map_gamma;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::Linear:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_linear;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::LinearLight:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_linear_light;
-                                break;
-                            case timeline::HDRTonemapAlgorithm::ST2094_40:
-                                cmap.tone_mapping_function =
-                                    &pl_tone_map_st2094_40;
-                                break;
-                            default:
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            cmap.tone_mapping_function = &pl_tone_map_hable;
-                        }
                     }
 
                     pl_color_space_infer(&dst_colorspace);
 
+                    if (hasHDR)
+                    {
+                        switch (p.hdrOptions.algorithm)
+                        {
+                        case timeline::HDRTonemapAlgorithm::kNone:
+                            cmap.tone_mapping_function = nullptr;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Clip:
+                            break;
+                        case timeline::HDRTonemapAlgorithm::ST2094_10:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_st2094_10;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::BT2390:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_bt2390;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::BT2446A:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_bt2446a;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Spline:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_spline;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Reinhard:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_reinhard;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Mobius:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_mobius;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Hable:
+                            cmap.tone_mapping_function = &pl_tone_map_hable;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Gamma:
+                            cmap.tone_mapping_function = &pl_tone_map_gamma;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::Linear:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_linear;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::LinearLight:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_linear_light;
+                            break;
+                        case timeline::HDRTonemapAlgorithm::ST2094_40:
+                            cmap.tone_mapping_function =
+                                &pl_tone_map_st2094_40;
+                            break;
+                        default:
+                            break;
+                        }
+                    }
+                        
                     pl_color_map_args color_map_args;
                     memset(&color_map_args, 0, sizeof(pl_color_map_args));
 
@@ -2426,7 +2458,7 @@ namespace tl
                         p.placeboData->state = NULL;
                     }
                     color_map_args.state = &(p.placeboData->state);
-
+                    
                     pl_shader_color_map_ex(p.placeboData->shader, &cmap,
                                            &color_map_args);
                     

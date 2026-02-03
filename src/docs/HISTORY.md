@@ -65,11 +65,13 @@ ChangeLog
 - Added translations to hdr utility and license_helper.
 - Fixed parsing EDID on Linux which could mis-detect HDR monitor.
 - Fixed detecting HDR on Linux under Wayland correctly, even on multiple monitor setups.
+- Improved Vulkan performance slightly when playing HDR video.
 - Fixed device name on Windows and Linux which could not map the order in FLTK.
 - Added support for the .heif and .heic movie / picture formats.
 - Fixed monitor device look up on KDE Plasma not finding the right connector (it is different than GNOME).
 - Fixed HDR10+ metadata not getting passed from FFmpeg correctly on each frame.
-- Fixed HDR EOTF and primaries not getting passed from FFmpeg correctly on each frame.
+- Fixed HDR EOTF and primaries not getting passed from FFmpeg correctly on each frame.HDR
+- HDR tone mapping algorithm was not allowed to be changed on HDR monitors on the Vulkan backend.  Fixed.
 - Fixed levelsFunc in display shader on both backends.
 - Fixed validation error on compute flag on Vulkan backend.
 - Fixed validation error on program exit when in Presentation mode.
