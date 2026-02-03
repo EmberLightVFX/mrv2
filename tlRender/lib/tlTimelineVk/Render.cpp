@@ -2427,20 +2427,6 @@ namespace tl
                     }
                     color_map_args.state = &(p.placeboData->state);
 
-                    pl_bit_encoding bits;
-                    bits.sample_depth = 10;
-                    bits.color_depth = 10;
-                    bits.bit_shift = 0;
-
-                    pl_color_repr repr = pl_color_repr_unknown;
-                    repr.sys = PL_COLOR_SYSTEM_RGB;
-                    repr.levels = PL_COLOR_LEVELS_LIMITED;
-                    repr.alpha = PL_ALPHA_INDEPENDENT;                    
-                    repr.bits = bits;
-                    
-                    // pl_shader_decode_color(p.placeboData->shader,
-                    //                        &repr, &pl_color_adjustment_neutral);
-                    
                     pl_shader_color_map_ex(p.placeboData->shader, &cmap,
                                            &color_map_args);
                     
