@@ -78,7 +78,7 @@ jobs:
         id: cache-vulkan-sdk
         uses: actions/cache@v4
         with:
-          path: C:\VulkanSDK
+          path: VulkanSDK-*
           key: ${{ runner.os }}-vulkan-sdk-1.3
 
       # Install Vulkan SDK
@@ -91,18 +91,22 @@ jobs:
 
       # Set Vulkan environment variables (always, even if cached)
       - name: Set Vulkan environment variables
-        shell: bash
         run: |
-          # Find Vulkan SDK installation
-          if [ -d "C:/VulkanSDK" ]; then
-            VULKAN_VERSION=$(ls -1 C:/VulkanSDK | head -1)
-            echo "WINDOWS_VULKAN_SDK=C:/VulkanSDK/$VULKAN_VERSION" >> $GITHUB_ENV
-            echo "VULKAN_SDK=C:/VulkanSDK/$VULKAN_VERSION" >> $GITHUB_ENV
-            echo "C:/VulkanSDK/$VULKAN_VERSION/bin" >> $GITHUB_PATH
-            echo "VK_LAYER_PATH=C:/VulkanSDK/$VULKAN_VERSION/lib" >> $GITHUB_ENV
-            echo "Vulkan SDK configured: C:/VulkanSDK/$VULKAN_VERSION"
+          # Find Vulkan SDK installation in workspace
+          VULKAN_DIR=$(find . -maxdepth 1 -type d -name "VulkanSDK-*" | head -1)
+
+          if [ -n "$VULKAN_DIR" ] && [ -d "$VULKAN_DIR" ]; then
+            # Convert to Windows path for WINDOWS_VULKAN_SDK
+            WINDOWS_PATH=$(cygpath -w "$VULKAN_DIR")
+            
+            echo "VULKAN_SDK=$VULKAN_DIR" >> $GITHUB_ENV
+            echo "WINDOWS_VULKAN_SDK=$WINDOWS_PATH" >> $GITHUB_ENV
+            echo "$VULKAN_DIR/bin" >> $GITHUB_PATH
+            echo "VK_LAYER_PATH=$VULKAN_DIR/lib" >> $GITHUB_ENV
+            echo "Vulkan SDK configured: $VULKAN_DIR"
+            echo "Windows path: $WINDOWS_PATH"
           else
-            echo "Error: Vulkan SDK not found"
+            echo "Error: Vulkan SDK directory not found (VulkanSDK-*)"
             exit 1
           fi
 

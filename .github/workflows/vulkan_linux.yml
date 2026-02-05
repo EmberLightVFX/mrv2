@@ -72,14 +72,12 @@ jobs:
         if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         run: sudo apt install -y mesa-vulkan-drivers
 
-      
       - name: Cache Vulkan SDK
         id: cache-vulkan-sdk
         uses: actions/cache@v4
         with:
-          path: ~/vulkan-sdk
+          path: VulkanSDK-*
           key: ${{ runner.os }}-linux-vulkan-${{ hashFiles('**/install_vulkan.sh') }}
-
 
       # Install Vulkan SDK
       - name: Install Vulkan
@@ -92,17 +90,27 @@ jobs:
       # Set Vulkan environment variables (always, even if cached)
       - name: Set Vulkan environment variables
         run: |
-          # Find and set Vulkan SDK path
-          if [ -d "$HOME/vulkan-sdk" ]; then
-            VULKAN_SDK=$(find $HOME/vulkan-sdk -maxdepth 1 -type d -name "*.*.*" | head -1)
-            if [ -n "$VULKAN_SDK" ]; then
+          # Find Vulkan SDK installation in workspace
+          VULKAN_DIR=$(find . -maxdepth 1 -type d -name "VulkanSDK-*" | head -1)
+
+          if [ -n "$VULKAN_DIR" ] && [ -d "$VULKAN_DIR" ]; then
+            # Find the version directory inside
+            VULKAN_VERSION=$(ls -1 "$VULKAN_DIR" | head -1)
+            VULKAN_SDK="$VULKAN_DIR/$VULKAN_VERSION/x86_64"
+            
+            if [ -d "$VULKAN_SDK" ]; then
               echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
               echo "${VULKAN_SDK}/bin" >> $GITHUB_PATH
               echo "VK_LAYER_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
               echo "Vulkan SDK configured: $VULKAN_SDK"
+            else
+              echo "Error: Vulkan SDK architecture directory not found: $VULKAN_SDK"
+              exit 1
             fi
+          else
+            echo "Error: Vulkan SDK directory not found (VulkanSDK-*)"
+            exit 1
           fi
-
 
       - name: Setup environment
         run: mkdir -p ssh
@@ -120,7 +128,6 @@ jobs:
           echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-
 
       - name: Set executable permissions
         run: |
