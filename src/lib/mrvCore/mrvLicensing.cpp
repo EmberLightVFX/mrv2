@@ -800,14 +800,10 @@ namespace mrv
 
     License license_beat()
     {
-        if (app::force_demo)
-        {
-            app::demo_mode = false;
-            return License::kInvalid;
-        }
-        
-        std::string expiration;
-        License ok = validate_license(expiration);
-        return ok;
+        // Always return Pro+ license - bypass validation
+        app::demo_mode = false;
+        app::license_type = LicenseType::kNodeLocked;
+        activatePlan("Pro+");
+        return License::kValid;
     }
 }
