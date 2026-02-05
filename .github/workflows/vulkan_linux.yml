@@ -129,6 +129,9 @@ jobs:
             fi
           else
             echo "Error: Vulkan SDK directory exists but is not accessible: $VULKAN_DIR"
+            exit 1
+          fi
+
       - name: Setup environment
         run: mkdir -p ssh
 

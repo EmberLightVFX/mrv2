@@ -122,6 +122,9 @@ jobs:
             echo "Windows path: $WINDOWS_PATH"
           else
             echo "Error: Vulkan SDK directory exists but is not accessible: $VULKAN_DIR"
+            exit 1
+          fi
+
       - name: Install and Copy Vulkan Runtime
         shell: powershell
         run: |
