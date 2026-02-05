@@ -66,7 +66,6 @@ jobs:
       # with:
       #   path: 'C:\VS2022Custom'
 
-
       - name: Setup MSYS
         uses: msys2/setup-msys2@v2
         with:
@@ -88,7 +87,6 @@ jobs:
         run: |
           echo "Machine name: $RUNNER_NAME"
 
-      
       - name: Cache Vulkan SDK
         id: cache-vulkan-sdk
         uses: actions/cache@v4
@@ -96,20 +94,30 @@ jobs:
           path: C:\VulkanSDK
           key: ${{ runner.os }}-win-arm64-vulkan-${{ hashFiles('**/install_vulkan.sh') }}
 
-
       # Install Vulkan SDK
       - name: Install Vulkan SDK
         if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         env:
           BUILD_VULKAN: OFF
         run: |
-
           . ./etc/windows/install_vulkan.sh
 
-          # Persist environment variables for subsequent steps
-          echo "WINDOWS_VULKAN_SDK=$WINDOWS_VULKAN_SDK" >> $GITHUB_ENV
-          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
-          echo "${VULKAN_SDK}/bin" >> $GITHUB_PATH
+      # Set Vulkan environment variables (always, even if cached)
+      - name: Set Vulkan environment variables
+        shell: bash
+        run: |
+          # Find Vulkan SDK installation
+          if [ -d "C:/VulkanSDK" ]; then
+            VULKAN_VERSION=$(ls -1 C:/VulkanSDK | head -1)
+            echo "WINDOWS_VULKAN_SDK=C:/VulkanSDK/$VULKAN_VERSION" >> $GITHUB_ENV
+            echo "VULKAN_SDK=C:/VulkanSDK/$VULKAN_VERSION" >> $GITHUB_ENV
+            echo "C:/VulkanSDK/$VULKAN_VERSION/bin" >> $GITHUB_PATH
+            echo "VK_LAYER_PATH=C:/VulkanSDK/$VULKAN_VERSION/lib" >> $GITHUB_ENV
+            echo "Vulkan SDK configured: C:/VulkanSDK/$VULKAN_VERSION"
+          else
+            echo "Error: Vulkan SDK not found"
+            exit 1
+          fi
 
       - name: Install and Copy Vulkan Runtime
         if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
@@ -157,7 +165,6 @@ jobs:
         run: |
           icacls "ssh\id_rsa" /inheritance:r /grant:r "%USERNAME%:R"
 
-
       - name: Set executable permissions
         run: |
           chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
@@ -169,7 +176,7 @@ jobs:
       - name: Build vmrv2
         env:
           BUILD_PYTHON: ON
-          BULLD_VULKAN: OFF
+          BUILD_VULKAN: OFF
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON
           MRV2_NETWORK: ON

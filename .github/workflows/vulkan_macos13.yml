@@ -81,7 +81,14 @@ jobs:
               brew link --overwrite molten-vk
           fi
 
-      # # Verify Vulkan installation
+
+      # Verify Vulkan installation (always, even if cached)
+      - name: Verify Vulkan installation
+        run: |
+          if command -v vulkaninfo &> /dev/null; then
+            echo "✓ Vulkan tools available"
+            vulkaninfo --summary || true
+          fi      # # Verify Vulkan installation
       # - name: Verify Vulkan
       #   run: |
       #     export VK_LAYER_DEBUG=all

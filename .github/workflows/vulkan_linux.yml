@@ -89,9 +89,19 @@ jobs:
         run: |
           ./etc/linux/install_vulkan.sh
 
-          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
-          echo "${VULKAN_SDK}/bin" >> $GITHUB_PATH
-          echo "VK_LAYER_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+      # Set Vulkan environment variables (always, even if cached)
+      - name: Set Vulkan environment variables
+        run: |
+          # Find and set Vulkan SDK path
+          if [ -d "$HOME/vulkan-sdk" ]; then
+            VULKAN_SDK=$(find $HOME/vulkan-sdk -maxdepth 1 -type d -name "*.*.*" | head -1)
+            if [ -n "$VULKAN_SDK" ]; then
+              echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+              echo "${VULKAN_SDK}/bin" >> $GITHUB_PATH
+              echo "VK_LAYER_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+              echo "Vulkan SDK configured: $VULKAN_SDK"
+            fi
+          fi
 
 
       - name: Setup environment

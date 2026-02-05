@@ -27,14 +27,14 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-            - name: Setup ccache
+      - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ runner.os }}-ccache-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-- name: Setup environment
+      - name: Setup environment
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Visual C++ Redistributable 2022
@@ -63,7 +63,6 @@ jobs:
       #   uses: ilammy/msvc-dev-cmd@v1
       #   with:
       #     path: 'C:\VS2022Custom'
-
 
       - name: Setup MSYS
         uses: msys2/setup-msys2@v2
@@ -94,7 +93,6 @@ jobs:
         shell: cmd
         run: |
           icacls "ssh\id_rsa" /inheritance:r /grant:r "%USERNAME%:R"
-
 
       - name: Set executable permissions
         run: |
