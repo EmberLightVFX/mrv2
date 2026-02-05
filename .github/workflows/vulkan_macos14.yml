@@ -88,7 +88,6 @@ jobs:
               brew link --overwrite molten-vk
           fi
 
-
       # Verify Vulkan installation (always, even if cached)
       - name: Verify Vulkan installation
         run: |
@@ -128,6 +127,7 @@ jobs:
 
       - name: Build vmrv2
         env:
+          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON

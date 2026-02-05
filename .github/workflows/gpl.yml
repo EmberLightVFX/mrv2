@@ -64,7 +64,6 @@ jobs:
       - name: Install python dependencies
         run: sudo apt-get install -y libssl-dev libffi-dev python3
 
-
       - name: Setup environment
         run: mkdir -p ssh
 
@@ -80,6 +79,8 @@ jobs:
           chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
 
       - name: Build mrv2
+        env:
+          GITHUB_OWNER: ""
         run: |
           ./etc/runme_nolog.sh -gpl -t package
 
@@ -147,7 +148,6 @@ jobs:
         run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
         shell: bash
 
-
       - name: Set permissions on SSH key
         shell: cmd
         run: |
@@ -158,6 +158,8 @@ jobs:
           chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
 
       - name: Build mrv2
+        env:
+          GITHUB_OWNER: ""
         run: |
           ./etc/runme_nolog.sh -gpl -t package -D TLRENDER_USD=OFF
 
@@ -225,6 +227,8 @@ jobs:
       #     ./etc/install_cmake.sh
 
       - name: Build mrv2
+        env:
+          GITHUB_OWNER: ""
         run: |
           ./etc/runme_nolog.sh -gpl -D TLRENDER_USD=OFF -t package
 
@@ -298,5 +302,7 @@ jobs:
       #     ./etc/install_cmake.sh
 
       - name: Build mrv2
+        env:
+          GITHUB_OWNER: ""
         run: |
           ./etc/runme_nolog.sh -gpl -t package

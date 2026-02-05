@@ -68,7 +68,6 @@ jobs:
       - name: Install python dependencies
         run: sudo apt-get install -y libssl-dev libffi-dev python3
 
-
       - name: Setup environment
         run: mkdir -p ssh
 
@@ -91,7 +90,6 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-
       - name: Set executable permissions
         run: |
           chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
@@ -102,6 +100,7 @@ jobs:
 
       - name: Build mrv2
         env:
+          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON

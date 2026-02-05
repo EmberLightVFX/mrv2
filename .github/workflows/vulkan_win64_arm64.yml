@@ -194,6 +194,7 @@ jobs:
 
       - name: Build vmrv2
         env:
+          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           BUILD_VULKAN: OFF
           MRV2_PYFLTK: ON
