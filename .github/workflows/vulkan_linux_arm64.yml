@@ -90,29 +90,46 @@ jobs:
       # Set Vulkan environment variables (always, even if cached)
       - name: Set Vulkan environment variables
         run: |
-          # Find Vulkan SDK installation in workspace
-          VULKAN_DIR=$(find . -maxdepth 1 -type d -name "VulkanSDK-*" | head -1)
+          # Debug: show current directory and contents
+          echo "Current directory: $(pwd)"
+          echo "Looking for VulkanSDK-* directories..."
 
-          if [ -n "$VULKAN_DIR" ] && [ -d "$VULKAN_DIR" ]; then
+          # Find Vulkan SDK installation in workspace
+          VULKAN_DIR=$(find . -maxdepth 1 -type d -name "VulkanSDK-*" 2>/dev/null | head -1)
+
+          if [ -z "$VULKAN_DIR" ]; then
+            echo "Error: Vulkan SDK directory not found (VulkanSDK-*)"
+            echo "Available directories:"
+            ls -ld */ 2>/dev/null || echo "No directories found"
+            exit 1
+          fi
+
+          if [ -d "$VULKAN_DIR" ]; then
+            echo "Found Vulkan SDK directory: $VULKAN_DIR"
+            
             # Find the version directory inside
             VULKAN_VERSION=$(ls -1 "$VULKAN_DIR" | head -1)
+            echo "Version directory: $VULKAN_VERSION"
+            
             # For ARM64, the architecture directory is aarch64
             VULKAN_SDK="$VULKAN_DIR/$VULKAN_VERSION/aarch64"
             
             if [ -d "$VULKAN_SDK" ]; then
+              # Convert to absolute path
+              VULKAN_SDK=$(cd "$VULKAN_SDK" && pwd)
+              
               echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
               echo "${VULKAN_SDK}/bin" >> $GITHUB_PATH
               echo "VK_LAYER_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
               echo "Vulkan SDK configured: $VULKAN_SDK"
             else
               echo "Error: Vulkan SDK architecture directory not found: $VULKAN_SDK"
+              echo "Contents of $VULKAN_DIR/$VULKAN_VERSION:"
+              ls -la "$VULKAN_DIR/$VULKAN_VERSION" || echo "Directory not accessible"
               exit 1
             fi
           else
-            echo "Error: Vulkan SDK directory not found (VulkanSDK-*)"
-            exit 1
-          fi
-
+            echo "Error: Vulkan SDK directory exists but is not accessible: $VULKAN_DIR"
       - name: Setup environment
         run: mkdir -p ssh
 

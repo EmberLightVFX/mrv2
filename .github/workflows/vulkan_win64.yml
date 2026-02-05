@@ -92,10 +92,25 @@ jobs:
       # Set Vulkan environment variables (always, even if cached)
       - name: Set Vulkan environment variables
         run: |
-          # Find Vulkan SDK installation in workspace
-          VULKAN_DIR=$(find . -maxdepth 1 -type d -name "VulkanSDK-*" | head -1)
+          # Debug: show current directory and contents
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
 
-          if [ -n "$VULKAN_DIR" ] && [ -d "$VULKAN_DIR" ]; then
+          # Find Vulkan SDK installation in workspace
+          VULKAN_DIR=$(find . -maxdepth 1 -type d -name "VulkanSDK-*" 2>/dev/null | head -1)
+
+          if [ -z "$VULKAN_DIR" ]; then
+            echo "Error: Vulkan SDK directory not found (VulkanSDK-*)"
+            echo "Available directories:"
+            ls -ld */ 2>/dev/null || echo "No directories found"
+            exit 1
+          fi
+
+          if [ -d "$VULKAN_DIR" ]; then
+            # Convert to absolute path
+            VULKAN_DIR=$(cd "$VULKAN_DIR" && pwd)
+            
             # Convert to Windows path for WINDOWS_VULKAN_SDK
             WINDOWS_PATH=$(cygpath -w "$VULKAN_DIR")
             
@@ -106,10 +121,7 @@ jobs:
             echo "Vulkan SDK configured: $VULKAN_DIR"
             echo "Windows path: $WINDOWS_PATH"
           else
-            echo "Error: Vulkan SDK directory not found (VulkanSDK-*)"
-            exit 1
-          fi
-
+            echo "Error: Vulkan SDK directory exists but is not accessible: $VULKAN_DIR"
       - name: Install and Copy Vulkan Runtime
         shell: powershell
         run: |
