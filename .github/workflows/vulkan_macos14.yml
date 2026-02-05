@@ -26,6 +26,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 1
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
 
       - name: Get machine name
         run: |
@@ -46,8 +53,19 @@ jobs:
       - name: Install pyFLTK dependencies
         run: brew install swig
 
+      - name: Cache Vulkan SDK
+        id: cache-vulkan-sdk
+        uses: actions/cache@v4
+        with:
+          path: |
+            /opt/homebrew/lib/libvulkan*
+            /opt/homebrew/lib/libMoltenVK*
+            /opt/homebrew/lib/libshaderc*
+          key: ${{ runner.os }}-vulkan-sdk-homebrew-m1
+
       # Install Vulkan SDK manually
       - name: Install Vulkan
+        if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         env:
           BUILD_VULKAN: OFF
         shell: bash
@@ -92,12 +110,6 @@ jobs:
           echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-      - name: Add SourceForge to known_hosts
-        shell: bash
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
 
       - name: Set executable permissions
         run: |

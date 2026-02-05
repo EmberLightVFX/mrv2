@@ -25,8 +25,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 1
 
-      - name: Setup environment
+            - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+- name: Setup environment
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Visual C++ Redistributable 2022
@@ -56,13 +64,6 @@ jobs:
       #   with:
       #     path: 'C:\VS2022Custom'
 
-      - name: Synchronize clock
-        shell: cmd
-        run: |
-          w32tm /config /manualpeerlist:time.windows.com /syncfromflags:manual /reliable:YES /update
-          net stop w32time
-          net start w32time
-          w32tm /resync /rediscover
 
       - name: Setup MSYS
         uses: msys2/setup-msys2@v2
@@ -94,11 +95,6 @@ jobs:
         run: |
           icacls "ssh\id_rsa" /inheritance:r /grant:r "%USERNAME%:R"
 
-      - name: Add SourceForge to known_hosts
-        shell: bash
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
 
       - name: Set executable permissions
         run: |
