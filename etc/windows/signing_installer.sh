@@ -51,8 +51,12 @@ sign_installer() {
 #
 if [[ "$USER" == "User-PC" || "$GITHUB_ACTIONS" == "true" ]]; then
     if [[ -e "${NSIS_INSTALLER}" ]]; then
-        echo "Installer found. Starting signing process..."
-        sign_installer
+        if [[ -n "$PASS" ]]; then
+            echo "Installer found. Starting signing process..."
+            sign_installer
+        else
+            echo "Skipping code signing (not authorized user: $USER)"
+        fi
     else
         echo "Error: Installer not found at ${NSIS_INSTALLER}"
     fi
