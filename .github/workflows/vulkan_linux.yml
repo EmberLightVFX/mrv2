@@ -192,7 +192,7 @@ jobs:
         with:
           name: mrv2-vulkan-linux
           path: |
-            BUILD-*/mrv2-*.tar.gz
-            BUILD-*/mrv2-*.deb
-            BUILD-*/mrv2-*.rpm
+            Linux-vulkan-x86_64/Release/mrv2-*.tar.gz
+            Linux-vulkan-x86_64/Release/mrv2-*.deb
+            Linux-vulkan-x86_64/Release/mrv2-*.rpm
           if-no-files-found: warn

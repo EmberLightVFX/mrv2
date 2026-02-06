@@ -160,6 +160,6 @@ jobs:
         with:
           name: mrv2-vulkan-macos-m1
           path: |
-            BUILD-*/mrv2-*.dmg
-            BUILD-*/mrv2-*.pkg
+            Darwin-vulkan-arm64/Release/*.dmg
+            Darwin-vulkan-arm64/Release/*.pkg
           if-no-files-found: warn
