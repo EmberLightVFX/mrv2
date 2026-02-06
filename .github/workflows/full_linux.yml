@@ -153,7 +153,7 @@ jobs:
         with:
           name: mrv2-opengl-linux
           path: |
-            BUILD-*/mrv2-*.tar.gz
-            BUILD-*/mrv2-*.deb
-            BUILD-*/mrv2-*.rpm
+            paquetes/BUILD-Linux-amd64/Release/mrv2-*.tar.gz
+            paquetes/BUILD-Linux-amd64/Release/mrv2-*.deb
+            paquetes/BUILD-Linux-amd64/Release/mrv2-*.rpm
           if-no-files-found: warn

@@ -89,9 +89,9 @@ jobs:
         with:
           name: mrv2-gpl-linux
           path: |
-            BUILD-*/mrv2-*.tar.gz
-            BUILD-*/mrv2-*.deb
-            BUILD-*/mrv2-*.rpm
+            paquetes/BUILD-Linux-amd64/Release/mrv2-*.tar.gz
+            paquetes/BUILD-Linux-amd64/Release/mrv2-*.deb
+            paquetes/BUILD-Linux-amd64/Release/mrv2-*.rpm
           if-no-files-found: warn
 
   windows-gpl-build:
@@ -168,8 +168,8 @@ jobs:
         with:
           name: mrv2-gpl-win64
           path: |
-            BUILD-*/mrv2-*.exe
-            BUILD-*/mrv2-*.zip
+            paquetes/BUILD-Windows-amd64/Release/mrv2-*.exe
+            paquetes/BUILD-Windows-amd64/Release/mrv2-*.zip
           if-no-files-found: warn
 
   macos-Intel-build:
@@ -237,8 +237,7 @@ jobs:
         with:
           name: mrv2-gpl-macos-intel
           path: |
-            BUILD-*/mrv2-*.dmg
-            BUILD-*/mrv2-*.pkg
+            paquetes/BUILD-Darwin-amd64/Release/mrv2-*.dmg
           if-no-files-found: warn
 
   macos-M1-gpl-build:
@@ -306,3 +305,11 @@ jobs:
           GITHUB_OWNER: ""
         run: |
           ./etc/runme_nolog.sh -gpl -t package
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mrv2-gpl-macos-m1
+          path: |
+            paquetes/BUILD-Darwin-arm64/Release/mrv2-*.dmg
+          if-no-files-found: warn

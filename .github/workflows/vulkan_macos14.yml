@@ -160,6 +160,5 @@ jobs:
         with:
           name: mrv2-vulkan-macos-m1
           path: |
-            Darwin-vulkan-arm64/Release/*.dmg
-            Darwin-vulkan-arm64/Release/*.pkg
+            paquetes/Darwin-vulkan-arm64/Release/vmrv2-*.dmg
           if-no-files-found: warn

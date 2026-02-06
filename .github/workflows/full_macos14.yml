@@ -122,6 +122,5 @@ jobs:
         with:
           name: mrv2-opengl-macos-m1
           path: |
-            BUILD-*/mrv2-*.dmg
-            BUILD-*/mrv2-*.pkg
+            paquetes/BUILD-Darwin-arm64/Release/mrv2-*.dmg
           if-no-files-found: warn

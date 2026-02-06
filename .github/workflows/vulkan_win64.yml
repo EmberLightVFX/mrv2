@@ -214,6 +214,6 @@ jobs:
         with:
           name: mrv2-vulkan-win64
           path: |
-            Windows-vulkan-amd64/Release/mrv2-*.exe
-            Windows-vulkan-amd64/Release/mrv2-*.zip
+            paquetes/Windows-vulkan-amd64/Release/vmrv2-*.exe
+            paquetes/Windows-vulkan-amd64/Release/vmrv2-*.zip
           if-no-files-found: warn

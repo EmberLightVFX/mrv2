@@ -138,6 +138,6 @@ jobs:
         with:
           name: mrv2-opengl-win64
           path: |
-            BUILD-*/mrv2-*.exe
-            BUILD-*/mrv2-*.zip
+            paquetes/BUILD-Windows-amd64/Release/mrv2-*.exe
+            paquetes/BUILD-Windows-amd64/Release/mrv2-*.zip
           if-no-files-found: warn

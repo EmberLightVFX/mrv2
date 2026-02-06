@@ -155,6 +155,5 @@ jobs:
         with:
           name: mrv2-vulkan-macos-intel
           path: |
-            Darwin-vulkan-x86_64/Release/*.dmg
-            Darwin-vulkan-x86_64/Release/*.pkg
+            paquetes/Darwin-vulkan-amd64/Release/vmrv2-*.dmg
           if-no-files-found: warn
