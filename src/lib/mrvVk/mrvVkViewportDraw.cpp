@@ -19,8 +19,9 @@
 #include "mrvUI/mrvMonitor.h"
 
 #include "mrvCore/mrvLocale.h"
-#include "mrvCore/mrvMemory.h"
 #include "mrvCore/mrvUtil.h"
+
+#include "mrvOS/mrvMemory.h"
 
 #include <tlVk/Util.h>
 
@@ -28,10 +29,16 @@
 
 #include <tlIO/System.h>
 
-#include <tlCore/String.h>
+#include <tlCore/HDR.h>
 #include <tlCore/Mesh.h>
+#include <tlCore/String.h>
+
 
 #include <FL/Fl_PNG_Image.H>
+
+#include <algorithm>
+#include <cmath>
+#include <regex>
 
 namespace
 {
@@ -307,13 +314,13 @@ namespace mrv
             const std::vector<std::shared_ptr<voice::Annotation> >& voannotations,
             const math::Size2i& renderSize)
 #else
-        void Viewport::_drawAnnotations(
-            const std::shared_ptr<tl::vlk::OffscreenBuffer>& annotationBuffer,
-            const std::shared_ptr<tl::timeline_vlk::Render>& render,
-            const math::Matrix4x4f& renderMVP, const otime::RationalTime& time,
-            const std::vector<std::shared_ptr<draw::Annotation> >& annotations,
-            const std::vector<std::shared_ptr<bool> >& voannotations,
-            const math::Size2i& renderSize)
+            void Viewport::_drawAnnotations(
+                const std::shared_ptr<tl::vlk::OffscreenBuffer>& annotationBuffer,
+                const std::shared_ptr<tl::timeline_vlk::Render>& render,
+                const math::Matrix4x4f& renderMVP, const otime::RationalTime& time,
+                const std::vector<std::shared_ptr<draw::Annotation> >& annotations,
+                const std::vector<std::shared_ptr<bool> >& voannotations,
+                const math::Size2i& renderSize)
 #endif  
         {
             TLRENDER_P();
@@ -504,8 +511,14 @@ namespace mrv
             overlay->submitReadback(cmd);
 
             wait_queue();
+
+            VkResult result = VK_NOT_READY;
+            void* data = nullptr;
+            while (result == VK_NOT_READY)
+            {
+                result = overlay->getLatestReadPixels(data);
+            }
             
-            const void* data = overlay->getLatestReadPixels();
             if (!data)
                 return;
             
@@ -720,9 +733,12 @@ namespace mrv
                 return;
 
             Viewport* self = const_cast< Viewport* >(this);
-            const uint16_t fontSize = 12 * self->pixels_per_unit();
+            const math::Size2i& viewportSize = getViewportSize();
+            
+            // Calculate resolution multiplier.
+            uint16_t fontSize = p.ui->uiPrefs->uiPrefsHudFontSize->value() *
+                                self->pixels_per_unit();
             const image::FontInfo fontInfo(kFontFamily, fontSize);
-            const auto& viewportSize = getViewportSize();
 
 
             const image::FontMetrics fontMetrics =
@@ -753,7 +769,7 @@ namespace mrv
             char buf[512];
             if (p.hud & HudDisplay::kDirectory)
             {
-                const auto& directory = path.getDirectory();
+                const std::string& directory = path.getDirectory();
                 _appendText(textInfos, directory, fontInfo, pos, lineHeight);
             }
 
@@ -1120,11 +1136,22 @@ namespace mrv
         void Viewport::_updateHDRMetadata()
         {
             TLRENDER_P();
+
+#define DEBUG_METADATA 0
             
-            int screen = this->screen_num();
-            
-            if (!p.hdrOptions.passthru)
+            // On Linux at least, we must send the real metadata over,
+            // so we translate OCIO to proper HDRData.
+            // If no OCIO is active, assume it is a movie and send the
+            // stored HDRData (which can be sRGB, BT. 709 or HDR.
+            const int screen_idx = this->screen_num();
+            const timeline::OCIOOptions& ocio = getOCIOOptions(screen_idx);
+                
+            // if (!p.monitor.hdr_enabled || (!ocio.enabled && !p.hdrOptions.tonemap))
+            if (!p.monitor.hdr_enabled)
             {
+#if DEBUG_METADATA
+                LOG_WARNING("Sending SDR BT709 primaries");
+#endif
                 m_hdr_metadata.sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT;
 
                 // Primaries
@@ -1141,9 +1168,84 @@ namespace mrv
             }
             else
             {
-                // This will make the FLTK swapchain call vk->SetHDRMetadataEXT();
-                const image::HDRData& data = p.hdrOptions.hdrData;
+                float monitorPeak = p.monitor.max_nits;
+                image::HDRData data;
+                if (ocio.enabled && !ocio.display.empty() && !ocio.view.empty())
+                {
+                    std::string displayView = ocio.display;
+                    if (!ocio.view.empty() && ocio.view != "Default" && 
+                        ocio.view != "(default)" && ocio.view != "None")
+                    {
+                        displayView += "/" + ocio.view;
+                    }
+                    data = image::nameToPrimaries(displayView);
+                    if (ocio.view.find("SDR") == std::string::npos)
+                    {
+                        float ocioPeak = 1000.0f;
+                        std::string viewName = string::toUpper(ocio.view);
 
+                       // Regex explanation:
+                       // ([0-9]+) -> Capture group 1: one or more digits
+                       // \s* -> Zero or more whitespace characters
+                       // NITS* -> The literal "NIT" followed by zero or more "S"
+                        std::regex nitRegex(R"(([0-9]+)\s*NITS*)");
+                        std::smatch match;
+
+                        if (std::regex_search(viewName, match, nitRegex)) {
+                            // match[0] is the whole string (e.g., "1000 NITS")
+                            // match[1] is just the first capture group (e.g., "1000")
+                            try {
+                                ocioPeak = std::stof(match[1].str());
+                            } catch (const std::exception& e) {
+                                // Fallback for parsing errors
+                                ocioPeak = 1000.0F; 
+                            }
+                        } else {
+                            // Default fallback if no nits pattern is found
+                            ocioPeak = 1000.0F; 
+                        }
+                        data.displayMasteringLuminance = math::FloatRange(0.001F, ocioPeak);
+                        data.maxCLL = std::min(ocioPeak, monitorPeak);
+                        data.maxFALL = std::min(100.F, data.maxCLL * 0.1F); 
+                    }
+                    else  // is SDR view
+                    {
+                        data.displayMasteringLuminance = math::FloatRange(0.001F, 100.F);
+                        data.maxCLL = 203.F;
+                        data.maxFALL = 100.F;
+                    }
+#if DEBUG_METADATA
+                        LOG_WARNING("Sending OCIO metadata primaries="
+                                    << image::primariesName(data.primaries) << std::endl << data);
+#endif
+                }  // ocio.display.empty() || ocio.view.empty()
+                else
+                {
+                    data = p.hdrOptions.hdrData;
+                    if (p.monitor.red.x > 0)
+                    {
+                        data.primaries[image::Red].x = p.monitor.red.x;
+                        data.primaries[image::Red].y = p.monitor.red.y;
+                        data.primaries[image::Green].x = p.monitor.green.x;
+                        data.primaries[image::Green].y = p.monitor.green.y;
+                        data.primaries[image::Blue].x = p.monitor.blue.x;
+                        data.primaries[image::Blue].y = p.monitor.blue.y;
+                    }
+                    if (p.monitor.white.x > 0)
+                    {
+                        data.primaries[image::White].x = p.monitor.white.x;
+                        data.primaries[image::White].y = p.monitor.white.y;
+                    }
+                    data.displayMasteringLuminance =
+                        math::FloatRange(std::max(p.monitor.min_nits, 0.001F),
+                                         p.monitor.max_nits);
+                    data.maxCLL = p.monitor.max_nits;
+                    data.maxFALL = p.monitor.max_nits;
+#if DEBUG_METADATA
+                    LOG_WARNING("Sending HDR Monitor metadata=" << data);
+#endif
+                }
+                
                 m_hdr_metadata.sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT;
                 m_hdr_metadata.displayPrimaryRed = {
                     data.primaries[image::HDRPrimaries::Red][0],
@@ -1164,11 +1266,12 @@ namespace mrv
                 // Max display capability
                 m_hdr_metadata.maxLuminance =
                     data.displayMasteringLuminance.getMax();
-                m_hdr_metadata.minLuminance =
+                m_hdr_metadata.minLuminance = 
                     data.displayMasteringLuminance.getMin();
                 m_hdr_metadata.maxContentLightLevel = data.maxCLL;
                 m_hdr_metadata.maxFrameAverageLightLevel = data.maxFALL;
             }
+
 
             if (!is_equal_hdr_metadata(m_hdr_metadata, m_previous_hdr_metadata))
             {

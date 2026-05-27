@@ -14,6 +14,7 @@
 #include <tlVk/Texture.h>
 
 #include <tlCore/LRUCache.h>
+#include <tlCore/Monitor.h>
 
 #if defined(TLRENDER_OCIO)
 #    include <OpenColorIO/OpenColorIO.h>
@@ -24,6 +25,8 @@ namespace OCIO = OCIO_NAMESPACE;
 #endif // TLRENDER_OCIO
 
 #include <FL/Fl_Vk_Window.H>
+
+#include <unordered_map>
 
 struct pl_shader_res;
 
@@ -75,12 +78,6 @@ namespace tl
                 const std::vector<std::shared_ptr<vlk::Texture> >&,
                 size_t offset = 0);
 
-
-            //! Overriden begin function
-            void begin(
-                const math::Size2i&, const timeline::RenderOptions& =
-                                         timeline::RenderOptions()) override;
-
             //! Proper Vulkan begin function
             void begin(
                 VkCommandBuffer& cmd,
@@ -94,9 +91,7 @@ namespace tl
             uint32_t getFrameIndex() const;
 
             // HDR functions
-            void setMonitorHDRSupported(bool);
-            void setMonitorMinNits(float);
-            void setMonitorMaxNits(float);
+            void setMonitorCapabilities(const monitor::Capabilities&);
             
             // Main entry pipeline creation function
             void createPipeline(const std::string& pipelineName,
@@ -123,11 +118,24 @@ namespace tl
                 const VkBlendOp colorBlendOp = VK_BLEND_OP_ADD,
                 const VkBlendOp alphaBlendOp = VK_BLEND_OP_ADD);
             void usePipeline(const std::string& pipelineName);
+
+            //! Overriden begin function
+            void begin(
+                const math::Size2i&, const timeline::RenderOptions& =
+                timeline::RenderOptions()) override;
+
             math::Size2i getRenderSize() const override;
             void setRenderSize(const math::Size2i&) override;
+
+            //! Gets the internal FBO
             std::shared_ptr<vlk::OffscreenBuffer> getFBO() const;
+
+            //! Gets the current Vulkan render pass.
             VkRenderPass getRenderPass() const;
+
+            //! Changes the current Vulkan render pass.
             void setRenderPass(VkRenderPass);
+            
             math::Box2i getViewport() const override;
             void setViewport(const math::Box2i&) override;
             void clearViewport(const image::Color4f&) override;
@@ -138,13 +146,13 @@ namespace tl
             math::Matrix4x4f getTransform() const override;
             void setTransform(const math::Matrix4x4f&) override;
             void applyTransforms();
+            void setShaderOptions(const timeline::ShaderOptions&);
             void setOCIOOptions(const timeline::OCIOOptions&) override;
             void setLUTOptions(const timeline::LUTOptions&) override;
             void setHDROptions(const timeline::HDROptions&) override;
-
-            void setupViewportAndScissor() override;
             
-            //! These functions draw to the internal FBO.
+            //! @{
+            //!     These functions draw to the internal FBO.
             void drawRect(const math::Box2i&, const image::Color4f&,
                           const std::string& shaderName = "") override;
             void drawMesh(const std::string& pipelineName,
@@ -163,56 +171,62 @@ namespace tl
                           const VkBlendFactor dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                           const VkBlendOp colorBlendOp = VK_BLEND_OP_ADD,
                           const VkBlendOp alphaBlendOp = VK_BLEND_OP_ADD);
-            //! Create text meshes to speed up drawing
+
+            //! Creates text meshes to speed up drawing
             void appendText(
                 std::vector<timeline::TextInfo>& info,
                 const std::vector<std::shared_ptr<image::Glyph> >& glyphs,
                 const math::Vector2i& position) override;
+            
+            //! Draws the text meshes.
             void drawText(
                 const timeline::TextInfo&,
                 const math::Vector2i& position,
                 const image::Color4f&) override;
-            //! These functions draw to the viewport
-            void drawRect(const std::string& pipelineName,
-                          const math::Box2i&, const image::Color4f&,
-                          const bool enableBlending = true,
-                          const std::string& shaderName = "");
-            void drawMesh(const std::string& pipelineName,
-                          const std::string& shaderName,
-                          const std::string& meshName,
-                          const geom::TriangleMesh2&,
-                          const math::Vector2i& position,
-                          const image::Color4f&,
-                          const bool enableBlending = false);
-            
+
+            //! Draws a 2D mesh to the internal FBO.
             void drawMesh(
                 const geom::TriangleMesh2&, const math::Vector2i& position,
                 const image::Color4f&, const std::string& meshName) override;
+
+            //! NO-OP for Vulkan
             void drawColorMesh(
                 const geom::TriangleMesh2&, const math::Vector2i& position,
                 const image::Color4f&) override {};
+
+            //! Draws a 2D color mesh to the internal FBO.
             void drawColorMesh(
                 const std::string& pipelineLayoutName,
                 const geom::TriangleMesh2&, const math::Vector2i& position,
                 const image::Color4f&);
+
+            //! NO-OP for Vulkan
             void drawTexture(
                 unsigned int, const math::Box2i&,
                 const image::Color4f& =
                     image::Color4f(1.F, 1.F, 1.F)) override {};
+
+            //! Draws a texture to the internal FBO.
             void drawTexture(
                 const std::shared_ptr<vlk::Texture>&, const math::Box2i&,
                 const image::Color4f& = image::Color4f(1.F, 1.F, 1.F));
+
+            //! Draws an image to the internal FBO.
             void drawImage(
                 const std::shared_ptr<image::Image>&, const math::Box2i&,
                 const image::Color4f& = image::Color4f(1.F, 1.F, 1.F),
                 const timeline::ImageOptions& =
                     timeline::ImageOptions()) override;
+
+            //! Draws an image to a provided FBO.
             void drawImage(
                 const std::shared_ptr<vlk::OffscreenBuffer>& fbo,
                 const std::shared_ptr<image::Image>&, const math::Box2i&,
                 const image::Color4f& = image::Color4f(1.F, 1.F, 1.F),
                 const timeline::ImageOptions& = timeline::ImageOptions(),
                 const bool clearRenderPass = true);
+
+            //! Draws the video data to the internal FBO.
             void drawVideo(
                 const std::vector<timeline::VideoData>&,
                 const std::vector<math::Box2i>&,
@@ -221,6 +235,9 @@ namespace tl
                 const timeline::CompareOptions& = timeline::CompareOptions(),
                 const timeline::BackgroundOptions& =
                     timeline::BackgroundOptions()) override;
+
+            //! Draws the stereo video data to the internal FBO with a
+            //! particular method.
             void drawStereo(
                 const std::vector<timeline::VideoData>&,
                 const std::vector<math::Box2i>&,
@@ -229,6 +246,8 @@ namespace tl
                 const std::vector<timeline::ImageOptions>& = {},
                 const std::vector<timeline::DisplayOptions>& = {},
                 const timeline::CompareOptions& = timeline::CompareOptions());
+
+            //! Draws the stereo video data as an anaglyph to the internal FBO.
             void drawAnaglyph(
                 const std::vector<timeline::VideoData>&,
                 const std::vector<math::Box2i>&,
@@ -236,18 +255,43 @@ namespace tl
                 const std::vector<timeline::ImageOptions>& = {},
                 const std::vector<timeline::DisplayOptions>& = {},
                 const timeline::CompareOptions& = timeline::CompareOptions());
+
+            //! Draws a black mask to the internal FBO.
             void drawMask(float pct = 0.F);
 
+            void drawRectViewport(const std::string& pipelineName,
+                                  const math::Box2i&, const image::Color4f&,
+                                  const bool enableBlending = true,
+                                  const std::string& shaderName = "");
+            void drawMeshViewport(const std::string& pipelineName,
+                                  const std::string& shaderName,
+                                  const std::string& meshName,
+                                  const geom::TriangleMesh2&,
+                                  const math::Vector2i& position,
+                                  const image::Color4f&,
+                                  const bool enableBlending = false);
 
-            // Vulkan overridden functions
-            void createBindingSet(const std::string& shaderName) override;
+            //! Vulkan render pass functions
             void beginLoadRenderPass() override;
             void beginRenderPass() override;
             void endRenderPass() override;
+            void setupViewportAndScissor() override;
             
         private:
             void _displayShader();
 
+            void _uploadMesh(const std::string& meshName,
+                             const geom::TriangleMesh2& mesh,
+                             size_t triangleCount);
+
+            void _emitMeshDraw(const std::string& pipelineLayoutName,
+                               const std::string& shaderName,
+                               const std::string& meshName,
+                               const math::Matrix4x4f& transform,
+                               const image::Color4f& color);
+
+            void _setupRectCommon(const math::Box2i& box);
+            
             void _drawBackground(
                 const std::vector<math::Box2i>&,
                 const timeline::BackgroundOptions&);
@@ -281,6 +325,18 @@ namespace tl
                 const std::vector<timeline::ImageOptions>&,
                 const std::vector<timeline::DisplayOptions>&,
                 const timeline::CompareOptions&);
+            void _drawVideoAdd(
+                const std::vector<timeline::VideoData>&,
+                const std::vector<math::Box2i>&,
+                const std::vector<timeline::ImageOptions>&,
+                const std::vector<timeline::DisplayOptions>&,
+                const timeline::CompareOptions&);
+            void _drawVideoMultiply(
+                const std::vector<timeline::VideoData>&,
+                const std::vector<math::Box2i>&,
+                const std::vector<timeline::ImageOptions>&,
+                const std::vector<timeline::DisplayOptions>&,
+                const timeline::CompareOptions&);
             void _drawVideoTile(
                 const std::vector<timeline::VideoData>&,
                 const std::vector<math::Box2i>&,
@@ -295,6 +351,8 @@ namespace tl
                 const timeline::DisplayOptions&);
             void _create2DMesh(
                 const std::string& meshName, const geom::TriangleMesh2& mesh);
+            void _create3DMesh(
+                const std::string& meshName, const geom::TriangleMesh3& mesh);
             void _createBindingSet(const std::shared_ptr<vlk::Shader>& shaderName);
             VkPipelineLayout _createPipelineLayout(
                 const std::string& pipelineLayoutName,
@@ -302,10 +360,11 @@ namespace tl
             void _bindDescriptorSets(
                 const std::string& pipelineLayoutName,
                 const std::string& shaderName);
+            void _bindComputeDescriptorSets(
+                const std::string& pipelineLayoutName,
+                const std::string& shaderName);
             void _vkDraw(const std::string& meshName);
 
-            void wait_device();
-            void wait_queue();
             
 #if defined(TLRENDER_LIBPLACEBO)
             void _addTextures(
@@ -321,6 +380,10 @@ namespace tl
 #endif
 
 #if defined(TLRENDER_OCIO)
+            std::string
+            _getOCIOUniforms(const OCIO::GpuShaderDescRcPtr&);
+            void _createOCIOUniforms(const OCIO::GpuShaderDescRcPtr&);
+            void _updateOCIOUniforms(const OCIO::GpuShaderDescRcPtr&);
             void _addTextures(
                 std::vector<std::shared_ptr<vlk::Texture >>& textures,
                 const OCIO::GpuShaderDescRcPtr& shaderDesc);

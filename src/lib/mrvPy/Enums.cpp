@@ -27,7 +27,7 @@
 #include "mrvOptions/mrvStereo3DOptions.h"
 #include "mrvOptions/mrvEnvironmentMapOptions.h"
 
-#include "mrvFl/mrvSaveOptions.h"
+#include "mrvOptions/mrvSaveOptions.h"
 
 #include <pybind11/pybind11.h>
 
@@ -205,6 +205,8 @@ void mrv2_enums(py::module& m)
         .value("Wipe", timeline::CompareMode::Wipe)
         .value("Overlay", timeline::CompareMode::Overlay)
         .value("Difference", timeline::CompareMode::Difference)
+        .value("Add", timeline::CompareMode::Add)
+        .value("Multiply", timeline::CompareMode::Multiply)
         .value("Horizontal", timeline::CompareMode::Horizontal)
         .value("Vertical", timeline::CompareMode::Vertical)
         .value("Tile", timeline::CompareMode::Tile)

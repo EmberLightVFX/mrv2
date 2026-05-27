@@ -81,6 +81,16 @@ namespace tl
             image::Color4f clearColor = image::Color4f(0.F, 0.F, 0.F, 0.F);
             bool      clearDepth = true;
             bool      pbo = false;
+            bool      storeDepth = false;
+
+            //! When true, one depth image (+ framebuffer) is allocated per
+            //! frame-in-flight so that the opaque pass's depth buffer can be
+            //! safely read by a subsequent OIT / transparency pass while the
+            //! next frame's opaque pass is already writing into its own copy.
+            //! Call bind() each frame before using any depth accessor
+            //! or beginXxxRenderPass().  Defaults to false (single shared
+            //! depth image – the original behaviour).
+            bool      multiFrameDepth = false;
 
             bool operator==(const OffscreenBufferOptions&) const;
             bool operator!=(const OffscreenBufferOptions&) const;
@@ -120,7 +130,7 @@ namespace tl
             //! Returns true if the buffer has depth.
             bool hasDepth() const;
 
-            //! Returns true if the buffer has depth.
+            //! Returns true if the buffer has stencil.
             bool hasStencil() const;
 
             //! Get number of sampling bits.
@@ -129,7 +139,23 @@ namespace tl
             //! Get the options.
             const OffscreenBufferOptions& getOptions() const;
 
-            //! Vulkan Accessors
+            // ----------------------------------------------------------------
+            // Frame-index selection
+            // ----------------------------------------------------------------
+
+            //! Set the active frame index used by all per-frame depth and
+            //! framebuffer accessors.  Must be called once per frame (before
+            //! any depth accessor or beginXxxRenderPass()) when
+            //! options.multiFrameDepth is true.  Safe to call (and ignore)
+            //! when multiFrameDepth is false.
+            void setFrameIndex(uint32_t frameIndex);
+
+            //! Get the currently active frame index.
+            uint32_t getFrameIndex() const;
+
+            // ----------------------------------------------------------------
+            // Vulkan Accessors
+            // ----------------------------------------------------------------
                 
             //! Get the image layout.
             VkImageLayout getImageLayout() const;
@@ -137,25 +163,33 @@ namespace tl
             //! Set the image layout.
             void setImageLayout(VkImageLayout);
 
-            //! Get the depth layout.
+            //! Get the depth layout for the active frame.
             VkImageLayout getDepthLayout() const;
             
-            //! Set the image layout.
+            //! Set the depth layout for the active frame.
             void setDepthLayout(VkImageLayout);
 
             //! Get image layout name.
             const std::string getImageLayoutName() const;
 
-            //! Get depth layout name.
+            //! Get depth layout name (active frame).
             const std::string getDepthLayoutName() const;
 
             //! Get image view.
             VkImageView getImageView() const;
+            
+            //! Get depth image view for the active frame.
+            VkImageView getDepthImageView() const;
 
             //! Get image.
             VkImage getImage() const;
 
+            //! Get the depth/stencil image for the active frame.
+            VkImage getDepthImage() const;
+            
             //! Get normal handles.
+            //! When multiFrameDepth is true, returns the framebuffer for the
+            //! active frame; otherwise the single shared framebuffer.
             VkFramebuffer getFramebuffer() const;
             VkRenderPass getClearRenderPass() const;
             VkRenderPass getLoadRenderPass() const;
@@ -189,9 +223,13 @@ namespace tl
             void transitionToShaderRead(VkCommandBuffer cmd);
             void transitionToColorAttachment(VkCommandBuffer cmd);
             
+            //! Depth transitions – always operate on the active frame's depth image.
             void transitionDepthToStencilAttachment(VkCommandBuffer cmd);
             void transitionDepthToShaderRead(VkCommandBuffer cmd);
 
+            //! Barriers to force depth to an attachment.
+            void barrierDepthForAttachment(VkCommandBuffer cmd);
+            
             //! Set up the internal scissor.
             void setupScissor(const math::Box2i&); 
             
@@ -206,21 +244,41 @@ namespace tl
             
             //! Read-back PBO like functionality.
             void createStagingBuffers();
+
+            //! Read the pixels with a fence.
             void readPixels(VkCommandBuffer cmd,
                             int32_t x = 0, int32_t y = 0,
                             uint32_t w = 0, uint32_t h = 0);
+
+            //! Submit the read command.
             void submitReadback(VkCommandBuffer cmd);
-            void* getLatestReadPixels();
+            
+            //! Get back the latest pixels read into ptr.
+            VkResult getLatestReadPixels(void*& ptr);
+
+            //! Read pixels inline without a fence.
+            //! fence should come from the main UI loop.
+            void readPixelsInline(VkCommandBuffer cmd,
+                                  int32_t x, int32_t y,
+                                  uint32_t w, uint32_t h);
+
+            //! Get pixels from readPixelsInline.
+            //! Gets the pixels of the latest readPixelsInline command.
+            void* getInlineReadbackPtr();
+
+            static size_t getObjectCount();
+
+            static size_t getTotalByteCount();
             
         private:
             Fl_Vk_Context& ctx;
 
             void cleanup();
             void initialize();
-            void createImage();
-            void createImageView();
-            void createDepthImage();
-            void createDepthImageView();
+            void createColorImages();
+            void createImageViews();
+            void createDepthImages();
+            void createDepthImageViews();
             void createClearRenderPass();
             void createLoadRenderPass();
             void createSampler();

@@ -22,10 +22,11 @@
 #include "mrViewer.h"
 #include "mrvHotkeyUI.h"
 
+#include "mrvCore/mrvColor.h"
 #include "mrvCore/mrvColorSpaces.h"
 #include "mrvCore/mrvLocale.h"
 #include "mrvCore/mrvSequence.h"
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 
 #include "mrvWidgets/mrvMultilineInput.h"
 
@@ -131,6 +132,26 @@ namespace mrv
                         gl::Shader::create(vertexSource, textureFragmentSource());
                     gl.annotationShader = gl::Shader::create(
                         vertexSource, annotationFragmentSource());
+
+                    //
+                    // \@bug: FLTK's Wayland does not initialize the vsync
+                    //        properly, so we do it here
+                    //
+                    int vsync = p.ui->uiPrefs->uiPrefsOpenGLVsync->value();
+                    if (!p.presentation)
+                    {
+                        if (vsync == MonitorVSync::kVSyncPresentationOnly ||
+                            vsync == MonitorVSync::kVSyncNone)
+                        {
+                            swap_interval(0);
+                            p.ui->uiTimeline->swap_interval(0);
+                        }
+                        else if (vsync == MonitorVSync::kVSyncAlways)
+                        {
+                            swap_interval(1);
+                            p.ui->uiTimeline->swap_interval(1);
+                        }
+                    }
                 }
                 catch (const std::exception& e)
                 {
@@ -191,17 +212,9 @@ namespace mrv
             if (!valid())
             {
                 _initializeGL();
-                CHECK_GL;
-
-                if (p.ui->uiPrefs->uiPrefsOpenGLVsync->value() ==
-                    MonitorVSync::kVSyncNone)
-                    swap_interval(0);
-                else
-                    swap_interval(1);
-
                 valid(1);
             }
-            CHECK_GL;
+            
 
             const auto& viewportSize = getViewportSize();
             const auto& renderSize = getRenderSize();
@@ -217,7 +230,7 @@ namespace mrv
                 hasAlpha ||
                 getBackgroundOptions().type == timeline::Background::Transparent;
 
-            CHECK_GL;
+            
             try
             {
                 if (renderSize.isValid())
@@ -287,7 +300,7 @@ namespace mrv
                         break;
                     }
 
-                    CHECK_GL;
+                    
                     gl::OffscreenBufferOptions offscreenBufferOptions;
                     offscreenBufferOptions.colorType = gl.colorBufferType;
 
@@ -298,17 +311,12 @@ namespace mrv
                     }
                     offscreenBufferOptions.depth = gl::OffscreenDepth::_24;
                     offscreenBufferOptions.stencil = gl::OffscreenStencil::_8;
-                    CHECK_GL;
                     if (gl::doCreate(gl.buffer, renderSize, offscreenBufferOptions))
                     {
-                        CHECK_GL;
                         gl.buffer = gl::OffscreenBuffer::create(
                             renderSize, offscreenBufferOptions);
-                        CHECK_GL;
                         _createPBOs(renderSize);
-                        CHECK_GL;
                     }
-                    CHECK_GL;
 
                     if (can_do(FL_STEREO))
                     {
@@ -320,15 +328,14 @@ namespace mrv
                                 renderSize, offscreenBufferOptions);
                         }
                     }
-                    CHECK_GL;
                 }
                 else
                 {
                     gl.buffer.reset();
                     gl.stereoBuffer.reset();
-                    CHECK_GL;
+                    
                 }
-                CHECK_GL;
+                
 
                 if (gl.buffer && gl.render)
                 {
@@ -352,21 +359,25 @@ namespace mrv
                         if (p.showVideo)
                         {
                             int screen = this->screen_num();
+                            auto ocio = p.ocioOptions;
+
+                            if (p.ocio_disabled)
+                                ocio.enabled = false;
+                    
                             if (screen >= 0 && !p.monitorOCIOOptions.empty() &&
                                 screen < p.monitorOCIOOptions.size())
                             {
-                                timeline::OCIOOptions o = p.ocioOptions;
-                                o.display = p.monitorOCIOOptions[screen].display;
-                                o.view = p.monitorOCIOOptions[screen].view;
-                                gl.render->setOCIOOptions(o);
+                                ocio.display = p.monitorOCIOOptions[screen].display;
+                                ocio.view = p.monitorOCIOOptions[screen].view;
+                                gl.render->setOCIOOptions(ocio);
 
-                                _updateMonitorDisplayView(screen, o);
                             }
                             else
                             {
-                                gl.render->setOCIOOptions(p.ocioOptions);
-                                _updateMonitorDisplayView(screen, p.ocioOptions);
+                                gl.render->setOCIOOptions(ocio);
                             }
+
+                            _updateMonitorDisplayView(screen, ocio);
 
                             gl.render->setLUTOptions(p.lutOptions);
                             gl.render->setHDROptions(p.hdrOptions);
@@ -405,7 +416,7 @@ namespace mrv
                 gl.buffer.reset();
                 gl.stereoBuffer.reset();
             }
-            CHECK_GL;
+            
 
             float r = 0.F, g = 0.F, b = 0.F, a = 0.F;
 
@@ -460,15 +471,15 @@ namespace mrv
                 }
             }
 
-            CHECK_GL;
+            
             glDrawBuffer(GL_BACK_LEFT);
-            CHECK_GL;
+            
 
             glViewport(0, 0, GLsizei(viewportSize.w), GLsizei(viewportSize.h));
             glClearStencil(0);
             glClearColor(r, g, b, a);
             glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-            CHECK_GL;
+            
 
             const auto& player = getTimelinePlayer();
             if (!player)
@@ -488,7 +499,7 @@ namespace mrv
 #ifdef TLRENDER_FFMPEG
             const auto& voannotations = player->getVoiceAnnotations();
 #else
-            const auto std::vector<bool> voannotations;
+            const std::vector<bool> voannotations;
 #endif
             
             MultilineInput* w = getMultilineInput();
@@ -681,9 +692,7 @@ namespace mrv
                     {
                         gl.overlay = gl::OffscreenBuffer::create(
                             renderSize, offscreenBufferOptions);
-                        CHECK_GL;
                         _createOverlayPBO(renderSize);
-                        CHECK_GL;
                     }
                     
                     const math::Matrix4x4f& renderMVP = _renderProjectionMatrix();
@@ -704,7 +713,7 @@ namespace mrv
                     // Wait for the fence to complete before compositing
                     GLenum waitReturn =
                         glClientWaitSync(gl.overlayFence, 0, GL_TIMEOUT_IGNORED);
-                    CHECK_GL;
+                    
                     if (waitReturn == GL_TIMEOUT_EXPIRED)
                     {
                         LOG_ERROR("glClientWaitSync: Timeout occurred!");
@@ -719,41 +728,15 @@ namespace mrv
                     }
                 }
 
-                math::Box2i selection = p.colorAreaInfo.box = p.selection;
-                if (selection.max.x >= 0)
-                {
-                    // Check min < max
-                    if (selection.min.x > selection.max.x)
-                    {
-                        int tmp = selection.max.x;
-                        selection.max.x = selection.min.x;
-                        selection.min.x = tmp;
-                    }
-                    if (selection.min.y > selection.max.y)
-                    {
-                        int tmp = selection.max.y;
-                        selection.max.y = selection.min.y;
-                        selection.min.y = tmp;
-                    }
-
-                    // // Sanity check
-                    // const auto& renderSize = gl.buffer->getSize();
-                    // if (selection.min.x >= renderSize.w)
-                    //     selection.min.x = renderSize.w - 1;
-                    // if (selection.min.y >= renderSize.h)
-                    //     selection.min.y = renderSize.h - 1;
-                    
-                    // if (selection.max.x >= renderSize.w)
-                    //     selection.max.x = renderSize.w - 1;
-                    // if (selection.max.y >= renderSize.h)
-                    //     selection.max.y = renderSize.h - 1;
-
-            
-                    // Copy it again in case it changed
-                    p.colorAreaInfo.box = selection;
+                if (p.selection.min.x >= 0)
+                {                    
+                    p.colorAreaInfo.box = p.selection;
+                
+                    // Hard-code the pixel type as that's what OpenGL will read
+                    p.colorAreaInfo.pixelType = image::PixelType::RGBA_F32;
 
                     if (panel::colorAreaPanel || panel::histogramPanel ||
-                        panel::vectorscopePanel)
+                        panel::vectorscopePanel || panel::waveformPanel)
                     {
                         _mapBuffer();
 
@@ -769,6 +752,10 @@ namespace mrv
                         if (panel::vectorscopePanel)
                         {
                             panel::vectorscopePanel->update(p.colorAreaInfo);
+                        }
+                        if (panel::waveformPanel)
+                        {
+                            panel::waveformPanel->update(p.colorAreaInfo);
                         }
                     }
                     else
@@ -793,7 +780,7 @@ namespace mrv
                 if (update)
                     updatePixelBar();
 
-                if (p.selection.max.x >= 0)
+                if (p.selection.min.x >= 0)
                 {
                     Fl_Color c = p.ui->uiPrefs->uiPrefsViewSelection->color();
                     uint8_t r, g, b;
@@ -1010,57 +997,60 @@ namespace mrv
         {
             TLRENDER_P();
             MRV2_GL();
+            if (!p.image)
+                return;
 
             PixelToolBarClass* c = p.ui->uiPixelWindow;
             BrightnessType brightness_type = (BrightnessType)c->uiLType->value();
             int hsv_colorspace = c->uiBColorType->value() + 1;
 
-            const int maxX = info.box.max.x;
-            const int maxY = info.box.max.y;
             const auto& renderSize = gl.buffer->getSize();
             
             const uint32_t W = info.box.w();
             const uint32_t H = info.box.h();
+            
+            const uint8_t* ptr = reinterpret_cast<const uint8_t*>(p.image);
+            
+            const int channelCount = image::getChannelCount(info.pixelType);
+            const int byteCount = image::getBitDepth(info.pixelType) / 8;  
+
             const size_t dataSize = W * H;
             
             image::Color4f rgba, hsv;
 
-            for (int Y = info.box.y(); Y <= maxY; ++Y)
+            for (size_t i = 0; i < dataSize; ++i)
             {
-                for (int X = info.box.x(); X <= maxX; ++X)
-                {
-                    rgba.b = p.image[(X + Y * renderSize.w) * 4];
-                    rgba.g = p.image[(X + Y * renderSize.w) * 4 + 1];
-                    rgba.r = p.image[(X + Y * renderSize.w) * 4 + 2];
-                    rgba.a = p.image[(X + Y * renderSize.w) * 4 + 3];
+                rgba = color::fromVoidPtr(ptr, info.pixelType);
+                std::swap(rgba.r, rgba.b);
 
-                    info.rgba.mean.r += rgba.r;
-                    info.rgba.mean.g += rgba.g;
-                    info.rgba.mean.b += rgba.b;
-                    info.rgba.mean.a += rgba.a;
+                info.rgba.mean.r += rgba.r;
+                info.rgba.mean.g += rgba.g;
+                info.rgba.mean.b += rgba.b;
+                info.rgba.mean.a += rgba.a;
 
-                    if (rgba.r < info.rgba.min.r)
-                        info.rgba.min.r = rgba.r;
-                    if (rgba.g < info.rgba.min.g)
-                        info.rgba.min.g = rgba.g;
-                    if (rgba.b < info.rgba.min.b)
-                        info.rgba.min.b = rgba.b;
-                    if (rgba.a < info.rgba.min.a)
-                        info.rgba.min.a = rgba.a;
+                if (rgba.r < info.rgba.min.r)
+                    info.rgba.min.r = rgba.r;
+                if (rgba.g < info.rgba.min.g)
+                    info.rgba.min.g = rgba.g;
+                if (rgba.b < info.rgba.min.b)
+                    info.rgba.min.b = rgba.b;
+                if (rgba.a < info.rgba.min.a)
+                    info.rgba.min.a = rgba.a;
 
-                    if (rgba.r > info.rgba.max.r)
-                        info.rgba.max.r = rgba.r;
-                    if (rgba.g > info.rgba.max.g)
-                        info.rgba.max.g = rgba.g;
-                    if (rgba.b > info.rgba.max.b)
-                        info.rgba.max.b = rgba.b;
-                    if (rgba.a > info.rgba.max.a)
-                        info.rgba.max.a = rgba.a;
+                if (rgba.r > info.rgba.max.r)
+                    info.rgba.max.r = rgba.r;
+                if (rgba.g > info.rgba.max.g)
+                    info.rgba.max.g = rgba.g;
+                if (rgba.b > info.rgba.max.b)
+                    info.rgba.max.b = rgba.b;
+                if (rgba.a > info.rgba.max.a)
+                    info.rgba.max.a = rgba.a;
 
-                    hsv = rgba_to_hsv(hsv_colorspace, rgba);
-                    hsv.a = calculate_brightness(rgba, brightness_type);
-                    hsv_to_info(hsv, info);
-                }
+                hsv = rgba_to_hsv(hsv_colorspace, rgba);
+                hsv.a = calculate_brightness(rgba, brightness_type);
+                hsv_to_info(hsv, info);
+                
+                ptr += channelCount * byteCount;
             }
 
             int num = info.box.w() * info.box.h();
@@ -1119,10 +1109,16 @@ namespace mrv
             info.hsv.mean.r = info.hsv.mean.g = info.hsv.mean.b = info.hsv.mean.a =
                               0.F;
 
-            if (p.ui->uiPixelWindow->uiPixelValue->value() == PixelValue::kFull)
+            switch(p.ui->uiPixelWindow->uiPixelValue->value())
+            {
+            case PixelValue::kFull:
+            case PixelValue::kLinear:
+            case PixelValue::kNits:
                 _calculateColorAreaFullValues(info);
-            else
+                break;
+            default:
                 _calculateColorAreaRawValues(info);
+            }
         }
 
         void Viewport::_mapBuffer() const noexcept
@@ -1130,10 +1126,10 @@ namespace mrv
             MRV2_GL();
             TLRENDER_P();
 
-            if (p.ui->uiPixelWindow->uiPixelValue->value() == PixelValue::kFull)
+            if (p.ui->uiPixelWindow->uiPixelValue->value() !=
+                PixelValue::kOriginal)
             {
-
-                // For faster access, we muse use BGRA.
+                // For faster access, we use use BGRA.
                 constexpr GLenum format = GL_BGRA;
                 constexpr GLenum type = GL_FLOAT;
 
@@ -1143,7 +1139,6 @@ namespace mrv
                 gl::OffscreenBufferBinding binding(gl.buffer);
                 const auto& renderSize = gl.buffer->getSize();
 
-                // bool update = _shouldUpdatePixelBar();
                 bool stopped = _isPlaybackStopped();
                 bool single_frame = _isSingleFrame();
 
@@ -1156,19 +1151,22 @@ namespace mrv
                 // If we are a single frame, we do a normal ReadPixels of front
                 // buffer.
 
+                const math::Box2i box = p.colorAreaInfo.box;
+
+                const uint32_t X = box.min.x;
+                const uint32_t Y = box.min.y;
+                const uint32_t W = box.w();
+                const uint32_t H = box.h();
+
                 if (single_frame)
                 {
                     _unmapBuffer();
                     _mallocBuffer();
                     if (!p.image)
                         return;
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                    CHECK_GL;
-                    glReadBuffer(GL_FRONT);
-                    CHECK_GL;
-                    glReadPixels(
-                        0, 0, renderSize.w, renderSize.h, format, type, p.image);
-                    CHECK_GL;
+                    glReadPixels(box.min.x, box.min.y, W, H, format, type,
+                                 p.image);
+                    
                     return;
                 }
                 else
@@ -1178,21 +1176,22 @@ namespace mrv
                     // glReadPixels() should return immediately.
                     glBindBuffer(
                         GL_PIXEL_PACK_BUFFER, gl.pboIDs[gl.currentPBOIndex]);
-                    CHECK_GL;
+                    
 
-                    glReadPixels(0, 0, renderSize.w, renderSize.h, format, type, 0);
-                    CHECK_GL;
+                    glReadPixels(box.min.x, box.min.y, W, H, format, type, 0);
+                    // was: glReadPixels(0, 0, renderSize.w, renderSize.h, format, type, 0);
+                    
 
                     // map the PBO to process its data by CPU
                     glBindBuffer(GL_PIXEL_PACK_BUFFER, gl.pboIDs[gl.nextPBOIndex]);
-                    CHECK_GL;
+                    
 
                     // We are stopped, read the first PBO.
                     if (stopped)
                     {
                         glBindBuffer(
                             GL_PIXEL_PACK_BUFFER, gl.pboIDs[gl.currentPBOIndex]);
-                        CHECK_GL;
+                        
                     }
                 }
 
@@ -1208,12 +1207,12 @@ namespace mrv
                 glClientWaitSync(
                     gl.pboFences[gl.nextPBOIndex], GL_SYNC_FLUSH_COMMANDS_BIT,
                     GL_TIMEOUT_IGNORED);
-                CHECK_GL;
+                
                 glDeleteSync(gl.pboFences[gl.nextPBOIndex]);
-                CHECK_GL;
+                
 
                 p.image = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-                CHECK_GL;
+                
                 p.rawImage = false;
             }
             else
@@ -1253,7 +1252,8 @@ namespace mrv
 
             math::Vector2i pos = _getRaster();
 
-            if (p.ui->uiPixelWindow->uiPixelValue->value() != PixelValue::kFull)
+            if (p.ui->uiPixelWindow->uiPixelValue->value() ==
+                PixelValue::kOriginal)
             {
                 if (_isEnvironmentMap())
                     return;

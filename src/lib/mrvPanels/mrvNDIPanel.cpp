@@ -22,9 +22,9 @@
 
 #    include "mrvIcons/NDI.h"
 
+#    include "mrvCore/mrvBackend.h"
 #    include "mrvCore/mrvHome.h"
 #    include "mrvCore/mrvFile.h"
-#    include "mrvCore/mrvMemory.h"
 
 
 
@@ -306,6 +306,11 @@ namespace mrv
                     continue;
 #ifndef TLRENDER_NDI_ADVANCED
                 if (i.substr(0, 2) == "16")
+                    continue;
+#endif
+#ifdef VULKAN_BACKEND
+                if (i == "8BitRGBX" || i == "8BitBGRX" ||
+                    i == "8BitYUV"  || i == "16BitP216")
                     continue;
 #endif
                 m->add(i.c_str());

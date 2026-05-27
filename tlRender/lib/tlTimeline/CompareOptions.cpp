@@ -18,7 +18,7 @@ namespace tl
     {
         TLRENDER_ENUM_IMPL(
             CompareMode, "A", "B", "Wipe", "Overlay", "Difference",
-            "Horizontal", "Vertical", "Tile");
+            "Multiply", "Add", "Horizontal", "Vertical", "Tile");
         TLRENDER_ENUM_SERIALIZE_IMPL(CompareMode);
 
         TLRENDER_ENUM_IMPL(CompareTimeMode, "Relative", "Absolute");
@@ -156,7 +156,7 @@ namespace tl
                 box = boxes[0];
                 for (size_t i = 1; i < boxes.size(); ++i)
                 {
-                    box.expand(boxes[i]);
+                    box = expand(box, boxes[i]);
                 }
                 out.w = box.w();
                 out.h = box.h();

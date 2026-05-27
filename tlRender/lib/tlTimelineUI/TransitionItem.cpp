@@ -42,6 +42,8 @@ namespace tl
                 std::vector<std::shared_ptr<image::Glyph> > durationGlyphs;
             };
             DrawData draw;
+            
+            const otio::Transition* otioTransition = nullptr;
         };
 
         void TransitionItem::_init(
@@ -66,6 +68,7 @@ namespace tl
 
             TLRENDER_P();
 
+            p.otioTransition = transition;
             p.label = transition->name();
             if (p.label.empty())
             {
@@ -100,6 +103,11 @@ namespace tl
             return out;
         }
 
+        const otio::Transition* TransitionItem::getOtioItem() const
+        {
+            return _p->otioTransition;
+        }
+        
         void TransitionItem::setDurationLabel(const std::string& value)
         {
             _p->durationLabel = value;
@@ -171,7 +179,7 @@ namespace tl
                     event.style->getColorRole(colorRole));
             }
 
-            const math::Box2i g2 = g.margin(-p.size.border);
+            const math::Box2i g2 = math::margin(g, -p.size.border);
             event.render->drawMesh(
                 ui::rect(g2, p.size.margin), math::Vector2i(),
                 event.style->getColorRole(ui::ColorRole::Transition));
@@ -183,10 +191,10 @@ namespace tl
                 g.max.x - p.size.margin - p.size.durationSize.w,
                 g.min.y + p.size.margin, p.size.durationSize.w,
                 p.size.lineHeight);
-            const bool labelVisible = drawRect.intersects(labelGeometry);
+            const bool labelVisible = math::intersects(drawRect, labelGeometry);
             const bool durationVisible =
-                drawRect.intersects(durationGeometry) &&
-                !durationGeometry.intersects(labelGeometry);
+                math::intersects(drawRect, durationGeometry) &&
+                !math::intersects(durationGeometry, labelGeometry);
             
             std::vector<timeline::TextInfo> textInfos;
 

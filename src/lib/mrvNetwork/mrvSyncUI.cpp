@@ -10,11 +10,11 @@
 #include "mrvNetwork/mrvProtocolVersion.h"
 #include "mrvNetwork/mrvConnectionHandler.h"
 
-#include "mrvOptions/mrvTimelineItemOptions.h"
+#include <tlTimelineUI/IItem.h>
 
 namespace mrv
 {
-    void ConnectionHandler::syncUI()
+    void TCP::syncUI()
     {
         // Sync UI elements
         ViewerUI* ui = App::ui;

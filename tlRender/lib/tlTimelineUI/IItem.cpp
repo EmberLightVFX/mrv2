@@ -239,7 +239,7 @@ namespace tl
         math::Box2i IItem::_getClipRect(const math::Box2i& value, double scale)
         {
             math::Box2i out;
-            const math::Vector2i c = value.getCenter();
+            const math::Vector2i c = math::center(value);
             out.min.x = (value.min.x - c.x) * scale + c.x;
             out.min.y = (value.min.y - c.y) * scale + c.y;
             out.max.x = (value.max.x - c.x) * scale + c.x;
@@ -256,5 +256,42 @@ namespace tl
         }
 
         void IItem::_timeUnitsUpdate() {}
+
+        void to_json(nlohmann::json& j, const ItemOptions& value)
+        {
+            j["inputEnabled"] = value.inputEnabled;
+            j["editAssociatedClips"] = value.editAssociatedClips;
+        }
+
+        void from_json(const nlohmann::json& j, ItemOptions& value)
+        {
+            j.at("inputEnabled").get_to(value.inputEnabled);
+            j.at("editAssociatedClips").get_to(value.editAssociatedClips);
+        }
+        
+        void to_json(nlohmann::json& j, const DisplayOptions& value)
+        {
+            j["trackInfo"] = value.trackInfo;
+            j["clipInfo"] = value.clipInfo;
+            j["thumbnails"] = value.thumbnails;
+            j["thumbnailHeight"] = value.thumbnailHeight;
+            j["waveformWidth"] = value.waveformHeight;
+            j["waveformHeight"] = value.waveformHeight;
+            j["transitions"] = value.transitions;
+            j["markers"] = value.markers;
+        }
+
+        void from_json(const nlohmann::json& j, DisplayOptions& value)
+        {
+            j.at("trackInfo").get_to(value.trackInfo);
+            j.at("clipInfo").get_to(value.clipInfo);
+            j.at("thumbnails").get_to(value.thumbnails);
+            j.at("thumbnailHeight").get_to(value.thumbnailHeight);
+            j.at("waveformWidth").get_to(value.waveformWidth);
+            j.at("waveformHeight").get_to(value.waveformHeight);
+            j.at("transitions").get_to(value.transitions);
+            j.at("markers").get_to(value.markers);
+        }
+
     } // namespace TIMELINEUI
 } // namespace tl

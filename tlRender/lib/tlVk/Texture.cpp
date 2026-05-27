@@ -7,20 +7,63 @@
 #include <tlVk/Vk.h>
 
 #include <tlCore/Assert.h>
+#include <tlCore/Error.h>
+#include <tlCore/String.h>
+#include <tlCore/Util.h>
 
 #include <FL/Fl_Vk_Utils.H>
 #include <FL/vk_enum_string_helper.h>
 
 #include <array>
 #include <iostream>
+#include <string>
+#include <vector>
+
+#include <atomic>
 #include <cstdint>
-#include <stddef.h>
+#include <cstddef>
 
 
 namespace tl
 {
     namespace vlk
     {
+        TLRENDER_ENUM_IMPL(
+            TextureBorder,
+            "ClampToEdge",
+            "Repeat",
+            "MirroredRepeat",
+            "ClampToBorder",
+            "MirrorClampToEdge",
+            );
+        TLRENDER_ENUM_SERIALIZE_IMPL(TextureBorder);
+        
+        VkSamplerAddressMode getTextureBorder(TextureBorder value)
+        {            
+            VkSamplerAddressMode out = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+            switch (value)
+            {
+            case TextureBorder::ClampToEdge:
+                out = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+                break;
+            case TextureBorder::Repeat:
+                out = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                break;
+            case TextureBorder::MirroredRepeat:
+                out = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+                break;
+            case TextureBorder::ClampToBorder:
+                out = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+                break;
+            case TextureBorder::MirrorClampToEdge:
+                out = VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+                break;
+            default:
+                std::cerr << "Unhandled texture sampler border " << (int) value << std::endl;
+                break;
+            };
+            return out;
+        }
         
         std::size_t getDataByteCount(
             const VkImageType type, uint32_t w, uint32_t h, uint32_t d,
@@ -173,9 +216,21 @@ namespace tl
             return data[static_cast<std::size_t>(type)];
         }
 
+        bool TextureBorders::operator==(const TextureBorders& other) const
+        {
+            return U == other.U && V == other.V && W == other.W;
+        }
+
+        bool TextureBorders::operator!=(const TextureBorders& other) const
+        {
+            return !(*this == other);
+        }
+        
         bool TextureOptions::operator==(const TextureOptions& other) const
         {
-            return filters == other.filters && pbo == other.pbo;
+            return filters == other.filters && tiling == other.tiling &&
+                borders == other.borders && usage == other.usage &&
+                samples == other.samples;
         }
 
         bool TextureOptions::operator!=(const TextureOptions& other) const
@@ -192,7 +247,22 @@ namespace tl
             return data[static_cast<std::size_t>(value)];
         }
 
-        uint64_t                       Texture::numTextures = 0;
+        namespace
+        {
+            std::atomic<size_t> objectCount = 0;
+            std::atomic<size_t> totalByteCount = 0;
+        }
+        
+        size_t Texture::getTotalByteCount()
+        {
+            return totalByteCount;
+        }
+        
+        size_t Texture::getObjectCount()
+        {
+            return objectCount;
+        }
+        
         std::unique_ptr<SamplersCache> Texture::samplersCache;
         
         struct Texture::Private
@@ -200,7 +270,7 @@ namespace tl
             image::Info info;
 
             TextureOptions options;
-
+            
             std::string name;
             uint32_t arrayLayers = 1; // unused.
 
@@ -240,11 +310,21 @@ namespace tl
             p.format = p.internalFormat = getTextureFormat(info.pixelType);
             p.options = options;
 
+            if (p.options.tiling == VK_IMAGE_TILING_OPTIMAL)
+                p.memoryFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    
             createCommandPool();
             createImage();
             allocateMemory();
             createImageView();
             createSampler();
+
+            totalByteCount += getDataByteCount(p.imageType,
+                                               p.info.size.w,
+                                               p.info.size.h,
+                                               p.depth,
+                                               p.internalFormat);
+            ++objectCount;
         }
 
         void Texture::_init(
@@ -264,8 +344,26 @@ namespace tl
             p.options = options;
             p.name = name;
 
+            // This is CRITICAL for Texture::copy logic to work with Staging Buffers.
+            switch(format)
+            {
+            case VK_FORMAT_R32_SFLOAT:
+                p.info.pixelType = image::PixelType::L_F32; // Assuming L_F32 maps to a single channel float in your enum
+                break;
+            case VK_FORMAT_R32G32B32A32_SFLOAT:
+                p.info.pixelType = image::PixelType::RGBA_F32;
+                break;
+            case VK_FORMAT_R8_UNORM:
+                p.info.pixelType = image::PixelType::L_U8;
+                break;
+            default:
+                p.info.pixelType = image::PixelType::RGBA_F32; 
+                break;
+            }
+            
             switch(p.imageType)
             {
+                //case VK_IMAGE_TYPE_2D: // [Fix 4] Allow 2D textures to be Optimal too
             case VK_IMAGE_TYPE_3D:
             case VK_IMAGE_TYPE_1D:
                 p.options.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -282,6 +380,13 @@ namespace tl
             allocateMemory();
             createImageView();
             createSampler();
+            
+            totalByteCount += getDataByteCount(p.imageType,
+                                               p.info.size.w,
+                                               p.info.size.h,
+                                               p.depth,
+                                               p.internalFormat);
+            ++objectCount;
         }
 
         Texture::Texture(Fl_Vk_Context& context) :
@@ -292,26 +397,38 @@ namespace tl
             {
                 samplersCache = std::make_unique<SamplersCache>(ctx.device);
             }
-            ++numTextures;
         }
 
         Texture::~Texture()
         {
             TLRENDER_P();
-
+            
             VkDevice device = ctx.device;
 
+            {
+                std::lock_guard<std::mutex> lock(ctx.queue_mutex());
+                vkDeviceWaitIdle(device); // needed
+            }
+            
             if (p.imageView != VK_NULL_HANDLE)
+            {
                 vkDestroyImageView(device, p.imageView, nullptr);
-
+            }
+            
             if (p.image != VK_NULL_HANDLE && p.allocation != VK_NULL_HANDLE)
                 vmaDestroyImage(ctx.allocator, p.image, p.allocation);
             
             if (p.commandPool != VK_NULL_HANDLE)
                 vkDestroyCommandPool(device, p.commandPool, nullptr);
             
-            --numTextures;
-            if (numTextures == 0)
+
+            totalByteCount -= getDataByteCount(p.imageType,
+                                               p.info.size.w,
+                                               p.info.size.h,
+                                               p.depth,
+                                               p.internalFormat);
+            --objectCount;
+            if (objectCount == 0)
             {
                 samplersCache.reset();
             }
@@ -435,6 +552,14 @@ namespace tl
                 dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
             }
             else if (p.currentLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+                     newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+            {
+                srcAccessMask = 0;
+                dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                srcStageMask  = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            }
+            else if (p.currentLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
                      newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
             {
                 srcAccessMask = 0;
@@ -496,8 +621,10 @@ namespace tl
         void Texture::transitionToColorAttachment(VkCommandBuffer cmd)
         {
             transition(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                       VK_ACCESS_SHADER_READ_BIT, 0,
-                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0);
+                       VK_ACCESS_SHADER_READ_BIT,
+                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
         }
 
         void Texture::setRGBToRGBA(bool value)
@@ -990,9 +1117,6 @@ namespace tl
         void Texture::createImage()
         {
             TLRENDER_P();
-
-            int usage = 
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     
             VkPhysicalDeviceImageFormatInfo2 formatInfo = {};
             formatInfo.sType =
@@ -1000,7 +1124,7 @@ namespace tl
             formatInfo.format = p.format;
             formatInfo.type = p.imageType;
             formatInfo.tiling = p.options.tiling;
-            formatInfo.usage = usage;
+            formatInfo.usage = p.options.usage;
             formatInfo.flags = 0;
 
             VkImageFormatProperties2 imageProperties = {};
@@ -1028,13 +1152,13 @@ namespace tl
                 case VK_FORMAT_R16G16B16_SFLOAT:
                     p.internalFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
                     p.info.pixelType = image::PixelType::RGBA_F16;
-                    usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+                    p.options.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
                     p.needPadRgbToRgba = true;
                     break;
                 case VK_FORMAT_R32G32B32_SFLOAT:
                     p.internalFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
                     p.info.pixelType = image::PixelType::RGBA_F32;
-                    usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+                    p.options.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
                     p.needPadRgbToRgba = true;
                     break;
                 default:
@@ -1067,9 +1191,9 @@ namespace tl
             imageInfo.format = p.internalFormat;
             imageInfo.tiling = p.options.tiling;
             imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            imageInfo.usage = usage;
+            imageInfo.usage = p.options.usage;
+            imageInfo.samples = p.options.samples;
             imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
             VmaAllocationCreateInfo allocInfo = {};
             allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
@@ -1077,6 +1201,7 @@ namespace tl
             if (p.memoryFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
                 // Usually for textures that stay on GPU. 
                 // VMA will prefer DEVICE_LOCAL memory.
+                allocInfo.usage    = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
                 allocInfo.priority = 1.0f; 
             } else {
                 // For staging buffers or dynamic textures.
@@ -1157,12 +1282,34 @@ namespace tl
             samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
             samplerInfo.magFilter = getTextureFilter(p.options.filters.magnify);
             samplerInfo.minFilter = getTextureFilter(p.options.filters.minify);
-            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeU = getTextureBorder(p.options.borders.U);
+            samplerInfo.addressModeV = getTextureBorder(p.options.borders.V);
+            samplerInfo.addressModeW = getTextureBorder(p.options.borders.W);
 
             p.sampler = samplersCache->getOrCreateSampler(samplerInfo);
         }
 
+        const TextureOptions& Texture::getOptions() const
+        {
+            return _p->options;
+        }
+
+        void Texture::setCurrentLayout(VkImageLayout value)
+        {
+            _p->currentLayout = value;
+        }
+        
+        bool doCreate(
+            const std::shared_ptr<Texture>& texture,
+            const math::Size2i& size, const TextureOptions& options)
+        {
+            bool out = false;
+            out |= size.isValid() && !texture;
+            out |= size.isValid() && texture &&
+                   (texture->getWidth() != size.w ||
+                    texture->getHeight() != size.h);
+            out |= texture && texture->getOptions() != options;
+            return out;
+        }
     } // namespace vlk
 } // namespace tl

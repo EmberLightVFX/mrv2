@@ -33,10 +33,13 @@ namespace mrv
             Viewport(int X, int Y, int W, int H, const char* L = 0);
             ~Viewport();
 
-            //! Virtual log level method
+            //! Virtual log level method.
             int log_level() const FL_OVERRIDE;
 
-            //! Virual draw method
+            //! Get FLTK's Vulkan context.
+            Fl_Vk_Context& getContext();
+
+            //! Virual draw method.
             void draw() FL_OVERRIDE;
 
             //! Virtual handle event method.
@@ -59,7 +62,7 @@ namespace mrv
             std::shared_ptr<vlk::OffscreenBuffer> getAnnotationFBO();
 
             void setSaveOverlay(const bool save);
-            
+
         protected:            
             void _updateHDRMetadata();
 
@@ -129,6 +132,8 @@ namespace mrv
             void _pushAnnotationShape(const std::string& cmd) const override;
 
             void _readPixel(image::Color4f& rgba) override;
+            image::Color4f _pq_to_nits(const image::Color4f& rgba) const override;
+            image::Color4f _pq_to_linear(const image::Color4f& rgba) const override;
 
             void _drawHelpText() const noexcept;
 
@@ -191,6 +196,9 @@ namespace mrv
             void _unmapBuffer();
             void _getMonitorNits(bool quiet = true);
             
+            // Helper function to diagnose current state
+            void _diagnoseColorSpaceState() const;
+
         private:
             struct VKPrivate;
             std::unique_ptr<VKPrivate> _vk;

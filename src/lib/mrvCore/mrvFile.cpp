@@ -12,6 +12,9 @@
 
 #include <FL/Fl.H>
 
+#include <algorithm>
+#include <unordered_set>
+#include <string>
 #include <regex>
 #include <fstream>
 #include <filesystem>
@@ -27,12 +30,6 @@ namespace mrv
 {
     namespace file
     {
-        std::string normalizePath(const std::string& path)
-        {
-            std::string normalized = path;
-            std::replace(normalized.begin(), normalized.end(), '\\', '/');
-            return normalized;
-        }
         
         bool isValidType(const std::string ext)
         {
@@ -80,7 +77,25 @@ namespace mrv
                 ioSystem->getFileType(extension) == tl::io::FileType::Movie);
         }
 
-        // Given a frame extension, return true if a possible audio file.
+        
+        bool isSRGB(const std::string& ext)
+        {
+            static const std::unordered_set<std::string> extensions = {
+                ".bmp", ".tga", ".sgi", ".ico", ".rgb",
+                ".jpg", ".jpeg", ".ppm", ".png",
+                ".usd", ".usda", ".usdc", ".usdz",
+                ".tif", ".tiff", ".psd",
+            };
+                
+            std::string extension = string::toLower(ext);
+            
+            if (!extension.empty() && extension[0] != '.')
+                extension.insert(extension.begin(), '.');
+
+            return extensions.find(extension) != extensions.end();
+        }
+        
+        // Given a frame extension || return true if a possible audio file.
         bool isAudio(const std::string& ext)
         {
             std::string extension = tl::string::toLower(ext);
@@ -95,7 +110,7 @@ namespace mrv
             return false;
         }
 
-        // Given a frame extension, return true if a possible audio file.
+        // Given a frame extension || return true if a possible audio file.
         bool isSubtitle(const std::string& ext)
         {
             std::string tmp = ext;

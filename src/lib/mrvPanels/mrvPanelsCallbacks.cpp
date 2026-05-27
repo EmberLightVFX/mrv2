@@ -25,13 +25,18 @@ namespace mrv
         ImageInfoPanel* imageInfoPanel = nullptr;
         HistogramPanel* histogramPanel = nullptr;
         VectorscopePanel* vectorscopePanel = nullptr;
+        WaveformPanel* waveformPanel = nullptr;
         Stereo3DPanel* stereo3DPanel = nullptr;
+        StatsPanel* statsPanel = nullptr;
         BackgroundPanel* backgroundPanel = nullptr;
 #ifdef MRV2_PYBIND11
         PythonPanel* pythonPanel = nullptr;
 #endif
 #ifdef MRV2_NETWORK
         NetworkPanel* networkPanel = nullptr;
+#endif
+#ifdef MRV2_NETWORK
+        WebRTCPanel* webrtcPanel = nullptr;
 #endif
 #ifdef TLRENDER_USD
         USDPanel* usdPanel = nullptr;
@@ -144,6 +149,10 @@ namespace mrv
             if (networkPanel && networkPanel->is_panel())
                 network_panel_cb(nullptr, ui);
 #endif
+#ifdef MRV2_NETWORK
+            if (webrtcPanel && webrtcPanel->is_panel())
+                webrtc_panel_cb(nullptr, ui);
+#endif
 #ifdef TLRENDER_USD
             if (usdPanel && usdPanel->is_panel())
                 usd_panel_cb(nullptr, ui);
@@ -188,11 +197,17 @@ namespace mrv
                 vectorscope_panel_cb(nullptr, ui);
             if (stereo3DPanel && !stereo3DPanel->is_panel())
                 stereo3D_panel_cb(nullptr, ui);
+            if (statsPanel && !statsPanel->is_panel())
+                stats_panel_cb(nullptr, ui);
             if (backgroundPanel && !backgroundPanel->is_panel())
                 background_panel_cb(nullptr, ui);
 #ifdef MRV2_NETWORK
             if (networkPanel && !networkPanel->is_panel())
                 network_panel_cb(nullptr, ui);
+#endif
+#ifdef MRV2_NETWORK
+            if (webrtcPanel && !webrtcPanel->is_panel())
+                webrtc_panel_cb(nullptr, ui);
 #endif
 #ifdef TLRENDER_USD
             if (usdPanel && !usdPanel->is_panel())
@@ -479,6 +494,26 @@ namespace mrv
             ui->uiMain->fill_menu(ui->uiMenuBar);
         }
 
+        void waveform_panel_cb(Fl_Widget* w, ViewerUI* ui)
+        {
+            bool send = ui->uiPrefs->SendUI->value();
+            if (send)
+            {
+                tcp->pushMessage(
+                    "Waveform Panel", static_cast<bool>(!waveformPanel));
+            }
+
+            if (waveformPanel)
+            {
+                delete waveformPanel;
+                waveformPanel = nullptr;
+                ui->uiMain->fill_menu(ui->uiMenuBar);
+                return;
+            }
+            waveformPanel = new WaveformPanel(ui);
+            ui->uiMain->fill_menu(ui->uiMenuBar);
+        }
+        
         void environment_map_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
             bool send = ui->uiPrefs->SendUI->value();
@@ -540,6 +575,28 @@ namespace mrv
 #endif
         }
 
+        void webrtc_panel_cb(Fl_Widget* w, ViewerUI* ui)
+        {
+#ifdef MRV2_NETWORK
+            bool send = ui->uiPrefs->SendUI->value();
+            if (send)
+            {
+                tcp->pushMessage(
+                    "Webrtc Panel", static_cast<bool>(!webrtcPanel));
+            }
+            if (webrtcPanel)
+            {
+                delete webrtcPanel;
+                webrtcPanel = nullptr;
+                ui->uiMain->fill_menu(ui->uiMenuBar);
+                return;
+            }
+            webrtcPanel = new WebRTCPanel(ui);
+            ui->uiMain->fill_menu(ui->uiMenuBar);
+#endif
+        }
+
+        
         void usd_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
 #ifdef TLRENDER_USD
@@ -560,6 +617,25 @@ namespace mrv
 #endif
         }
 
+        void stats_panel_cb(Fl_Widget* w, ViewerUI* ui)
+        {
+            bool send = ui->uiPrefs->SendUI->value();
+            if (send)
+            {
+                tcp->pushMessage(
+                    "Stereo 3D Panel", static_cast<bool>(!statsPanel));
+            }
+            if (statsPanel)
+            {
+                delete statsPanel;
+                statsPanel = nullptr;
+                ui->uiMain->fill_menu(ui->uiMenuBar);
+                return;
+            }
+            statsPanel = new StatsPanel(ui);
+            ui->uiMain->fill_menu(ui->uiMenuBar);
+        }
+        
         void stereo3D_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
             bool send = ui->uiPrefs->SendUI->value();
@@ -618,10 +694,18 @@ namespace mrv
                 tcp->pushMessage(
                     "Network Panel", static_cast<bool>(networkPanel));
 #endif
+#ifdef MRV2_NETWORK
+                tcp->pushMessage(
+                    "WebRTC Panel", static_cast<bool>(webrtcPanel));
+#endif
                 tcp->pushMessage(
                     "Histogram Panel", static_cast<bool>(histogramPanel));
                 tcp->pushMessage(
                     "Vectorscope Panel", static_cast<bool>(vectorscopePanel));
+                tcp->pushMessage(
+                    "Waveform Panel", static_cast<bool>(waveformPanel));
+                tcp->pushMessage(
+                    "Stats Panel", static_cast<bool>(statsPanel));
             }
         }
 

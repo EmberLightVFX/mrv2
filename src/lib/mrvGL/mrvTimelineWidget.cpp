@@ -8,7 +8,6 @@
 
 #include <tlTimelineUI/TimelineWidget.h>
 
-#include <tlUI/IClipboard.h>
 #include <tlUI/IWindow.h>
 
 #include <tlTimelineGL/Render.h>
@@ -133,42 +132,6 @@ namespace mrv
                 }
         };
 
-        class Clipboard : public ui::IClipboard
-        {
-            TLRENDER_NON_COPYABLE(Clipboard);
-
-        public:
-            void _init(const std::shared_ptr<system::Context>& context)
-                {
-                    IClipboard::_init(context);
-                }
-
-            Clipboard() {}
-
-        public:
-            ~Clipboard() override {}
-
-            static std::shared_ptr<Clipboard>
-            create(const std::shared_ptr<system::Context>& context)
-                {
-                    auto out = std::shared_ptr<Clipboard>(new Clipboard);
-                    out->_init(context);
-                    return out;
-                }
-
-            std::string getText() const override
-                {
-                    std::string text;
-                    if (Fl::event_text())
-                        text = Fl::event_text();
-                    return text;
-                }
-
-            void setText(const std::string& value) override
-                {
-                    Fl::copy(value.c_str(), value.size());
-                }
-        };
     } // namespace
 
     namespace opengl
@@ -201,9 +164,7 @@ namespace mrv
             mrv::TimeUnits units = mrv::TimeUnits::Timecode;
 
             std::shared_ptr<ui::Style> style;
-            std::shared_ptr<ui::IconLibrary> iconLibrary;
             std::shared_ptr<image::FontSystem> fontSystem;
-            std::shared_ptr<Clipboard> clipboard;
             std::shared_ptr<timeline::IRender> render;
             timelineui::DisplayOptions displayOptions;
             std::shared_ptr<timelineui::TimelineWidget> timelineWidget;
@@ -278,9 +239,7 @@ namespace mrv
             auto settings = ui->app->settings();
 
             p.style = ui::Style::create(context);
-            p.iconLibrary = ui::IconLibrary::create(context);
             p.fontSystem = image::FontSystem::create(context);
-            p.clipboard = Clipboard::create(context);
 
             p.timelineWidget =
                 timelineui::TimelineWidget::create(timeUnitsModel, context);
@@ -298,7 +257,6 @@ namespace mrv
             p.timelineWidget->setDisplayOptions(displayOptions);
 
             p.timelineWindow = TimelineWindow::create(context);
-            p.timelineWindow->setClipboard(p.clipboard);
             p.timelineWidget->setParent(p.timelineWindow);
 
             p.thumbnailSystem = context->getSystem<timelineui::ThumbnailSystem>();
@@ -333,6 +291,12 @@ namespace mrv
         std::vector<const otio::Item* > TimelineWidget::getSelectedItems() const
         {
             return _p->timelineWidget->getSelectedItems();
+        }
+        
+        std::vector<const otio::Transition* >
+        TimelineWidget::getSelectedTransitions() const
+        {
+            return _p->timelineWidget->getSelectedTransitions();
         }
         
         bool TimelineWidget::isEditable() const
@@ -861,10 +825,12 @@ namespace mrv
                         p.render->setOCIOOptions(timeline::OCIOOptions());
                         p.render->setLUTOptions(timeline::LUTOptions());
                         ui::DrawEvent drawEvent(
-                            p.style, p.iconLibrary, p.render, p.fontSystem);
+                            p.style, p.render, p.fontSystem);
                         p.render->setClipRectEnabled(true);
                         _drawEvent(
-                            p.timelineWindow, math::Box2i(renderSize), drawEvent);
+                            p.timelineWindow,
+                            math::Box2i(0, 0, renderSize.w, renderSize.h),
+                            drawEvent);
                         p.render->setClipRectEnabled(false);
                         p.render->end();
                     }
@@ -1784,7 +1750,7 @@ namespace mrv
         void TimelineWidget::_tickEvent()
         {
             TLRENDER_P();
-            ui::TickEvent tickEvent(p.style, p.iconLibrary, p.fontSystem);
+            ui::TickEvent tickEvent(p.style, p.fontSystem);
             _tickEvent(_p->timelineWindow, true, true, tickEvent);
         }
 
@@ -1826,7 +1792,7 @@ namespace mrv
             TLRENDER_P();
             const float devicePixelRatio = pixelRatio();
             ui::SizeHintEvent sizeHintEvent(
-                p.style, p.iconLibrary, p.fontSystem, devicePixelRatio);
+                p.style, p.fontSystem, devicePixelRatio);
             _sizeHintEvent(p.timelineWindow, sizeHintEvent);
         }
 
@@ -1860,17 +1826,17 @@ namespace mrv
             bool clipped)
         {
             const math::Box2i& g = widget->getGeometry();
-            clipped |= !g.intersects(clipRect);
+            clipped |= !math::intersects(g, clipRect);
             clipped |= !widget->isVisible(false);
-            const math::Box2i clipRect2 = g.intersect(clipRect);
+            const math::Box2i clipRect2 = math::intersect(g, clipRect);
             widget->clipEvent(clipRect2, clipped);
             const math::Box2i childrenClipRect =
-                widget->getChildrenClipRect().intersect(clipRect2);
+                math::intersect(widget->getChildrenClipRect(), clipRect2);
             for (const auto& child : widget->getChildren())
             {
                 const math::Box2i& childGeometry = child->getGeometry();
                 _clipEvent(
-                    child, childGeometry.intersect(childrenClipRect), clipped);
+                    child, math::intersect(childGeometry, childrenClipRect), clipped);
             }
         }
 
@@ -1907,15 +1873,15 @@ namespace mrv
                 event.render->setClipRect(drawRect);
                 widget->drawEvent(drawRect, event);
                 const math::Box2i childrenClipRect =
-                    widget->getChildrenClipRect().intersect(drawRect);
+                    math::intersect(widget->getChildrenClipRect(), drawRect);
                 event.render->setClipRect(childrenClipRect);
                 for (const auto& child : widget->getChildren())
                 {
                     const math::Box2i& childGeometry = child->getGeometry();
-                    if (childGeometry.intersects(childrenClipRect))
+                    if (math::intersects(childGeometry, childrenClipRect))
                     {
                         _drawEvent(
-                            child, childGeometry.intersect(childrenClipRect),
+                            child, math::intersect(childGeometry, childrenClipRect),
                             event);
                     }
                 }

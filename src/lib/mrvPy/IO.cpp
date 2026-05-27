@@ -9,9 +9,9 @@
 
 namespace py = pybind11;
 
-#include "mrvFl/mrvSaveOptions.h"
+#include "mrvOptions/mrvSaveOptions.h"
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 
 void mrv2_io(py::module& m)
 {

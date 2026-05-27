@@ -321,13 +321,13 @@ install_mrv2_lib_glob("${CPACK_PREPACKAGE}/lib/libintl*")
 install_mrv2_lib_glob("${CPACK_PREPACKAGE}/lib/libomp*")
 install_mrv2_lib_glob("${CPACK_PREPACKAGE}/lib/libplacebo*")
 install_mrv2_lib_glob("${CPACK_PREPACKAGE}/lib/libz*" )
-    
+
 if (MRV2_BACKEND STREQUAL "VK")
-    install_vulkan_lib_glob("libglslang*" vmrv2)
-    install_vulkan_lib_glob("libSPIRV*" vmrv2)
-    install_vulkan_lib_glob("libMoltenVK*" vmrv2)
-    install_vulkan_lib_glob("libvulkan*" vmrv2)
-    install_vulkan_icd_filenames(vmrv2)
+    install_vulkan_lib_glob("libglslang*" ${mrv2_NAME})
+    install_vulkan_lib_glob("libSPIRV*" ${mrv2_NAME})
+    install_vulkan_lib_glob("libMoltenVK*" ${mrv2_NAME})
+    install_vulkan_lib_glob("libvulkan*" ${mrv2_NAME})
+    install_vulkan_icd_filenames(${mrv2_NAME})
 endif()
 
 #
@@ -384,6 +384,29 @@ if ("${mrv2_NAME}" STREQUAL "mrv2")
 	"${CPACK_PREPACKAGE}/lib/libfltk_vk*"
 	"${CPACK_PREPACKAGE}/${mrv2_NAME}.app/Contents/Resources/lib/libfltk_vk*")
     file(REMOVE ${_files})
+endif()
+
+#
+# Fix up install names in all packaged .dylib files and executables so that
+# every library's own id, all library-to-library references, and all
+# executable-to-library references use @rpath instead of absolute paths.
+# This must run after all libraries have been copied into the bundles.
+#
+set( _mrv2_app_base "${CPACK_PREPACKAGE}/${mrv2_NAME}.app/Contents" )
+fixup_macos_rpath(
+    "${_mrv2_app_base}/Resources/lib"
+    EXECUTABLES
+        "${_mrv2_app_base}/MacOS/${mrv2_NAME}"
+        "${_mrv2_app_base}/Resources/bin/mrv2"
+)
+
+if( EXISTS "${CPACK_PREPACKAGE}/hdr.app" )
+    set( _hdr_app_base "${CPACK_PREPACKAGE}/hdr.app/Contents" )
+    fixup_macos_rpath(
+        "${_hdr_app_base}/Resources/lib"
+        EXECUTABLES
+            "${_hdr_app_base}/Resources/bin/hdr"
+    )
 endif()
 
 #

@@ -5,8 +5,7 @@ on:
     branches-ignore:
       - main
     tags-ignore:
-      - "**"
-  workflow_dispatch:
+      - '**'
 
 jobs:
   ###################################
@@ -17,299 +16,249 @@ jobs:
   linux-gpl-build:
     runs-on: ubuntu-22.04
     permissions:
-      contents: write # Needed to update releases
+      contents: write   # Needed to update releases
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
+    
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Update
+      run: sudo apt-get update
+      
+    - name: Install OpenGL dev
+      run: sudo apt-get install -y xorg-dev libglu1-mesa-dev mesa-common-dev
 
-      - name: Update
-        run: sudo apt-get update
+    - name: Install X11 dev
+      run: sudo apt-get install -y libx11-dev libxcursor-dev libxinerama-dev
 
-      - name: Install OpenGL dev
-        run: sudo apt-get install -y xorg-dev libglu1-mesa-dev mesa-common-dev
+    - name: Install ALSA dev
+      run: sudo apt-get install -y libasound2-dev
 
-      - name: Install X11 dev
-        run: sudo apt-get install -y libx11-dev libxcursor-dev libxinerama-dev
+    - name: Install PulseAudio dev
+      run: sudo apt-get install -y libpulse-dev
 
-      - name: Install ALSA dev
-        run: sudo apt-get install -y libasound2-dev
+    - name: Install Pango dev
+      run: sudo apt-get install -y libpango1.0-dev
 
-      - name: Install PulseAudio dev
-        run: sudo apt-get install -y libpulse-dev
+    - name: Install Wayland
+      run: sudo apt-get install -y libwayland-dev wayland-protocols libdbus-1-dev libxkbcommon-dev libegl-dev libgtk-3-dev
 
-      - name: Install Pango dev
-        run: sudo apt-get install -y libpango1.0-dev
+    - name: Install curl and openssl
+      run: sudo apt-get install -y curl openssl libunistring-dev
+      
+    - name: Install ninja-build
+      run: sudo apt-get install -y ninja-build
+      
+    - name: Install gettext
+      run: sudo apt-get install -y gettext
+      
+    - name: Install python dependencies
+      run: sudo apt-get install -y libssl-dev libffi-dev python3
 
-      - name: Install Wayland
-        run: sudo apt-get install -y libwayland-dev wayland-protocols libdbus-1-dev libxkbcommon-dev libegl-dev libgtk-3-dev
+    - name: Synchronize clock
+      run: |
+        sudo apt-get install -y ntp
 
-      - name: Install curl and openssl
-        run: sudo apt-get install -y curl openssl libunistring-dev
+    - name: Setup environment
+      run: mkdir -p ssh
 
-      - name: Install ninja-build
-        run: sudo apt-get install -y ninja-build
+    - name: Decode SSH key
+      run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
+      shell: bash
+      
+    - name: Set permissions on SSH key
+      run: chmod 600 ssh/id_rsa
+      
+    - name: Set executable permissions
+      run: |
+        chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
+        
+    - name: Build mrv2
+      run: |
+        ./etc/runme_nolog.sh -gpl -t package
 
-      - name: Install gettext
-        run: sudo apt-get install -y gettext
-
-      - name: Install python dependencies
-        run: sudo apt-get install -y libssl-dev libffi-dev python3
-
-      - name: Setup environment
-        run: mkdir -p ssh
-
-      - name: Decode SSH key
-        run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
-        shell: bash
-
-      - name: Set permissions on SSH key
-        run: chmod 600 ssh/id_rsa
-
-      - name: Set executable permissions
-        run: |
-          chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
-
-      - name: Build mrv2
-        env:
-          GITHUB_OWNER: ""
-        run: |
-          ./etc/runme_nolog.sh -gpl -t package
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-gpl-linux
-          path: |
-            paquetes/BUILD-Linux-amd64/Release/mrv2-*.tar.gz
-            paquetes/BUILD-Linux-amd64/Release/mrv2-*.deb
-            paquetes/BUILD-Linux-amd64/Release/mrv2-*.rpm
-          if-no-files-found: warn
+    # - name: Release/Upload binaries
+    #   run: |
+    #     ./bin/release/upload_sourceforge.sh
 
   windows-gpl-build:
     runs-on: windows-2022
     permissions:
-      contents: write # Needed to update releases
+      contents: write   # Needed to update releases
 
     defaults:
       run:
         shell: msys2 {0}
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
 
-      - name: Setup environment
-        uses: ilammy/msvc-dev-cmd@v1
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      - name: Install Visual C++ Redistributable 2022
-        run: |
-          $vc_redist_url_2022 = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-          Invoke-WebRequest -Uri $vc_redist_url_2022 -OutFile vc_redist_2022.x64.exe
-          Start-Process vc_redist_2022.x64.exe -ArgumentList "/install", "/quiet", "/norestart" -Wait
-        shell: powershell
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
+    - name: Setup environment
+      uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Setup MSYS
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          path-type: inherit
+    - name: Install Visual C++ Redistributable 2022
+      run: |
+        $vc_redist_url_2022 = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        Invoke-WebRequest -Uri $vc_redist_url_2022 -OutFile vc_redist_2022.x64.exe
+        Start-Process vc_redist_2022.x64.exe -ArgumentList "/install", "/quiet", "/norestart" -Wait
+      shell: powershell
+      
+    - name: Setup MSYS
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        path-type: inherit
+        
+    - name: Get machine name
+      run: |
+        echo "Machine name: $RUNNER_NAME"
 
-      - name: Get machine name
-        run: |
-          echo "Machine name: $RUNNER_NAME"
+    - name: Setup environment
+      run: mkdir -p ssh
+      
+    - name: Decode SSH key
+      run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
+      shell: bash
 
-      - name: Setup environment
-        run: mkdir -p ssh
+    - name: Synchronize clock
+      shell: cmd
+      run: |
+        w32tm /config /manualpeerlist:time.windows.com /syncfromflags:manual /reliable:YES /update
+        net stop w32time
+        net start w32time
+        w32tm /resync /rediscover
 
-      - name: Decode SSH key
-        run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
-        shell: bash
+    - name: Set permissions on SSH key
+      shell: cmd
+      run: |
+        icacls "ssh\id_rsa" /inheritance:r /grant:r "%USERNAME%:R"
+        
+    - name: Set executable permissions
+      run: |
+        chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
+      
+    - name: Build mrv2
+      run: |
+        ./etc/runme_nolog.sh -gpl -t package -D TLRENDER_USD=OFF
+        
 
-      - name: Set permissions on SSH key
-        shell: cmd
-        run: |
-          icacls "ssh\id_rsa" /inheritance:r /grant:r "%USERNAME%:R"
-
-      - name: Set executable permissions
-        run: |
-          chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
-
-      - name: Build mrv2
-        env:
-          GITHUB_OWNER: ""
-        run: |
-          ./etc/runme_nolog.sh -gpl -t package -D TLRENDER_USD=OFF
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-gpl-win64
-          path: |
-            paquetes/BUILD-Windows-amd64/Release/mrv2-*.exe
-            paquetes/BUILD-Windows-amd64/Release/mrv2-*.zip
-          if-no-files-found: warn
 
   macos-Intel-build:
     runs-on: macos-13
     permissions:
-      contents: write # Needed to update releases
+      contents: write   # Needed to update releases
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
+    
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Get machine name
+      run: |
+        echo "Machine name: $RUNNER_NAME"
 
-      - name: Get machine name
-        run: |
-          echo "Machine name: $RUNNER_NAME"
+    - name: Install ninja-build
+      run: brew install ninja
+      
+    - name: Install automake
+      run: brew install automake curl
 
-      - name: Install ninja-build
-        run: brew install ninja
+    - name: Install GNU sed
+      run: brew install gnu-sed
+      
+    - name: Install Python dependencies
+      run: brew install libb2 libffi readline sqlite3 xz zlib
+        
+    - name: Install pyFLTK dependencies
+      run: brew install swig
+      
+    - name: Setup environment
+      run: mkdir -p ssh
 
-      - name: Install automake
-        run: brew install automake curl
+    - name: Decode SSH key
+      run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
+      shell: bash
+  
+    - name: Set permissions on SSH key
+      run: chmod 600 ssh/id_rsa
+      
+    - name: Set executable permissions
+      run: |
+        chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
 
-      - name: Install GNU sed
-        run: brew install gnu-sed
+    # - name: Install cmake
+    #   run: |
+    #     ./etc/install_cmake.sh
 
-      - name: Install Python dependencies
-        run: brew install libb2 libffi readline sqlite3 xz zlib
+    - name: Build mrv2
+      run: |
+        ./etc/runme_nolog.sh -gpl -D TLRENDER_USD=OFF -t package
+      
 
-      - name: Install pyFLTK dependencies
-        run: brew install swig
-
-      - name: Setup environment
-        run: mkdir -p ssh
-
-      - name: Decode SSH key
-        run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
-        shell: bash
-
-      - name: Set permissions on SSH key
-        run: chmod 600 ssh/id_rsa
-
-      - name: Set executable permissions
-        run: |
-          chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
-
-      # - name: Install cmake
-      #   run: |
-      #     ./etc/install_cmake.sh
-
-      - name: Build mrv2
-        env:
-          GITHUB_OWNER: ""
-        run: |
-          ./etc/runme_nolog.sh -gpl -D TLRENDER_USD=OFF -t package
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-gpl-macos-intel
-          path: |
-            paquetes/BUILD-Darwin-amd64/Release/mrv2-*.dmg
-          if-no-files-found: warn
+    # - name: Release/Upload binaries
+    #   run: |
+    #     ./bin/release/upload_sourceforge.sh
 
   macos-M1-gpl-build:
     runs-on: macos-14
     permissions:
-      contents: write # Needed to update releases
+      contents: write   # Needed to update releases
 
     env:
       CMAKE_OSX_DEPLOYMENT_TARGET: 14.0
-
+      
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
+    
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Get machine name
+      run: |
+        echo "Machine name: $RUNNER_NAME"
 
-      - name: Get machine name
-        run: |
-          echo "Machine name: $RUNNER_NAME"
+    - name: Install ninja-build
+      run: brew install ninja
+      
+    - name: Install automake
+      run: brew install automake curl
 
-      - name: Install ninja-build
-        run: brew install ninja
+    - name: Install GNU sed
+      run: brew install gnu-sed
+      
+    - name: Install Python dependencies
+      run: brew install libb2 libffi readline sqlite3 xz zlib
+      
+    - name: Reinstall xz to avoid broken macOS 14
+      run: brew reinstall xz
+        
+    - name: Install pyFLTK dependencies
+      run: brew install swig
+      
+    - name: Setup environment
+      run: mkdir -p ssh
 
-      - name: Install automake
-        run: brew install automake curl
+    - name: Decode SSH key
+      run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
+      shell: bash
+  
+    - name: Set permissions on SSH key
+      run: chmod 600 ssh/id_rsa
+      
+    - name: Set executable permissions
+      run: |
+        chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
 
-      - name: Install GNU sed
-        run: brew install gnu-sed
+    # - name: Install cmake
+    #   run: |
+    #     ./etc/install_cmake.sh
 
-      - name: Install Python dependencies
-        run: brew install libb2 libffi readline sqlite3 xz zlib
-
-      - name: Reinstall xz to avoid broken macOS 14
-        run: brew reinstall xz
-
-      - name: Install pyFLTK dependencies
-        run: brew install swig
-
-      - name: Setup environment
-        run: mkdir -p ssh
-
-      - name: Decode SSH key
-        run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
-        shell: bash
-
-      - name: Set permissions on SSH key
-        run: chmod 600 ssh/id_rsa
-
-      - name: Set executable permissions
-        run: |
-          chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
-
-      # - name: Install cmake
-      #   run: |
-      #     ./etc/install_cmake.sh
-
-      - name: Build mrv2
-        env:
-          GITHUB_OWNER: ""
-        run: |
-          ./etc/runme_nolog.sh -gpl -t package
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-gpl-macos-m1
-          path: |
-            paquetes/BUILD-Darwin-arm64/Release/mrv2-*.dmg
-          if-no-files-found: warn
+    - name: Build mrv2
+      run: |
+        ./etc/runme_nolog.sh -gpl -t package

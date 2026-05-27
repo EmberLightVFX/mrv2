@@ -7,8 +7,6 @@
 #include <iostream>
 #include <string>
 
-#define DEBUG_PIPELINE_USE 0
-#define DEBUG_PIPELINE_LAYOUT_USE 0
 
 #if DEBUG_PIPELINE_USE
 #define DEBUG_PIPELINE(x) std::cerr << x << std::endl;
@@ -29,7 +27,7 @@ namespace tl
         void Render::_createBindingSet(const std::shared_ptr<vlk::Shader>& shader)
         {
             TLRENDER_P();
-
+            
             auto bindingSet = shader->createBindingSet();
             p.garbage[p.frameIndex].bindingSets.push_back(bindingSet);
         }
@@ -40,6 +38,12 @@ namespace tl
             const std::shared_ptr<vlk::Shader> shader)
         {
             TLRENDER_P();
+
+            VkPipelineLayout pipelineLayout = p.pipelineLayouts[pipelineLayoutName];
+            if (pipelineLayout)
+            {
+                p.garbage[p.frameIndex].pipelineLayouts.push_back(pipelineLayout);
+            }
             
             VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
             pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -59,9 +63,9 @@ namespace tl
                 pPipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
             }
             
-            VkPipelineLayout pipelineLayout;
             VkResult result = vkCreatePipelineLayout(ctx.device, &pPipelineLayoutCreateInfo, NULL, &pipelineLayout);
             VK_CHECK(result);
+            
             p.pipelineLayouts[pipelineLayoutName] = pipelineLayout;
             return pipelineLayout;
         }
@@ -83,10 +87,6 @@ namespace tl
                 DEBUG_PIPELINE_LAYOUT("CREATING   pipelineLayout " << pipelineLayoutName);
                 pipelineLayout = _createPipelineLayout(pipelineLayoutName,
                                                        shader);
-            }
-            else
-            {
-                DEBUG_PIPELINE_LAYOUT("REUSING    pipelineLayout " << pipelineLayoutName);
             }
 
             VkDevice device = ctx.device;
@@ -180,7 +180,6 @@ namespace tl
                 }
                 else
                 {
-                    DEBUG_PIPELINE("REUSING    pipeline " << pipelineName);
                     pipeline = pair.second;
                 }
             }
@@ -275,6 +274,26 @@ namespace tl
                 &descriptorSet, 0, nullptr);
         }
         
+        void Render::_bindComputeDescriptorSets(
+            const std::string& pipelineLayoutName, const std::string& shaderName)
+        {
+            TLRENDER_P();
+            
+            VkDescriptorSet descriptorSet = p.compute[shaderName]->getDescriptorSet();
+            VkPipelineLayout pipelineLayout = p.pipelineLayouts[pipelineLayoutName];
+            if (!pipelineLayout)
+            {
+                pipelineLayout = _createPipelineLayout(pipelineLayoutName,
+                                                       p.compute[shaderName]);
+            }
+            
+            vkCmdBindDescriptorSets(
+                p.cmd, VK_PIPELINE_BIND_POINT_COMPUTE,
+                p.pipelineLayouts[pipelineLayoutName], 0, 1,
+                &descriptorSet, 0, nullptr);
+        }
+        
+
         void Render::_vkDraw(const std::string& meshName)
         {
             TLRENDER_P();

@@ -3,6 +3,14 @@
 // Copyright Contributors to the mrv2 Project. All rights reserved.
 
 #define LOG_WARNING(x) std::cerr << x << std::endl;
+#define LOG_ERROR(x) std::cerr << x << std::endl;
+#define LOG_STATUS(x) std::cout << x << std::endl;
+
+#ifdef NDEBUG
+#  define LOG_DEBUG(x)
+#else
+#  define LOG_DEBUG(x) std::cerr << x << std::endl;
+#endif
 
 #include <Imath/half.h>
 
@@ -11,16 +19,17 @@
 #include <tlCore/StringFormat.h>
 
 #include <tlVk/Mesh.h>
+#include <tlVk/PipelineCreationState.h>
+#include <tlVk/Shader.h>
 
 #include <rapidxml/rapidxml.hpp>
 
 #include <tlDevice/NDI/NDI.h>
-
 #include "mrvHDR/mrvDesktop.h"
 #include "mrvHDR/mrvNDICallbacks.h"
 #include "mrvHDR/mrvMonitor.h"
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 
 #include "hdr/mrvHDRApp.h"
 #include "mrvNDIView.h"
@@ -52,8 +61,6 @@ extern "C"
 #include <regex>
 #include <thread>
 
-#define LOG_STATUS(x) std::cout << x << std::endl;
-
 
 namespace
 {
@@ -62,7 +69,6 @@ namespace
 
 namespace
 {
-    // \@bug: not needed?
     float apply_inverse_pq(float x)
     {
         float m1 = 0.8359375f;
@@ -117,14 +123,14 @@ namespace
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16_UINT
-                                              : VK_FORMAT_R8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16_UINT
+                       : VK_FORMAT_R8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16_SINT
-                                              : VK_FORMAT_R8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16_SINT
+                       : VK_FORMAT_R8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
@@ -139,87 +145,87 @@ namespace
             if (fmt->type == PL_FMT_FLOAT)
             {
                 return size == 2 ? VK_FORMAT_R16G16_SFLOAT
-                                 : VK_FORMAT_R32G32_SFLOAT;
+                    : VK_FORMAT_R32G32_SFLOAT;
             }
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16G16_UINT
-                                              : VK_FORMAT_R8G8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16G16_UINT
+                       : VK_FORMAT_R8G8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16G16_SINT
-                                              : VK_FORMAT_R8G8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16G16_SINT
+                       : VK_FORMAT_R8G8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16_UNORM
-                                 : VK_FORMAT_R8G8_UNORM;
+                    : VK_FORMAT_R8G8_UNORM;
             }
             else if (fmt->type == PL_FMT_SNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16_SNORM
-                                 : VK_FORMAT_R8G8_SNORM;
+                    : VK_FORMAT_R8G8_SNORM;
             }
             break;
         case 3:
             if (fmt->type == PL_FMT_FLOAT)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16_SFLOAT
-                                 : VK_FORMAT_R32G32B32_SFLOAT;
+                    : VK_FORMAT_R32G32B32_SFLOAT;
             }
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16_UINT
-                                              : VK_FORMAT_R8G8B8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16_UINT
+                       : VK_FORMAT_R8G8B8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16_SINT
-                                              : VK_FORMAT_R8G8B8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16_SINT
+                       : VK_FORMAT_R8G8B8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16_UNORM
-                                 : VK_FORMAT_R8G8B8_UNORM;
+                    : VK_FORMAT_R8G8B8_UNORM;
             }
             else if (fmt->type == PL_FMT_SNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16_SNORM
-                                 : VK_FORMAT_R8G8B8_SNORM;
+                    : VK_FORMAT_R8G8B8_SNORM;
             }
             break;
         case 4:
             if (fmt->type == PL_FMT_FLOAT)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16A16_SFLOAT
-                                 : VK_FORMAT_R32G32B32A32_SFLOAT;
+                    : VK_FORMAT_R32G32B32A32_SFLOAT;
             }
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32A32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16A16_UINT
-                                              : VK_FORMAT_R8G8B8A8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16A16_UINT
+                       : VK_FORMAT_R8G8B8A8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32A32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16A16_SINT
-                                              : VK_FORMAT_R8G8B8A8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16A16_SINT
+                       : VK_FORMAT_R8G8B8A8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16A16_UNORM
-                                 : VK_FORMAT_R8G8B8A8_UNORM;
+                    : VK_FORMAT_R8G8B8A8_UNORM;
             }
             else if (fmt->type == PL_FMT_SNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16A16_SNORM
-                                 : VK_FORMAT_R8G8B8A8_SNORM;
+                    : VK_FORMAT_R8G8B8A8_SNORM;
             }
             break;
         }
@@ -227,13 +233,28 @@ namespace
         return VK_FORMAT_UNDEFINED;
     }
 
+    std::string vertexSource()
+    {
+        return R"(
+ #version 450
+ layout(location = 0) in vec2 inPos;
+ layout(location = 1) in vec2 inTexCoord;
+ layout(location = 0) out vec2 outTexCoord;
+
+ void main() {
+      gl_Position = vec4(inPos, 0.0, 1.0);
+      outTexCoord = inTexCoord;
+ }
+ )";
+    }
 } // namespace
 
 namespace mrv
-{    
-    monitor::HDRCapabilities getHDRCapabilities(int screen_num)
+{
+    
+    monitor::Capabilities getHDRCapabilities(int screen_num)
     {
-        monitor::HDRCapabilities out;
+        monitor::Capabilities out;
         if (desktop::Wayland())
         {
             const std::string& monitorName = desktop::monitorName(screen_num);
@@ -304,7 +325,7 @@ namespace mrv
                 // Determine image type
                 VkImageType imageType = (dims == 1)   ? VK_IMAGE_TYPE_1D
                                         : (dims == 2) ? VK_IMAGE_TYPE_2D
-                                                      : VK_IMAGE_TYPE_3D;
+                                        : VK_IMAGE_TYPE_3D;
 
                 auto texture = vlk::Texture::create(ctx, imageType, width,
                                                     height, depth, imageFormat,
@@ -327,6 +348,13 @@ namespace mrv
 
         pl_log log;
         pl_gpu gpu;
+        pl_shader shader = nullptr;
+        pl_shader_obj state = nullptr;
+        const pl_shader_res* res = nullptr;
+        
+        std::vector<pl_shader_var> pcUBOvars;
+        void* pcUBOData = nullptr;
+        size_t pcUBOSize = 0;
     };
 
     LibPlaceboData::LibPlaceboData()
@@ -377,14 +405,39 @@ namespace mrv
         {
             throw std::runtime_error("pl_gpu_dummy_create failed!");
         }
+        
+        pl_shader_params shader_params;
+        memset(&shader_params, 0, sizeof(pl_shader_params));
+
+        shader_params.id = 1;
+        shader_params.gpu = gpu;
+        shader_params.dynamic_constants = false;
+
+        shader = pl_shader_alloc(log, &shader_params);
+        if (!shader)
+        {
+            throw std::runtime_error("pl_shader_alloc failed!");
+        }
     }
 
     LibPlaceboData::~LibPlaceboData()
     {
+        pl_shader_free(&shader);
+        shader = nullptr;
+        res = nullptr;
+        if (state)
+        {
+            pl_shader_obj_destroy(&state);
+            state = nullptr;
+        }
+        pcUBOvars.clear();
+        free(pcUBOData);
+        pcUBOSize = 0;
+            
         pl_gpu_dummy_destroy(&gpu);
         pl_log_destroy(&log);
     }
-
+    
     struct NDIView::Private
     {
         // FLTK state variables
@@ -392,17 +445,20 @@ namespace mrv
 
         // HDR monitor variables
         int screen_index = 0;
-        monitor::HDRCapabilities hdrCapabilities;
+        tl::monitor::Capabilities monitor;
 
+        // Libplacebo variables
+        const pl_shader_res* res = nullptr;
+        pl_shader_obj state = nullptr;
+
+        // NDI variables
         NDIlib_find_instance_t NDI_find = nullptr;
         NDIlib_recv_instance_t NDI_recv = nullptr;
 
         std::shared_ptr<observer::List<std::string> > NDISources;
         std::shared_ptr<observer::ListObserver<std::string> >
-            NDISourcesObserver;
+        NDISourcesObserver;
         std::string currentNDISource;
-
-        bool init = false;
 
         struct FindMutex
         {
@@ -451,16 +507,18 @@ namespace mrv
         std::string matrixName;
 
         // Full mrv2 image data (we try to use this)
-        bool hdrMonitorFound = false;
-        bool isP3Display = false;
-
-        bool hasHDR = false;
+        bool hasHDRData = false;
         image::HDRData hdrData;
+
+        std::string oldShaderSource;
+        unsigned bindingIndex = 1;
+        std::shared_ptr<vlk::Shader> shader;
 
         NDIlib_FourCC_video_type_e fourCC = NDIlib_FourCC_type_UYVY;
 
         // Vulkan variables
         VkColorSpaceKHR lastColorSpace;
+        vlk::PipelineCreationState pipelineState;
 
         // tlRender variables
         image::Info info;
@@ -475,6 +533,7 @@ namespace mrv
         std::shared_ptr<tl::vlk::VBO> vbo;
         std::shared_ptr<tl::vlk::VAO> vao;
     };
+
 
     NDIView::~NDIView()
     {
@@ -507,9 +566,6 @@ namespace mrv
         
         Fl_Vk_Window::init_colorspace();
 
-        // Look for HDR10 or HLG if present
-        p.hdrMonitorFound = false;
-
         bool valid_colorspace = false;
         switch (colorSpace())
         {
@@ -525,19 +581,22 @@ namespace mrv
         }
 
         p.screen_index = this->screen_num();
-        p.hdrCapabilities = getHDRCapabilities(p.screen_index);
         
-        if (valid_colorspace && p.hdrCapabilities.supported)
+        if (valid_colorspace)
         {
-            p.hdrMonitorFound = true;
             LOG_STATUS(_("HDR monitor found."));
+            
+            p.monitor = getHDRCapabilities(p.screen_index);
             
             _getMonitorNits(false);
         }
         else
         {
-            colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-            format() = VK_FORMAT_B8G8R8A8_UNORM;
+            if (colorSpace() != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            {
+                colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+                format() = VK_FORMAT_B8G8R8A8_UNORM;
+            }
             LOG_STATUS(_("HDR monitor not found or not configured."));
         }
         LOG_STATUS("Vulkan color space is " << string_VkColorSpaceKHR(colorSpace()));
@@ -546,7 +605,7 @@ namespace mrv
         p.lastColorSpace = colorSpace();
     }
 
-    void NDIView::_copy(const uint8_t* video_frame)
+    void NDIView::_copy(const uint8_t* video_frame, int stride_in_bytes)
     {
         TLRENDER_P();
 
@@ -560,9 +619,10 @@ namespace mrv
         {
         case NDIlib_FourCC_type_PA16:
         {
+            const int stride_words = stride_in_bytes / 2;
             uint16_t* p_y = (uint16_t*)video_frame;
-            const uint16_t* p_uv = p_y + w * h;
-            const uint16_t* p_alpha = p_uv + w * h;
+            const uint16_t* p_uv = p_y + h * stride_words;
+            const uint16_t* p_alpha = p_uv + h * stride_words;
 
             // Determine BT.601 or BT.709 based on resolution
             bool useBT709 = (w >= 1280 && h >= 720);
@@ -574,45 +634,40 @@ namespace mrv
 
             for (int y = 0; y < h; ++y)
             {
+                // Calculate base pointers for the current row
+                const uint16_t* row_y = p_y + (y * stride_words);
+                const uint16_t* row_uv = p_uv + (y * stride_words);
+                const uint16_t* row_alpha = p_alpha + (y * stride_words);
+        
                 for (int x = 0; x < w; ++x)
                 {
-                    const int yw = y * w;
-                    int index_y = yw + x;
-                    int index_uv = yw + (x / 2) * 2;
-                    int index_alpha = index_y;
+                    // Extract Y and Alpha
+                    float Yf = row_y[x] / 65535.0f;
+                    float A = row_alpha[x] / 65535.0f;
 
-                    // Extract Y, U, V, and Alpha
-                    float Yf = p_y[index_y] / 65535.0f;
-                    float Uf = (p_uv[index_uv] - 32768) / 65535.0f;
-                    float Vf = (p_uv[index_uv + 1] - 32768) / 65535.0f;
-                    float A = p_alpha[index_alpha] / 65535.0f;
+                    // Extract U and V (4:2:2 interleaved means 1 UV pair per 2 pixels)
+                    int uv_idx = (x / 2) * 2;
+                    float Uf = (row_uv[uv_idx] - 32768) / 65535.0f;
+                    float Vf = (row_uv[uv_idx + 1] - 32768) / 65535.0f;
 
                     float R, G, B;
-
                     float Y_linear = Yf;
-                    // if (p.hasHDR)
-                    //     Y_linear = apply_inverse_pq(Yf);
-                    // else
-                    //     Y_linear = Yf;
 
                     if (useBT709)
                     {
-                        // BT.709 typical multipliers
-                        // (Exact values differ slightly in various references)
                         R = Y_linear + 1.5748f * Vf;
                         G = Y_linear - 0.1873f * Uf - 0.4681f * Vf;
                         B = Y_linear + 1.8556f * Uf;
                     }
                     else
                     {
-                        // BT.601
                         R = Y_linear + 1.402f * Vf;
                         G = Y_linear - 0.344f * Uf - 0.714f * Vf;
                         B = Y_linear + 1.772f * Uf;
                     }
 
                     // Store as RGBA float
-                    int rgba_index = index_y * 4;
+                    int rgba_index = (y * w + x) * 4; 
                     rgba[rgba_index] = R;
                     rgba[rgba_index + 1] = G;
                     rgba[rgba_index + 2] = B;
@@ -623,9 +678,12 @@ namespace mrv
         }
         case NDIlib_FourCC_type_P216:
         {
+            LOG_DEBUG("P216");
+            
+            const int stride_words = stride_in_bytes / 2;
             uint16_t* p_y = (uint16_t*)video_frame;
-            const uint16_t* p_uv = p_y + w * h;
-
+            const uint16_t* p_uv = p_y + h * stride_words;            
+            
             // Determine BT.601 or BT.709 based on resolution
             bool useBT709 = (w >= 1280 && h >= 720);
 
@@ -636,21 +694,26 @@ namespace mrv
 
             for (int y = 0; y < h; ++y)
             {
+                // Calculate base pointers for the current row
+                const uint16_t* row_y = p_y + (y * stride_words);
+                const uint16_t* row_uv = p_uv + (y * stride_words);
+        
                 for (int x = 0; x < w; ++x)
                 {
-                    const int yw = y * w;
-                    int index_y = yw + x;
-                    int index_uv = yw + (x / 2) * 2;
-
-                    // Extract Y, U, V, and Alpha
-                    float Yf = p_y[index_y] / 65535.0f;
-                    float Uf = (p_uv[index_uv] - 32768) / 65535.0f;
-                    float Vf = (p_uv[index_uv + 1] - 32768) / 65535.0f;
-
+                    // Extract Y and Alpha
+                    float Yf = row_y[x] / 65535.0f;
+                    
+                    // Extract U and V (4:2:2 interleaved means 1 UV pair per 2 pixels)
+                    int uv_idx = (x / 2) * 2;
+                    float Uf = (row_uv[uv_idx] - 32768) / 65535.0f;
+                    float Vf = (row_uv[uv_idx + 1] - 32768) / 65535.0f;
+                    
                     float R, G, B;
 
                     float Y_linear = Yf;
-                    // if (p.hasHDR)
+
+                    // apply_inverse_pq is not needed
+                    // if (p.hasHDRData)
                     //     Y_linear = apply_inverse_pq(Yf);
                     // else
                     //     Y_linear = Yf;
@@ -672,7 +735,7 @@ namespace mrv
                     }
 
                     // Store as RGBA float
-                    int rgba_index = index_y * 4;
+                    int rgba_index = (y * w + x) * 4;
                     rgba[rgba_index] = R;
                     rgba[rgba_index + 1] = G;
                     rgba[rgba_index + 2] = B;
@@ -683,16 +746,16 @@ namespace mrv
         }
         case NDIlib_FourCC_type_UYVY:
         {
-            std::cerr << "UYVY" << std::endl;
+            LOG_DEBUG("UYVY");
             break;
         }
         case NDIlib_FourCC_type_UYVA:
         {
-            std::cerr << "UYVA" << std::endl;
+            LOG_DEBUG("UYVA");
             break;
         }
         default:
-            std::cerr << "Unknown format" << std::endl;
+            LOG_ERROR("Unknown format");
             break;
         }
     }
@@ -703,7 +766,7 @@ namespace mrv
 
         VkResult result;
         m_textures.reserve(16);  // reserve up to 16 textures for libplacebo.
-
+        
         uint32_t tex_width = 1, tex_height = 1;
         image::Info info;
         if (p.image)
@@ -728,8 +791,8 @@ namespace mrv
 
         using namespace tl;
 
-        const math::Size2i viewportSize = {pixel_w(), pixel_h()};
-        image::Size renderSize = {pixel_w(), pixel_h()};
+        const math::Size2i viewportSize = {(int)pixel_w(), (int)pixel_h()};
+        image::Size renderSize = {(int)pixel_w(), (int)pixel_h()};
 
         if (p.image)
         {
@@ -781,6 +844,9 @@ namespace mrv
     // creates m_renderPass
     void NDIView::prepare_render_pass()
     {
+        if (m_renderPass != VK_NULL_HANDLE)
+            return;
+        
         VkAttachmentDescription attachments[2];
         attachments[0] = VkAttachmentDescription();
         attachments[0].format = ctx.format;
@@ -824,87 +890,6 @@ namespace mrv
         VK_CHECK(result);
     }
 
-    VkShaderModule NDIView::prepare_vs()
-    {
-        if (m_vert_shader_module != VK_NULL_HANDLE)
-            return m_vert_shader_module;
-
-        std::string vertex_shader_glsl = R"(
- #version 450
- layout(location = 0) in vec2 inPos;
- layout(location = 1) in vec2 inTexCoord;
- layout(location = 0) out vec2 outTexCoord;
-
- void main() {
-      gl_Position = vec4(inPos, 0.0, 1.0);
-      outTexCoord = inTexCoord;
- }
- )";
-
-        try
-        {
-            std::vector<uint32_t> spirv = compile_glsl_to_spirv(
-                vertex_shader_glsl,
-                shaderc_vertex_shader, // Shader type
-                "vertex_shader.glsl"   // Filename for error reporting
-            );
-
-            m_vert_shader_module = create_shader_module(device(), spirv);
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << e.what() << std::endl;
-            m_vert_shader_module = VK_NULL_HANDLE;
-        }
-        return m_vert_shader_module;
-    }
-
-    VkShaderModule NDIView::prepare_fs()
-    {
-        if (m_frag_shader_module != VK_NULL_HANDLE)
-            return m_frag_shader_module;
-
-        TLRENDER_P();
-
-        // Example GLSL vertex shader
-        std::string frag_shader_glsl = tl::string::Format(R"(
-#version 450
-
-// Input from vertex shader
-layout(location = 0) in vec2 inTexCoord;
-
-// Output color
-layout(location = 0) out vec4 outColor;
-
-// Main image to display
-layout(binding = 0) uniform sampler2D inTexture;
-{0}
-
-void main() {
-     vec4 tmp = texture(inTexture, inTexCoord, 0.0);
-     {1}
-}
-)")
-                                           .arg(p.hdrColorsDef)
-                                           .arg(p.hdrColors);
-        // Compile to SPIR-V
-        try
-        {
-            // std::cerr << frag_shader_glsl << std::endl;
-            std::vector<uint32_t> spirv = compile_glsl_to_spirv(
-                frag_shader_glsl,
-                shaderc_fragment_shader, // Shader type
-                "frag_shader.glsl"       // Filename for error reporting
-            );
-            m_frag_shader_module = create_shader_module(device(), spirv);
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << e.what() << std::endl;
-            m_frag_shader_module = VK_NULL_HANDLE;
-        }
-        return m_frag_shader_module;
-    }
 
     void NDIView::prepare_pipeline()
     {
@@ -913,127 +898,92 @@ void main() {
         VkGraphicsPipelineCreateInfo pipeline = {};
         VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
 
-        VkPipelineVertexInputStateCreateInfo vi = {};
-        VkPipelineInputAssemblyStateCreateInfo ia = {};
-        VkPipelineRasterizationStateCreateInfo rs = {};
-        VkPipelineColorBlendStateCreateInfo cb = {};
-        VkPipelineDepthStencilStateCreateInfo ds = {};
-        VkPipelineViewportStateCreateInfo vp = {};
-        VkPipelineMultisampleStateCreateInfo ms = {};
-        VkDynamicState dynamicStateEnables[(
-            VK_DYNAMIC_STATE_STENCIL_REFERENCE - VK_DYNAMIC_STATE_VIEWPORT +
-            1)];
-        VkPipelineDynamicStateCreateInfo dynamicState = {};
+        vlk::VertexInputStateInfo vi;
+        vi.bindingDescriptions = p.vbo->getBindingDescription();
+        vi.attributeDescriptions = p.vbo->getAttributes();
+            
+        // Defaults are fine
+        vlk::InputAssemblyStateInfo ia;
+        
+        // Defaults are fine
+        vlk::RasterizationStateInfo rs;
+        
+        // Defaults are fine
+        vlk::ViewportStateInfo vp;
+        
+        // Defaults are fine
+        vlk::DynamicStateInfo dynamicState;
+        dynamicState.dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+        
+        vlk::ColorBlendAttachmentStateInfo colorBlendAttachment;
+        colorBlendAttachment.blendEnable = VK_FALSE;
+        
+        vlk::ColorBlendStateInfo cb;
+        cb.attachments.push_back(colorBlendAttachment);
+        
+        vlk::DepthStencilStateInfo ds;
+        ds.depthTestEnable = mode() & FL_DEPTH ? VK_TRUE : VK_FALSE;
+        ds.depthWriteEnable = mode() & FL_DEPTH ? VK_TRUE : VK_FALSE;
+        ds.stencilTestEnable = mode() & FL_STENCIL ? VK_TRUE : VK_FALSE;
+
+        vlk::MultisampleStateInfo ms;
+        ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
         VkResult result;
 
-        memset(dynamicStateEnables, 0, sizeof dynamicStateEnables);
-        dynamicState.sType =
-            VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicState.pDynamicStates = dynamicStateEnables;
-
-        pipeline.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipeline.layout = m_pipeline_layout;
-
-        vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vi.vertexBindingDescriptionCount =
-            p.vbo->getBindingDescription().size();
-        vi.pVertexBindingDescriptions = p.vbo->getBindingDescription().data();
-        vi.vertexAttributeDescriptionCount = p.vbo->getAttributes().size();
-        vi.pVertexAttributeDescriptions = p.vbo->getAttributes().data();
-
-        ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        // ia.primitiveRestartEnable = VK_FALSE;
-
-        rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rs.polygonMode = VK_POLYGON_MODE_FILL;
-        rs.cullMode = VK_CULL_MODE_NONE;
-        rs.frontFace = VK_FRONT_FACE_CLOCKWISE;
-        rs.depthClampEnable = VK_FALSE;
-        rs.rasterizerDiscardEnable = VK_FALSE;
-        rs.depthBiasEnable = VK_FALSE;
-        rs.lineWidth = 1.0f;
-
-        cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        VkPipelineColorBlendAttachmentState att_state[1];
-        memset(att_state, 0, sizeof(att_state));
-        att_state[0].colorWriteMask = 0xf;
-        att_state[0].blendEnable = VK_FALSE;
-        cb.attachmentCount = 1;
-        cb.pAttachments = att_state;
-
-        vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        vp.viewportCount = 1;
-        dynamicStateEnables[dynamicState.dynamicStateCount++] =
-            VK_DYNAMIC_STATE_VIEWPORT;
-        vp.scissorCount = 1;
-        dynamicStateEnables[dynamicState.dynamicStateCount++] =
-            VK_DYNAMIC_STATE_SCISSOR;
-
-        ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        ds.depthTestEnable = VK_FALSE;
-        ds.depthWriteEnable = VK_FALSE;
-        ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-        ds.depthBoundsTestEnable = VK_FALSE;
-        ds.stencilTestEnable = VK_FALSE;
-        ds.back.failOp = VK_STENCIL_OP_KEEP;
-        ds.back.passOp = VK_STENCIL_OP_KEEP;
-        ds.back.compareOp = VK_COMPARE_OP_ALWAYS;
-        ds.front = ds.back;
-
-        ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        ms.pSampleMask = NULL;
-        ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        // Two stages: vs and fs
-        pipeline.stageCount = 2;
-        VkPipelineShaderStageCreateInfo shaderStages[2];
-        memset(&shaderStages, 0, 2 * sizeof(VkPipelineShaderStageCreateInfo));
-
-        shaderStages[0].sType =
-            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        // Get the vertex and fragment shaders
+        std::vector<vlk::PipelineCreationState::ShaderStageInfo>
+            shaderStages(2);
+        
         shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-        shaderStages[0].module = prepare_vs();
-        shaderStages[0].pName = "main";
+        shaderStages[0].name = p.shader->getName();
+        shaderStages[0].module = p.shader->getVertex();
+        shaderStages[0].entryPoint = "main";
 
-        shaderStages[1].sType =
-            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        shaderStages[1].module = prepare_fs();
-        shaderStages[1].pName = "main";
+        shaderStages[0].name = p.shader->getName();
+        shaderStages[1].module = p.shader->getFragment();
+        shaderStages[1].entryPoint = "main";
 
-        pipeline.pVertexInputState = &vi;
-        pipeline.pInputAssemblyState = &ia;
-        pipeline.pRasterizationState = &rs;
-        pipeline.pColorBlendState = &cb;
-        pipeline.pMultisampleState = &ms;
-        pipeline.pViewportState = &vp;
-        pipeline.pDepthStencilState = &ds;
-        pipeline.pStages = shaderStages;
-        pipeline.renderPass = m_renderPass;
-        pipeline.pDynamicState = &dynamicState;
+        vlk::PipelineCreationState pipelineState;
+        pipelineState.vertexInputState = vi;
+        pipelineState.inputAssemblyState = ia;
+        pipelineState.colorBlendState = cb;
+        pipelineState.rasterizationState = rs;
+        pipelineState.depthStencilState = ds;
+        pipelineState.viewportState = vp;
+        pipelineState.multisampleState = ms;
+        pipelineState.dynamicState = dynamicState;
+        pipelineState.stages = shaderStages;
+        pipelineState.renderPass = m_renderPass;
+        pipelineState.layout = m_pipeline_layout;
 
-        VkPipelineCache pipelineCache;
+        if (pipelineState != p.pipelineState)
+        {
+            VkDevice device = ctx.device;
 
-        pipelineCacheCreateInfo.sType =
-            VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-
-        result = vkCreatePipelineCache(
-            device(), &pipelineCacheCreateInfo, NULL, &pipelineCache);
-        VK_CHECK(result);
-
-        result = vkCreateGraphicsPipelines(
-            device(), pipelineCache, 1, &pipeline, NULL, &m_pipeline);
-        VK_CHECK(result);
-
-        vkDestroyPipelineCache(device(), pipelineCache, NULL);
+            if (m_pipeline != VK_NULL_HANDLE)
+            {
+                vkDestroyPipeline(device, m_pipeline, nullptr);
+            }
+            
+            m_pipeline = pipelineState.create(device);
+            p.pipelineState = pipelineState;
+        }
     }
 
     void NDIView::prepare_descriptor_layout()
     {
         TLRENDER_P();
 
+        if (m_desc_layout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device(), m_desc_layout, nullptr);
+            m_desc_layout = VK_NULL_HANDLE;
+        }
+        
         std::vector<VkDescriptorSetLayoutBinding> bindings;
 
         // Main texture at binding 0
@@ -1072,6 +1022,18 @@ void main() {
         pipelineLayoutInfo.setLayoutCount = 1;
         pipelineLayoutInfo.pSetLayouts = &m_desc_layout;
 
+        VkPushConstantRange pushConstantRange = {};
+        std::size_t pushSize = p.shader->getPushSize();
+        if (pushSize > 0)
+        {
+            pushConstantRange.stageFlags = p.shader->getPushStageFlags();
+            pushConstantRange.offset = 0;
+            pushConstantRange.size = pushSize;
+            
+            pipelineLayoutInfo.pushConstantRangeCount = 1;
+            pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+        }
+            
         result = vkCreatePipelineLayout(
             device(), &pipelineLayoutInfo, nullptr, &m_pipeline_layout);
         VK_CHECK(result);
@@ -1079,6 +1041,12 @@ void main() {
 
     void NDIView::prepare_descriptor_pool()
     {
+        if (m_desc_pool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(device(), m_desc_pool, nullptr);
+            m_desc_pool = VK_NULL_HANDLE;
+        }
+        
         VkDescriptorPoolSize poolSize = {};
         poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSize.descriptorCount =
@@ -1097,6 +1065,7 @@ void main() {
 
     void NDIView::prepare_descriptor_set()
     {
+        
         VkDescriptorSetAllocateInfo allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = m_desc_pool;
@@ -1151,8 +1120,7 @@ void main() {
         m_clearColor = {2.F, 2.F, 2.F, 0.F};
 
         mode(FL_RGB | FL_DOUBLE | FL_ALPHA);
-        m_vert_shader_module = VK_NULL_HANDLE;
-        m_frag_shader_module = VK_NULL_HANDLE;
+        
 
         if (!NDIlib_initialize())
             throw std::runtime_error("Could not initialize NDI library");
@@ -1164,26 +1132,26 @@ void main() {
         p.NDISourcesObserver = observer::ListObserver<std::string>::create(
             this->observeNDISources(),
             [this](const std::vector<std::string>& sources)
-            {
-                TLRENDER_P();
+                {
+                    TLRENDER_P();
 
-                fill_menu(HDRApp::ui->uiMenuBar);
-            },
+                    fill_menu(HDRApp::ui->uiMenuBar);
+                },
             observer::CallbackAction::Suppress);
 
         p.findThread.running = true;
         p.findThread.thread = std::thread(
             [this]
-            {
-                try
                 {
-                    _findThread();
-                }
-                catch (const std::exception& e)
-                {
-                    std::cerr << e.what() << std::endl;
-                }
-            });
+                    try
+                    {
+                        _findThread();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        std::cerr << e.what() << std::endl;
+                    }
+                });
     }
 
     std::shared_ptr<observer::IList<std::string> >
@@ -1204,10 +1172,11 @@ void main() {
     {
         TLRENDER_P();
 
-        vkDeviceWaitIdle(device()); // waits for all queue on the device
+        // vkDeviceWaitIdle(device()); // waits for all queue on the device
 
         {
             std::unique_lock<std::mutex> lock(p.videoMutex.mutex);
+            m_textures.clear();
             prepare_main_texture();
             prepare_shader();
         }
@@ -1217,8 +1186,6 @@ void main() {
         prepare_pipeline();
         prepare_descriptor_pool();
         prepare_descriptor_set();
-
-        m_swapchain_needs_recreation = false;
     }
 
     void NDIView::update_texture(VkCommandBuffer cmd)
@@ -1227,11 +1194,32 @@ void main() {
 
         VkResult result;
 
-        if (p.hdrMonitorFound && p.hasHDR && p.useHDRMetadata)
+        if (p.monitor.hdr_enabled && p.useHDRMetadata)
         {
-            // This will make the FLTK swapchain call vk->SetHDRMetadataEXT();
-            const image::HDRData& data = p.hdrData;
+            // Start with the video metadata in case monitor primaries are
+            // missing.
+            image::HDRData data = p.hdrData;
             auto m_previous_hdr_metadata = m_hdr_metadata;
+            
+            if (p.monitor.red.x > 0)
+            {
+                data.primaries[image::Red].x = p.monitor.red.x;
+                data.primaries[image::Red].y = p.monitor.red.y;
+                data.primaries[image::Green].x = p.monitor.green.x;
+                data.primaries[image::Green].y = p.monitor.green.y;
+                data.primaries[image::Blue].x = p.monitor.blue.x;
+                data.primaries[image::Blue].y = p.monitor.blue.y;
+            }
+            if (p.monitor.white.x > 0)
+            {
+                data.primaries[image::White].x = p.monitor.white.x;
+                data.primaries[image::White].y = p.monitor.white.y;
+            }
+            data.displayMasteringLuminance =
+                math::FloatRange(std::max(p.monitor.min_nits, 0.001F),
+                                 p.monitor.max_nits);
+            data.maxCLL = p.monitor.max_nits;
+            data.maxFALL = p.monitor.max_nits;
 
             m_hdr_metadata.sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT;
             m_hdr_metadata.displayPrimaryRed = {
@@ -1261,6 +1249,22 @@ void main() {
             if (!is_equal_hdr_metadata(m_hdr_metadata, m_previous_hdr_metadata))
                 m_hdr_metadata_changed = true; // Mark as changed
         }
+        else
+        {
+            m_hdr_metadata.sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT;
+
+            // Primaries
+            m_hdr_metadata.displayPrimaryRed = { 0.640F, 0.330F };
+            m_hdr_metadata.displayPrimaryGreen = { 0.300F, 0.600F };
+            m_hdr_metadata.displayPrimaryBlue = { 0.15F, 0.060F };
+            m_hdr_metadata.whitePoint = { 0.3127F, 0.3290F };
+                
+            // Max display capability
+            m_hdr_metadata.maxLuminance = 100.F;
+            m_hdr_metadata.minLuminance = 0.1F;
+            m_hdr_metadata.maxContentLightLevel = 100.F;
+            m_hdr_metadata.maxFrameAverageLightLevel = 100.F;
+        }
 
         if (!p.image)
             return;
@@ -1284,13 +1288,19 @@ void main() {
     bool NDIView::vk_draw_begin()
     {
         // Change background color here
-        m_clearColor = {0.0, 0.0, 0.0, 0.0};
+        m_clearColor = {0.0, 0.0, 0.0, 1.0};
         return Fl_Vk_Window::vk_draw_begin();
     }
 
     void NDIView::draw()
     {
         TLRENDER_P();
+        
+        VkCommandBuffer cmd = getCurrentCommandBuffer();
+        
+        // Clear the frame
+        begin_render_pass(cmd);
+        end_render_pass(cmd);
         
         // Check if the window changed screen.
         bool changed_screen = false;
@@ -1305,23 +1315,24 @@ void main() {
             // If we changed screen from an HDR to an SDR one, or one with
             // different nits settings, recreate the Vulkan swapchain.
             auto hdr = getHDRCapabilities(this->screen_num());
-            if (hdr.supported != p.hdrCapabilities.supported ||
-                hdr.min_nits != p.hdrCapabilities.min_nits ||
-                hdr.max_nits != p.hdrCapabilities.max_nits)
+            const auto monitor = getHDRCapabilities(this->screen_num());
+            if (monitor.hdr_enabled != p.monitor.hdr_enabled ||
+                monitor.hdr_supported != p.monitor.hdr_supported ||
+                monitor.min_nits != p.monitor.min_nits ||
+                monitor.max_nits != p.monitor.max_nits)
             {
                 m_swapchain_needs_recreation = true;
+                init_colorspace();
                 redraw();
                 return;
             }
         }
 
-        VkCommandBuffer cmd = getCurrentCommandBuffer();
-        
-        // Clear the frame
-        begin_render_pass(cmd);
-        end_render_pass(cmd);
-
-        update_texture(cmd);
+        {
+            std::unique_lock<std::mutex> lock(p.videoMutex.mutex);
+            update_texture(cmd);
+            _fillVariables(cmd, p.placeboData->res);
+        }
         
         begin_render_pass(cmd);
 
@@ -1331,15 +1342,15 @@ void main() {
             &m_desc_set, 0, nullptr);
 
         VkViewport viewport = {};
-        viewport.width = static_cast<float>(w());
-        viewport.height = static_cast<float>(h());
+        viewport.width = static_cast<float>(pixel_w());
+        viewport.height = static_cast<float>(pixel_h());
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor = {};
-        scissor.extent.width = w();
-        scissor.extent.height = h();
+        scissor.extent.width = pixel_w();
+        scissor.extent.height = pixel_h();
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         // Draw the rectangle
@@ -1373,50 +1384,32 @@ void main() {
     void NDIView::_getMonitorNits(bool quiet)
     {
         TLRENDER_P();
-            
-        if (!p.hdrCapabilities.supported)
-        {
-#ifdef __linux__
-            if (!quiet)
-            {
-                std::cerr << _("Could not determine monitor's nits.")
-                          << std::endl;
-            }
-            if (p.hdrMonitorFound)
-            {
-                p.hdrCapabilities.min_nits = 0.F;
-                p.hdrCapabilities.max_nits = 1000.F;
-            }
-            else
-            {
-                p.hdrCapabilities.min_nits = 0.F;
-                p.hdrCapabilities.max_nits = 203.F;
-            }
-#else
-            p.hdrMonitorFound = false;
-#endif
-        }
-            
-        if (!p.hdrMonitorFound)
-        {
-            std::cout << _("HDR monitor not found or not configured.")
-                      << std::endl;
-            colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-            format() = VK_FORMAT_B8G8R8A8_UNORM;
+        
+
+        if (p.monitor.hdr_enabled)
+        {                
+            std::string msg =
+                string::Format(_("HDR monitor min. nits = {0}")).
+                arg(p.monitor.min_nits);
+            LOG_STATUS(msg);
+                
+            msg = string::Format(_("HDR monitor max. nits = {0}")).
+                  arg(p.monitor.max_nits);
+            LOG_STATUS(msg);
         }
         else
         {
-            if (!quiet)
+            if (colorSpace() != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             {
-                std::string msg =
-                    string::Format(_("HDR monitor min. nits = {0}")).
-                    arg(p.hdrCapabilities.min_nits);
-                std::cout << msg << std::endl;
-                
-                msg = string::Format(_("HDR monitor max. nits = {0}")).
-                      arg(p.hdrCapabilities.max_nits);
-                std::cout << msg << std::endl;
+                colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+                format() = VK_FORMAT_B8G8R8A8_UNORM;
             }
+                
+            p.monitor.hdr_enabled = p.monitor.hdr_supported = false;
+            p.monitor.min_nits = 0.001F;
+            p.monitor.max_nits = 100.F;
+                
+            LOG_STATUS(_("HDR monitor not found or not configured."));
         }
     }
 
@@ -1461,18 +1454,12 @@ void main() {
                 case NDIlib_frame_type_video:
                 {
                     bool init = false;
+                    bool hasHDRData = false;
 
                     float pixelAspectRatio = 1.F;
                     if (video_frame.picture_aspect_ratio == 0.F)
                         pixelAspectRatio =
                             1.F / (video_frame.xres * video_frame.yres);
-
-                    if (p.info.size.w != video_frame.xres ||
-                        p.info.size.h != video_frame.yres ||
-                        p.info.size.pixelAspectRatio != pixelAspectRatio)
-                    {
-                        init = true;
-                    }
 
                     if (video_frame.p_metadata)
                     {
@@ -1480,8 +1467,11 @@ void main() {
                         try
                         {
                             rapidxml::xml_document<> doc;
-                            doc.parse<0>((char*)video_frame.p_metadata);
-
+                            
+                            // Copy the read-only memory to a mutable string
+                            std::string meta_copy((const char*)video_frame.p_metadata);
+                            doc.parse<0>(&meta_copy[0]);
+                            
                             // Get root node
                             rapidxml::xml_node<>* root =
                                 doc.first_node("ndi_color_info");
@@ -1491,39 +1481,6 @@ void main() {
                             {
                                 rapidxml::xml_attribute<>* attr_mrv2 =
                                     root->first_attribute("mrv2");
-
-                                if (!p.hasHDR)
-                                    init = true;
-                                p.hasHDR = true;
-
-                                rapidxml::xml_attribute<>* attr_transfer =
-                                    root->first_attribute("transfer");
-                                if (attr_transfer)
-                                {
-                                    p.transferName = attr_transfer->value();
-
-                                    if (p.hdrMonitorFound &&
-                                        colorSpace() !=
-                                            VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
-                                    {
-                                        if (p.transferName == "bt_2100_hlg")
-                                        {
-                                            colorSpace() =
-                                                VK_COLOR_SPACE_HDR10_HLG_EXT;
-                                        }
-                                        else
-                                        {
-                                            colorSpace() =
-                                                VK_COLOR_SPACE_HDR10_ST2084_EXT;
-                                        }
-
-                                        if (p.lastColorSpace != colorSpace())
-                                        {
-                                            p.lastColorSpace = colorSpace();
-                                            m_swapchain_needs_recreation = true;
-                                        }
-                                    }
-                                }
 
                                 image::HDRData hdrData;
                                 if (attr_mrv2)
@@ -1536,14 +1493,26 @@ void main() {
                                         nlohmann::json::parse(jsonString);
 
                                     hdrData = j.get<image::HDRData>();
+                                    if (image::isHDR(hdrData))
+                                    {
+                                        hasHDRData = true;
+                                    }
+                                    else
+                                    {
+                                        hasHDRData = false;
+                                    }
                                 }
                                 else
                                 {
+                                    rapidxml::xml_attribute<>* attr_transfer =
+                                        root->first_attribute("transfer");
+                                    
                                     rapidxml::xml_attribute<>* attr_matrix =
                                         root->first_attribute("matrix");
                                     rapidxml::xml_attribute<>* attr_primaries =
                                         root->first_attribute("primaries");
-
+                                    if (attr_transfer)
+                                        p.transferName = attr_transfer->value();
                                     if (attr_matrix)
                                         p.matrixName = attr_matrix->value();
                                     if (attr_primaries)
@@ -1554,44 +1523,53 @@ void main() {
                                 if (p.hdrData != hdrData)
                                 {
                                     p.hdrData = hdrData;
-                                    init = true;
                                 }
                             }
                             else
                             {
-                                if (p.hasHDR)
-                                    init = true;
-                                p.hasHDR = false;
+                                hasHDRData = false;
                             }
                         }
                         catch (const std::exception& e)
                         {
+                            std::cerr << "hdr error: " << e.what()
+                                      << std::endl;
                         }
                     }
                     else
                     {
-                        if (p.hasHDR)
-                            init = true;
-                        p.hasHDR = false;
+                        hasHDRData = false;
                     }
 
-                    if (init)
+                    if (hasHDRData != p.hasHDRData ||
+                        p.info.size.w != video_frame.xres ||
+                        p.info.size.h != video_frame.yres ||
+                        p.info.size.pixelAspectRatio != pixelAspectRatio)
+                    {
+                        init = true;
+                    }
+
                     {
                         std::unique_lock<std::mutex> lock(p.videoMutex.mutex);
-                        p.info.size.w = video_frame.xres;
-                        p.info.size.h = video_frame.yres;
-                        p.info.size.pixelAspectRatio = pixelAspectRatio;
-                        p.info.layout.mirror.y = true;
-                        p.info.pixelType = image::PixelType::RGBA_F16;
-                        p.info.videoLevels = image::VideoLevels::FullRange;
-                        p.fourCC = video_frame.FourCC;
-                        p.image = image::Image::create(p.info);
-                        m_swapchain_needs_recreation = true;
+                        if (init)
+                        {
+                            p.hasHDRData = hasHDRData;
+                            p.info.size.w = video_frame.xres;
+                            p.info.size.h = video_frame.yres;
+                            p.info.size.pixelAspectRatio = pixelAspectRatio;
+                            p.info.layout.mirror.y = true;
+                            p.info.pixelType = image::PixelType::RGBA_F16;
+                            p.info.videoLevels = image::VideoLevels::FullRange;
+                            p.fourCC = video_frame.FourCC;
+                            p.image = image::Image::create(p.info);
+                            m_swapchain_needs_recreation = true;
+                        }
                     }
-
-                    if (video_frame.p_data && !init)
+                    
+                    if (!init && video_frame.p_data)
                     {
-                        _copy(video_frame.p_data);
+                        _copy(video_frame.p_data,
+                              video_frame.line_stride_in_bytes);
                         redraw();
                     }
 
@@ -1615,6 +1593,31 @@ void main() {
 
         // Destroy the receiver
         NDIlib_recv_destroy(p.NDI_recv);
+    }
+
+    struct FindData
+    {
+        NDIView* self = nullptr;
+        std::vector<std::string> NDIsources;
+    };
+
+    static void foundSources(void* data)
+    {
+        FindData* findData = reinterpret_cast<FindData*>(data);
+        findData->self->updateSources(findData->NDIsources);
+        delete findData;
+    }
+
+    void NDIView::updateSources(const std::vector<std::string>& NDIsources)
+    {
+        TLRENDER_P();
+        
+        p.NDISources->setIfChanged(NDIsources);
+
+        if (NDIsources.size() == 1)
+        {
+            setNDISource(NDIsources[0]);
+        }
     }
 
     void NDIView::_findThread()
@@ -1651,25 +1654,23 @@ void main() {
             {
                 sources =
                     NDIlib_find_get_current_sources(p.NDI_find, &no_sources);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
 
             static std::regex kRemoteRegex(
                 ".*REMOTE.*", std::regex_constants::icase);
 
-            std::vector<std::string> NDIsources;
+            FindData* find_data = new FindData;
+            find_data->self = this;
+            
             for (int i = 0; i < no_sources; ++i)
             {
                 if (std::regex_match(sources[i].p_ndi_name, kRemoteRegex))
                     continue;
-                NDIsources.push_back(sources[i].p_ndi_name);
+                find_data->NDIsources.push_back(sources[i].p_ndi_name);
             }
 
-            p.NDISources->setIfChanged(NDIsources);
-
-            if (NDIsources.size() == 1)
-            {
-                setNDISource(NDIsources[0]);
-            }
+            Fl::awake((Fl_Awake_Handler)foundSources, find_data);
         }
     }
 
@@ -1682,18 +1683,9 @@ void main() {
     {
         TLRENDER_P();
 
-        if (m_frag_shader_module != VK_NULL_HANDLE)
-        {
-            vkDestroyShaderModule(device(), m_frag_shader_module, NULL);
-            m_frag_shader_module = VK_NULL_HANDLE;
-        }
 
-        if (m_vert_shader_module != VK_NULL_HANDLE)
-        {
-            vkDestroyShaderModule(device(), m_vert_shader_module, NULL);
-            m_vert_shader_module = VK_NULL_HANDLE;
-        }
-
+        p.shader.reset();
+        
         p.vao.reset();
         p.vbo.reset();
 
@@ -1718,22 +1710,110 @@ void main() {
         }
     }
 
+    void NDIView::_parseVariables(std::stringstream& s,
+                                  std::size_t& currentOffset,
+                                  const struct pl_shader_res* res,
+                                  const std::size_t pushConstantsMaxSize)
+    {
+        TLRENDER_P();
+            
+        // Collect non-floats and floats separately to optimize push constants
+        std::vector<struct pl_shader_var> non_floats;
+        std::vector<struct pl_shader_var> floats;
+    
+        for (int i = 0; i < res->num_variables; ++i) {
+            const struct pl_shader_var shader_var = res->variables[i];
+            const struct pl_var var = shader_var.var;
+            const std::string glsl_type = pl_var_glsl_type_name(var);
+            const bool is_float = (glsl_type == "float");
+        
+            if (is_float) {
+                floats.push_back(shader_var);
+            } else {
+                non_floats.push_back(shader_var);
+            }
+        }
+    
+        // Combine into a grouped list: non-floats first, then floats
+        std::vector<struct pl_shader_var> all_grouped;
+        all_grouped.reserve(non_floats.size() + floats.size());
+        all_grouped.insert(all_grouped.end(), non_floats.begin(), non_floats.end());
+        all_grouped.insert(all_grouped.end(), floats.begin(), floats.end());
+    
+        // Now pack into push constants until we can't fit more
+        std::vector<struct pl_shader_var> push_vars;
+        std::vector<struct pl_shader_var> ubo_vars;
+    
+        for (const auto &shader_var : all_grouped)
+        {
+            const struct pl_var var = shader_var.var;
+            const struct pl_var_layout layout = pl_std430_layout(currentOffset,
+                                                                 &var);
+        
+            if (layout.offset + layout.size > pushConstantsMaxSize) {
+                ubo_vars.push_back(shader_var);
+            } else {
+                push_vars.push_back(shader_var);
+                currentOffset = layout.offset + layout.size;
+            }
+        }
+    
+        // Generate push constant block if there are variables for it
+        if (!push_vars.empty())
+        {
+            s << "layout(std430, push_constant) uniform PushC {\n";
+            size_t offset = 0;
+            for (const auto &shader_var : push_vars)
+            {
+                const struct pl_var var = shader_var.var;
+                const std::string glsl_type = pl_var_glsl_type_name(var);
+                const struct pl_var_layout layout = pl_std430_layout(offset, &var);
+                s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " " << var.name << ";\n";
+                offset = layout.offset + layout.size;
+            }
+            s << "};\n";
+        }
+    
+        // Generate UBO block if there are remaining variables
+        if (!ubo_vars.empty())
+        {
+            s << "layout(std140, binding=" << p.bindingIndex++ << ") uniform pcUBO {\n";
+            size_t offset = 0;
+            for (const auto &shader_var : ubo_vars) {
+                const struct pl_var var = shader_var.var;
+                const std::string glsl_type = pl_var_glsl_type_name(var);
+                const struct pl_var_layout layout = pl_std140_layout(offset, &var);
+                s << "\tlayout(offset=" << layout.offset << ") " << glsl_type << " "
+                  << var.name << ";\n";
+                offset = layout.offset + layout.size;
+            }
+            s << "};\n";
+
+            // Create a unifor pcUBO parameter
+            p.placeboData->pcUBOData = malloc(offset);
+            p.placeboData->pcUBOSize = offset;
+            memset(p.placeboData->pcUBOData, 0, offset);
+        }
+    }
+            
     void NDIView::prepare_shader()
     {
         TLRENDER_P();
 
+        if (!p.placeboData)
+            p.placeboData.reset(new LibPlaceboData);
+
+        // if (p.placeboData->shader)
+        //     pl_shader_free(&p.placeboData->shader);
+        
         pl_shader_params shader_params;
         memset(&shader_params, 0, sizeof(pl_shader_params));
-
+                
         shader_params.id = 1;
         shader_params.gpu = p.placeboData->gpu;
         shader_params.dynamic_constants = false;
-
-        pl_shader shader = pl_shader_alloc(p.placeboData->log, &shader_params);
-        if (!shader)
-        {
-            throw std::runtime_error("pl_shader_alloc failed!");
-        }
+            
+        pl_shader_reset(p.placeboData->shader, &shader_params);        
 
         pl_color_map_params cmap = pl_color_map_high_quality_params;
 
@@ -1744,15 +1824,90 @@ void main() {
         pl_color_space src_colorspace;
         memset(&src_colorspace, 0, sizeof(pl_color_space));
 
-        if (p.hasHDR)
+        if (p.hasHDRData)
         {
-            src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
-            src_colorspace.transfer = PL_COLOR_TRC_PQ;
-            if (p.transferName == "bt_2100_hlg")
+            const auto& prims = data.primaries;
+            
+            // Detect primaries from received data
+            bool isP3 = 
+                std::abs(prims[0].x - 0.680F) < 0.001F &&
+                std::abs(prims[0].y - 0.320F) < 0.001F &&
+                std::abs(prims[1].x - 0.265F) < 0.001F &&
+                std::abs(prims[1].y - 0.690F) < 0.001F &&
+                std::abs(prims[2].x - 0.150F) < 0.001F &&
+                std::abs(prims[2].y - 0.060F) < 0.001F;
+            
+            bool isBT709 =
+                std::abs(prims[0].x - 0.640F) < 0.001F &&
+                std::abs(prims[0].y - 0.330F) < 0.001F &&
+                std::abs(prims[1].x - 0.300F) < 0.001F &&
+                std::abs(prims[1].y - 0.600F) < 0.001F &&
+                std::abs(prims[2].x - 0.150F) < 0.001F &&
+                std::abs(prims[2].y - 0.060F) < 0.001F;
+            
+            bool isBT2020 =
+                std::abs(prims[0].x - 0.708F) < 0.001F &&
+                std::abs(prims[0].y - 0.292F) < 0.001F &&
+                std::abs(prims[1].x - 0.170F) < 0.001F &&
+                std::abs(prims[1].y - 0.797F) < 0.001F &&
+                std::abs(prims[2].x - 0.131F) < 0.001F &&
+                std::abs(prims[2].y - 0.046F) < 0.001F;
+            
+            if (isP3)
             {
+                // Check white point to differentiate P3 D65 vs DCI P3
+                if (std::abs(prims[3].x - 0.3127F) < 0.001F &&
+                    std::abs(prims[3].y - 0.3290F) < 0.001F)
+                {
+                    src_colorspace.primaries = PL_COLOR_PRIM_DISPLAY_P3; // P3 D65
+                }
+                else if (std::abs(prims[3].x - 0.3140F) < 0.001F &&
+                         std::abs(prims[3].y - 0.3510F) < 0.001F)
+                {
+                    src_colorspace.primaries = PL_COLOR_PRIM_DCI_P3; // DCI P3
+                }
+                else
+                {
+                    src_colorspace.primaries = PL_COLOR_PRIM_DISPLAY_P3; // Default to D65
+                }
+            }
+            else if (isBT709)
+            {
+                src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+            }
+            else if (isBT2020)
+            {
+                src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
+            }
+            else
+            {
+                // Unknown primaries - default to BT.2020
+                src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
+            }
+            
+            // Set transfer function from HDRData EOTF
+            switch (data.eotf)
+            {
+            case image::EOTF_SRGB:
+                src_colorspace.transfer = PL_COLOR_TRC_SRGB;
+                break;
+            case image::EOTF_BT601:
+            case image::EOTF_BT709:
+            case image::EOTF_BT2020:
+                src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                break;
+            case image::EOTF_BT2100_HLG:
                 src_colorspace.transfer = PL_COLOR_TRC_HLG;
+                break;
+            case image::EOTF_BT2100_PQ:
+                src_colorspace.transfer = PL_COLOR_TRC_PQ;
+                break;
+            default:
+                src_colorspace.transfer = PL_COLOR_TRC_PQ;
+                break;
             }
 
+            // Set HDR metadata
             cmap.metadata = PL_HDR_METADATA_ANY;
             pl_hdr_metadata& hdr = src_colorspace.hdr;
             hdr.min_luma = data.displayMasteringLuminance.getMin();
@@ -1777,6 +1932,8 @@ void main() {
             hdr.ootf.num_anchors = data.ootf.numAnchors;
             for (int i = 0; i < hdr.ootf.num_anchors; i++)
                 hdr.ootf.anchors[i] = data.ootf.anchors[i];
+            hdr.max_pq_y = data.maxPQY;
+            hdr.avg_pq_y = data.avgPQY;
         }
         else
         {
@@ -1789,35 +1946,39 @@ void main() {
         pl_color_space dst_colorspace;
         memset(&dst_colorspace, 0, sizeof(pl_color_space));
 
-        if (p.hdrMonitorFound)
+        if (p.monitor.hdr_enabled)
         {
             dst_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
             dst_colorspace.transfer = PL_COLOR_TRC_PQ;
-            dst_colorspace.hdr.min_luma = p.hdrCapabilities.min_nits;
-            dst_colorspace.hdr.max_luma = p.hdrCapabilities.max_nits;
-            
-            if (colorSpace() == VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
+            dst_colorspace.hdr.min_luma = p.monitor.min_nits;
+            dst_colorspace.hdr.max_luma = p.monitor.max_nits;
+            if (p.monitor.red.x > 0)
             {
-                dst_colorspace.primaries = PL_COLOR_PRIM_DISPLAY_P3;
-                dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                dst_colorspace.hdr.prim.red.x = p.monitor.red.x;
+                dst_colorspace.hdr.prim.red.y = p.monitor.red.y;
+                dst_colorspace.hdr.prim.green.x = p.monitor.green.x;
+                dst_colorspace.hdr.prim.green.y = p.monitor.green.y;
+                dst_colorspace.hdr.prim.blue.x = p.monitor.blue.x;
+                dst_colorspace.hdr.prim.blue.y = p.monitor.blue.y;
+                dst_colorspace.hdr.prim.white.x = p.monitor.white.x;
+                dst_colorspace.hdr.prim.white.y = p.monitor.white.y;
             }
-            else if (colorSpace() == VK_COLOR_SPACE_HDR10_HLG_EXT)
+            else
             {
-                dst_colorspace.transfer = PL_COLOR_TRC_HLG;
-            }
-            else if (colorSpace() == VK_COLOR_SPACE_DOLBYVISION_EXT)
-            {
-                // \@todo:  How to handle this? PL_COLOR_TRC_DOLBYVISION does
-                //          not exist.
-                // dst_colorspace.transfer = ???
-                dst_colorspace.transfer = PL_COLOR_TRC_PQ;
-            }
+                const struct pl_raw_primaries* raw =
+                    pl_raw_primaries_get(PL_COLOR_PRIM_DISPLAY_P3);
 
+                dst_colorspace.hdr.prim.red = raw->red;
+                dst_colorspace.hdr.prim.green = raw->green;
+                dst_colorspace.hdr.prim.blue = raw->blue;
+                dst_colorspace.hdr.prim.white = raw->white;
+            }
+            
             // For SDR content on HDR monitor, enable tone mapping to fit SDR
             // into HDR
-            if (!p.hasHDR)
+            if (!p.hasHDRData)
             {
-                cmap.tone_mapping_function = &pl_tone_map_st2094_40;
+                cmap.tone_mapping_function = &pl_tone_map_spline;
                 cmap.metadata = PL_HDR_METADATA_NONE; // Simplify
             }
             else
@@ -1834,30 +1995,65 @@ void main() {
             dst_colorspace.hdr.min_luma = 0.F;
             dst_colorspace.hdr.max_luma = 203.0F; // SDR peak
                             
-            if (p.hasHDR)
-                cmap.tone_mapping_function = &pl_tone_map_hable;
+            if (p.hasHDRData)
+                cmap.tone_mapping_function = &pl_tone_map_spline;
             else
                 cmap.tone_mapping_function = nullptr;
         }
 
         pl_color_space_infer(&dst_colorspace);
 
+        if (p.hasHDRData && data.isDisplayReferred)
+        {
+            // Display-referred content is already color-graded for a specific
+            // display. Check if source matches destination.
+            
+            bool primariesMatch = (src_colorspace.primaries == dst_colorspace.primaries);
+            bool transferMatch = (src_colorspace.transfer == dst_colorspace.transfer);
+            bool luminanceMatch = 
+                std::abs(src_colorspace.hdr.max_luma - dst_colorspace.hdr.max_luma) < 100.0F;
+            
+            if (primariesMatch && transferMatch && luminanceMatch)
+            {
+                // Perfect match - disable all transformations for 1:1 pass-through
+                cmap.tone_mapping_function = nullptr;
+                
+                LOG_STATUS("Display-referred: Perfect match, 1:1 pass-through");
+            }
+            else if (primariesMatch && transferMatch && !luminanceMatch)
+            {
+                // Same primaries/transfer, different luminance - only tone map
+                cmap.tone_mapping_function = &pl_tone_map_spline;
+                
+                LOG_STATUS("Display-referred: Luminance mismatch, tone mapping enabled");
+            }
+            else
+            {
+                // Primaries or transfer differ - let libplacebo handle gamut mapping
+                cmap.tone_mapping_function = &pl_tone_map_spline;
+                
+                LOG_STATUS("Display-referred: Primaries/transfer mismatch, "
+                           "gamut mapping enabled");
+            }
+        }
+        
         pl_color_map_args color_map_args;
         memset(&color_map_args, 0, sizeof(pl_color_map_args));
 
         color_map_args.src = src_colorspace;
         color_map_args.dst = dst_colorspace;
         color_map_args.prelinearized = false;
+        
+        // Reuse results if possible
+        color_map_args.state = &p.placeboData->state;
 
-        pl_shader_obj state = NULL;
-        color_map_args.state = &state; // with NULL and tonemap_clip works
+        pl_shader_color_map_ex(p.placeboData->shader, &cmap, &color_map_args);
 
-        pl_shader_color_map_ex(shader, &cmap, &color_map_args);
-
-        const pl_shader_res* res = pl_shader_finalize(shader);
-        if (!res)
+        p.placeboData->res = pl_shader_finalize(p.placeboData->shader);
+        const pl_shader_res* res = p.placeboData->res;
+        if (!p.placeboData->res)
         {
-            pl_shader_free(&shader);
+            p.placeboData.reset();
             throw std::runtime_error("pl_shader_finalize failed!");
         }
 
@@ -1929,87 +2125,11 @@ void main() {
           << "// Variables" << std::endl
           << "//" << std::endl
           << std::endl;
-        // \@todo: add uniform bindings instead of using constants
-        // s << "layout(binding = 2) uniform UBO {\n";
-        for (int i = 0; i < res->num_variables; ++i)
-        {
-            const struct pl_shader_var shader_var = res->variables[i];
-            const struct pl_var var = shader_var.var;
-            std::string glsl_type = pl_var_glsl_type_name(var);
-            s << "const " << glsl_type << " " << var.name;
-            if (!shader_var.data)
-            {
-                s << ";" << std::endl;
-            }
-            else
-            {
-                int dim_v = var.dim_v;
-                int dim_m = var.dim_m;
-                switch (var.type)
-                {
-                case PL_VAR_SINT:
-                {
-                    int* m = (int*)shader_var.data;
-                    s << " = " << m[0] << ";" << std::endl;
-                    break;
-                }
-                case PL_VAR_UINT:
-                {
-                    unsigned* m = (unsigned*)shader_var.data;
-                    s << " = " << m[0] << ";" << std::endl;
-                    break;
-                }
-                case PL_VAR_FLOAT:
-                {
-                    float* m = (float*)shader_var.data;
-                    if (dim_m > 1 && dim_v > 1)
-                    {
-                        s << " = " << glsl_type << "(";
-                        for (int c = 0; c < dim_v; ++c)
-                        {
-                            for (int r = 0; r < dim_m; ++r)
-                            {
-                                int index = c * dim_m + r;
-                                s << m[index];
 
-                                // Check if it's the last element
-                                if (!(r == dim_m - 1 && c == dim_v - 1))
-                                {
-                                    s << ", ";
-                                }
-                            }
-                        }
-                        s << ");" << std::endl;
-                    }
-                    else if (dim_v > 1)
-                    {
-                        s << " = " << glsl_type << "(";
-                        for (int c = 0; c < dim_v; ++c)
-                        {
-                            s << m[c];
+        size_t pushSize = 0;
+        _parseVariables(s, pushSize, res,
+                         ctx.gpu_props.limits.maxPushConstantsSize);
 
-                            // Check if it's the last element
-                            if (!(c == dim_v - 1))
-                            {
-                                s << ", ";
-                            }
-                        }
-                        s << ");" << std::endl;
-                    }
-                    else
-                    {
-                        s << " = " << m[0] << ";" << std::endl;
-                    }
-                    break;
-                }
-                default:
-                    break;
-                }
-            }
-        }
-
-        // \@todo: add uniform bindings, instead of using constants
-        // s << "};" << std::endl;
         s << std::endl
           << "//" << std::endl
           << "// Constants" << std::endl
@@ -2044,12 +2164,17 @@ void main() {
 
         try
         {
+            if (m_textures.size() > 1)
+            {
+                // Remove all ements but the first, main image
+                m_textures.resize(1);
+            }
             addGPUTextures(res);
         }
         catch (const std::exception& e)
         {
             std::cerr << e.what() << std::endl;
-            pl_shader_free(&shader);
+            p.placeboData.reset();
             return;
         }
 
@@ -2059,7 +2184,104 @@ void main() {
             p.hdrColors += "(tmp);\n";
         }
 
-        pl_shader_free(&shader);
+        const std::string source = _fragmentSource();
+
+        bool recreateShader = false;
+        if (!p.shader || p.oldShaderSource != source)
+        {
+            recreateShader = true;
+        }
+        p.oldShaderSource = source;
+
+        if (recreateShader)
+        {
+            p.shader = vlk::Shader::create(ctx, vertexSource(), source, "hdr");
+            for (const auto& texture : m_textures)
+            {
+                p.shader->addTexture(texture->getName());
+            }
+
+            if (p.shader && p.placeboData->pcUBOSize > 0)
+                 p.shader->createUniformData("pcUBO", p.placeboData->pcUBOSize);
+
+            
+            auto bindingSet = p.shader->createBindingSet();
+
+            for (const auto& texture : m_textures)
+            {
+                p.shader->setTexture(texture->getName(), texture);
+            }
+
+            p.shader->createPush("placeboPC", pushSize, vlk::kShaderFragment);
+        }
+    }
+    
+    void NDIView::_fillVariables(VkCommandBuffer cmd, const struct pl_shader_res* res)
+    {
+        TLRENDER_P();
+        
+        if (!res)
+            return;
+        
+        size_t pushSize = p.shader->getPushSize();
+        if (pushSize > 0)
+        {
+            std::vector<uint8_t> pushData(pushSize, 0);
+
+            VkPipelineLayout pipelineLayout = m_pipeline_layout;
+            std::size_t currentOffset = 0;
+            const pl_shader_res* res = p.placeboData->res;
+            for (int j = 0; j < 2; ++j)
+            {
+                for (int i = 0; i < res->num_variables; ++i)
+                {
+                    const struct pl_shader_var& shader_var = res->variables[i];
+                    const struct pl_var& var = shader_var.var;
+                    const std::string glsl_type = pl_var_glsl_type_name(var);
+                    const bool is_float = (glsl_type == "float");
+                    if (j == 0 && is_float)
+                        continue;
+                    if (j == 1 && !is_float)
+                        continue;
+                            
+                    // Ensure the variable type is float-based
+                    if (var.type != PL_VAR_FLOAT)
+                    {
+                        throw std::runtime_error("libplacebo created a variable that is not float");
+                    }
+                            
+                    const struct pl_var_layout& dst_layout = pl_std430_layout(currentOffset, &var);
+                    const struct pl_var_layout& src_layout = pl_var_host_layout(0, &var);
+                            
+                    memcpy_layout(pushData.data(), dst_layout,
+                                  shader_var.data, src_layout);
+                    currentOffset = dst_layout.offset + dst_layout.size;
+                }
+            }
+                    
+            vkCmdPushConstants(cmd, pipelineLayout,
+                               VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                               pushData.size(), pushData.data());
+        }
+
+        if (p.placeboData && p.placeboData->pcUBOSize > 0)
+        {
+            std::size_t currentOffset = 0;
+            for (const auto &shader_var : p.placeboData->pcUBOvars)
+            {
+                const struct pl_var var = shader_var.var;
+                const struct pl_var_layout dst_layout = pl_std140_layout(currentOffset, &var);
+                const struct pl_var_layout& src_layout = pl_var_host_layout(0, &var);
+
+                memcpy_layout(p.placeboData->pcUBOData, dst_layout,
+                              shader_var.data, src_layout);
+
+                currentOffset = dst_layout.offset + dst_layout.size;
+            }
+                
+            p.shader->setUniformData("pcUBO", p.placeboData->pcUBOData,
+                                     p.placeboData->pcUBOSize);
+        }
     }
 
     void NDIView::setNDISource(const std::string& source)
@@ -2162,24 +2384,6 @@ void main() {
         TLRENDER_P();
         p.useHDRMetadata = !p.useHDRMetadata;
         m_swapchain_needs_recreation = true;
-
-        if (p.useHDRMetadata && !p.isP3Display)
-        {
-            if (p.transferName == "bt_2100_hlg")
-            {
-                colorSpace() = VK_COLOR_SPACE_HDR10_HLG_EXT;
-            }
-            else
-            {
-                colorSpace() = VK_COLOR_SPACE_HDR10_ST2084_EXT;
-            }
-        }
-
-        if (p.lastColorSpace != colorSpace())
-        {
-            p.lastColorSpace = colorSpace();
-        }
-
         redraw();
     }
 
@@ -2197,6 +2401,31 @@ void main() {
         {
             ui->uiMain->fullscreen();
         }
+    }
+
+    std::string NDIView::_fragmentSource()
+    {
+        TLRENDER_P();
+        
+        std::string fragShader = tl::string::Format(R"(
+#version 450
+
+// Input from vertex shader
+layout(location = 0) in vec2 inTexCoord;
+
+// Output color
+layout(location = 0) out vec4 outColor;
+
+// Main image to display
+layout(binding = 0) uniform sampler2D inTexture;
+{0}
+
+void main() {
+     vec4 tmp = texture(inTexture, inTexCoord, 0.0);
+     {1}
+}
+)").arg(p.hdrColorsDef).arg(p.hdrColors);
+        return fragShader;
     }
 
 } // namespace mrv

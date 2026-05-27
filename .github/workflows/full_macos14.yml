@@ -27,13 +27,25 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
 
+      - name: Install ccache
+        run: brew install ccache
+
+      - name: Configure ccache
+        run: |
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          echo "CCACHE_DATE=$(date +'%Y-%m')" >> $GITHUB_ENV
+          ccache --max-size=500M
+              
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-${{ runner.arch }}-OpenGL-ccache-${{ env.CCACHE_DATE }}
+          restore-keys: |
+              ${{ runner.os }}-${{ runner.arch }}-OpenGL-ccache-
+              
       - name: Get machine name
         run: |
           echo "Machine name: $RUNNER_NAME"
@@ -45,7 +57,7 @@ jobs:
         run: brew install gettext
 
       - name: Install automake and other network utils
-        run: brew install automake curl rsync wget
+        run: brew install automake autoconf curl rsync wget
 
       - name: Install GNU sed
         run: brew install gnu-sed
@@ -82,13 +94,13 @@ jobs:
 
       - name: Checkout FLTK git tag type
         run: git ls-remote --tags https://github.com/ggarra13/fltk.git | grep v1.2.2
+
       - name: List disk space
         run: |
           df -k
 
       - name: Build mrv2
         env:
-          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON
@@ -117,10 +129,7 @@ jobs:
         run: |
           ./etc/runme_nolog.sh -t package clean
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-opengl-macos-m1
-          path: |
-            paquetes/BUILD-Darwin-arm64/Release/mrv2-*.dmg
-          if-no-files-found: warn
+      - name: Upload binaries
+        run: |
+          ./bin/release/upload_sourceforge.sh
+

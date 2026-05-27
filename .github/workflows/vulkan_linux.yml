@@ -5,7 +5,7 @@ on:
     branches-ignore:
       - main
     tags-ignore:
-      - "**"
+      - '**'
   workflow_dispatch:
 
 jobs:
@@ -22,22 +22,65 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
 
-      - name: Get machine name
+      - name: Install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - name: Configure ccache
         run: |
-          echo "Machine name: $RUNNER_NAME"
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          echo "CCACHE_DATE=$(date +'%Y-%m')" >> $GITHUB_ENV
+          ccache --max-size=500M
+          
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-${{ env.CCACHE_DATE }}
+          restore-keys: |
+              ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-
+              
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy,rustfmt
 
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+              ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Install cargo-c if needed
+        run: |
+          if ! command -v cargo-cinstall >/dev/null 2>&1; then
+              cargo install cargo-c --locked
+          fi
+
+      - name: Verify Rust and Cargo
+        run: |
+          rustc -Vv
+          cargo -Vv
+          cargo cinstall --version
+          which rustc
+          which cargo
+          
       - name: Update repos
         run: |
           sudo add-apt-repository universe -y
           sudo apt-get update || { echo "apt-get update failed"; exit 1; }
 
+      - name: Install build tools
+        run: |
+          sudo apt-get install autoconf automake
+          
       - name: Install OpenGL dev
         run: sudo apt-get install -y xorg-dev libglu1-mesa-dev mesa-common-dev
 
@@ -54,7 +97,7 @@ jobs:
         run: sudo apt-get install -y libpango1.0-dev
 
       - name: Install Wayland
-        run: sudo apt-get install -y libwayland-dev wayland-protocols libdbus-1-dev libxkbcommon-dev libegl-dev libgtk-3-dev libglu-dev
+        run: sudo apt-get install -y libwayland-dev wayland-protocols libdbus-1-dev libxkbcommon-dev libegl-dev libgtk-3-dev libglu-dev libdrm-dev
 
       - name: Install curl and openssl
         run: sudo apt-get install -y curl openssl rsync libunistring-dev
@@ -69,7 +112,6 @@ jobs:
         run: sudo apt-get install -y libssl-dev libffi-dev python3
 
       - name: Install Vulkan drivers
-        if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         run: sudo apt install -y mesa-vulkan-drivers
 
       - name: Cache Vulkan SDK
@@ -77,13 +119,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: VulkanSDK-*
-          key: ${{ runner.os }}-linux-vulkan-${{ hashFiles('**/install_vulkan.sh') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-vulkan-sdk-${{ hashFiles('etc/vulkan_version.sh', 'etc/linux/install_vulkan.sh') }}
 
       # Install Vulkan SDK
       - name: Install Vulkan
         if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         env:
-          BUILD_VULKAN: OFF # optional
+          BUILD_VULKAN: OFF  # optional
         run: |
           ./etc/linux/install_vulkan.sh
 
@@ -106,17 +148,17 @@ jobs:
 
           if [ -d "$VULKAN_DIR" ]; then
             echo "Found Vulkan SDK directory: $VULKAN_DIR"
-            
+
             # Find the version directory inside
             VULKAN_VERSION=$(ls -1 "$VULKAN_DIR" | head -1)
             echo "Version directory: $VULKAN_VERSION"
-            
+
             VULKAN_SDK="$VULKAN_DIR/$VULKAN_VERSION/x86_64"
-            
+
             if [ -d "$VULKAN_SDK" ]; then
               # Convert to absolute path
               VULKAN_SDK=$(cd "$VULKAN_SDK" && pwd)
-              
+
               echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
               echo "${VULKAN_SDK}/bin" >> $GITHUB_PATH
               echo "VK_LAYER_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
@@ -132,6 +174,10 @@ jobs:
             exit 1
           fi
 
+      - name: Synchronize clock
+        run: |
+          sudo apt-get install -y ntp
+
       - name: Setup environment
         run: mkdir -p ssh
 
@@ -144,10 +190,16 @@ jobs:
 
       - name: Decode FLTK SSH key
         run: |
+            mkdir -p ~/.ssh
+            echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+            chmod 600 ~/.ssh/id_ed25519
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Add SourceForge to known_hosts
+        shell: bash
+        run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
 
       - name: Set executable permissions
         run: |
@@ -159,7 +211,6 @@ jobs:
 
       - name: Build vmrv2
         env:
-          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON
@@ -187,12 +238,7 @@ jobs:
         run: |
           ./etc/runme_nolog.sh -t package -vk
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-vulkan-linux
-          path: |
-            paquetes/Linux-vulkan-amd64/Release/vmrv2-*.tar.gz
-            paquetes/Linux-vulkan-amd64/Release/vmrv2-*.deb
-            paquetes/Linux-vulkan-amd64/Release/vmrv2-*.rpm
-          if-no-files-found: warn
+      - name: Upload binaries
+        run: |
+          ./bin/release/upload_sourceforge.sh -vk
+

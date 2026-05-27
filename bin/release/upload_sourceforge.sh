@@ -10,19 +10,44 @@ echo "RUNNING upload_sourceforge.sh......"
 
 upload_file()
 {
+    local src=$1
+    local dest=$2
+    local max_retries=5
+    local attempt=1
+    local success=0
+
     echo
-    echo "Uploading $1 as $2..."
+    echo "Uploading $src as $dest (Attempt $attempt of $max_retries)..."
     echo
 
-    rsync -avz -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" $1 ggarra13@frs.sourceforge.net:/home/frs/project/mrv2/beta/$branch/$2
-    if [[ $? -ne 0 ]]; then
-        echo "rsync command failed. Error log:"
-	cat rsync_error.log
+    while [ $attempt -le $max_retries ]; do
+        # --partial: keeps partially transferred files if interrupted
+        # --timeout: prevents rsync from hanging indefinitely
+        # ServerAliveInterval: sends a "ping" through the SSH tunnel to keep it alive
+        rsync -avz --partial --timeout=60 \
+              -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3" \
+              "$src" "ggarra13@frs.sourceforge.net:/home/frs/project/mrv2/beta/$branch/$dest" 2> rsync_error.log
+
+        if [[ $? -eq 0 ]]; then
+            success=1
+            break
+        else
+            echo "Attempt $attempt failed. rsync error log:"
+            cat rsync_error.log
+            echo "Waiting before next attempt..."
+            sleep 15
+            ((attempt++))
+        fi
+    done
+
+    if [[ $success -eq 1 ]]; then
+        echo
+        echo "Upload of $src was successful."
+        echo
+    else
+        echo "Failed to upload $src after $max_retries attempts. Aborting."
         exit 1
     fi
-    echo
-    echo "Upload was successful."
-    echo
 }
 
 #
@@ -163,13 +188,13 @@ Donationware prices of binary licenses through PayPal:
 
 I use the email information to contact you privately.  I don't sell your information, as I don't have access to it, except for your email, which I use to contact you.
 
-- u\$  25 for a Solo license for a year.
-- u\$  50 for a Standard license for a year.
-- u\$  75 for an Edit license for a year.
-- u\$ 150 for a Pro license for a year.
-- u\$ 300 for a Pro license to own (also allowing changing machine id -
-      	      	    	       	   useful for trying Linux distros or
-				   upgrading machines) 
+- u\$  25 for a Solo license for a year (Annotations support).
+- u\$  50 for a Standard license for a year (Solo + Python).
+- u\$  75 for an Edit license for a year (Standard + Video Editing).
+- u\$ 150 for a Pro license for a year (Editing + Voice and Link Annotations).
+- u\$ 300 for a Pro+ license to own (also allowing changing machine id -
+      	      	      	       	     useful for trying Linux distros or
+				     upgrading machines) 
 
 License works for both mrv2 and vmrv2 (you can have both installed).
 
@@ -211,7 +236,7 @@ fi
 # Find the line number of "v${mrv2_VERSION}" in the file
 start_lines=$(grep -n "^ChangeLog" "$HISTORY" | cut -d':' -f1)
 if [[ -z "$start_lines" ]]; then
-    echo "Error: Version v${mrv2_VERSION} has no ChangeLog in $HISTORY."
+    echo "Error: Version v${mrv2_VERSION} has no Change Log in $HISTORY."
     exit 1
 fi
 
@@ -295,6 +320,8 @@ fi
 rm VULKAN_NOTES.md
 
 echo "Upload README.md"
+cat README.md
+
 upload_file README.md README.md
 rm README.md
 

@@ -9,12 +9,13 @@
 #include <winsock2.h>
 #endif
 
+#include "mrvCore/mrvBackend.h"
+
 #include "mrViewer.h"
 
-#include <tlDevice/IOutput.h>
-
-#include <tlCore/HDR.h>
-#include <tlCore/Matrix.h>
+#ifdef VULKAN_BACKEND
+#  include "mrvVk/mrvVkUtil.h"
+#endif
 
 #include "mrvApp/mrvSettingsObject.h"
 
@@ -32,7 +33,7 @@
 #include "mrvNetwork/mrvTCP.h"
 #include "mrvNetwork/mrvDummyClient.h"
 
-#include "mrvFl/mrvCallbacks.h"
+#include "mrvFLTK/mrvCallbacks.h"
 #include "mrvFl/mrvLaserFadeData.h"
 #include "mrvFl/mrvOCIO.h"
 #include "mrvFl/mrvTimelinePlayer.h"
@@ -52,9 +53,14 @@
 #include "mrvCore/mrvHotkey.h"
 #include "mrvCore/mrvMath.h"
 #include "mrvCore/mrvUtil.h"
-#include "mrvCore/mrvWait.h"
+#include "mrvFLTK/mrvWait.h"
 
 #include "mrvFl/mrvIO.h"
+
+#include <tlDevice/IOutput.h>
+
+#include <tlCore/HDR.h>
+#include <tlCore/Matrix.h>
 
 #include <FL/Fl.H>
 
@@ -71,6 +77,8 @@ namespace
 
 namespace
 {
+    const double kFullScreenTimeout = 0.01;
+    
     inline uint32_t byteSwap32(uint32_t x)
     {
         return ((x >> 24) & 0x000000FF) |
@@ -103,7 +111,8 @@ namespace mrv
         
         using namespace tl;
 
-        std::string TimelineViewport::Private::hdr;
+        timeline::HDROptions TimelineViewport::Private::hdrOptions;
+        timeline::ShaderOptions TimelineViewport::Private::shaderOptions;        
         EnvironmentMapOptions TimelineViewport::Private::environmentMapOptions;
         math::Box2i TimelineViewport::Private::selection =
             math::Box2i(0, 0, -1, -1);
@@ -383,7 +392,7 @@ namespace mrv
             if (mode != ActionMode::kSelection)
             {
                 math::Box2i area;
-                area.max.x = -1; // disable area selection.
+                area.min.x = -1; // disable area selection.
                 setSelectionArea(area);
             }
 
@@ -990,27 +999,14 @@ namespace mrv
             
             const auto& d = p.displayOptions[0];
 
-            if (d.hdrInfo != timeline::HDRInformation::Inactive)
+            if (d.hdrInfo == timeline::HDRInformation::Inactive)
             {
-                auto i = p.tagData.find("hdr");
-                if (i != p.tagData.end())
-                {
-                    p.hdrOptions.tonemap = app::soporta_hdr;
-                    p.hdr = i->second;
-
-                    // Parse the JSON string back into a nlohmann::json object
-                    nlohmann::json j = nlohmann::json::parse(p.hdr);
-                    p.hdrOptions.hdrData = j.get<image::HDRData>();
-                }
-                else
-                {
-                    if (d.hdrInfo == timeline::HDRInformation::Active)
-                        p.hdrOptions.tonemap = app::soporta_hdr;
-                }
+                p.hdrOptions.tonemap = true;
+                p.hdrOptions.hdrData = image::nameToPrimaries("BT709");
             }
             else
             {
-                p.hdrOptions.tonemap = false;
+                _getHDR();
             }
             
             redraw();
@@ -1042,9 +1038,21 @@ namespace mrv
         TimelineViewport::setHDROptions(const timeline::HDROptions& value) noexcept
         {
             TLRENDER_P();
+
+            // \@note:  we don't just copy p.hdrOptions = value as that would
+            //          eliminate p.hdrOptions.hdrData.
+            //          Also, the comparison below does not compare hdrData for changes
+            //          either.
             
             if (value == p.hdrOptions)
                 return;
+
+            p.hdrOptions.peak_detection = value.peak_detection;
+            p.hdrOptions.peak_percentile = value.peak_percentile;
+            p.hdrOptions.peak_smoothing_period = value.peak_smoothing_period;
+            p.hdrOptions.peak_scene_low_limit = value.peak_scene_low_limit;
+            p.hdrOptions.peak_scene_high_limit = value.peak_scene_high_limit;
+            
             p.hdrOptions.algorithm = value.algorithm;
             p.hdrOptions.gamutMapping = value.gamutMapping;
             redrawWindows();
@@ -1087,8 +1095,6 @@ namespace mrv
                 p.videoData.clear();
             }
 
-            p.hdr.clear();
-
             refreshWindows(); // needed We need to refresh, as the new
             // video data may have different sizes.
         }
@@ -1108,9 +1114,14 @@ namespace mrv
             return _p->viewZoom;
         }
 
-        void TimelineViewport::setFrameView(bool active) noexcept
+        void TimelineViewport::setFrameView(bool value) noexcept
         {
-            _p->frameView = active;
+            TLRENDER_P();
+            
+            if (p.frameView == value)
+                return;
+            
+            p.frameView = value;
             _updateDevices();
         }
 
@@ -1358,7 +1369,7 @@ namespace mrv
             p.videoData = values;
 
             // Check to see if we keep area selection.
-            if (p.selection.max.x >= 0)
+            if (p.selection.min.x >= 0)
             {
                 image::Size videoSize;
                 if (!values.empty() && !values[0].layers.empty())
@@ -1373,7 +1384,7 @@ namespace mrv
                 if (p.videoSize != videoSize)
                 {
                     math::Box2i area;
-                    area.max.x = -1;
+                    area.min.x = -1;
                     setSelectionArea(area);
                     p.videoSize = videoSize;
                 }
@@ -1506,8 +1517,10 @@ namespace mrv
                 if (i != p.tagData.end())
                     metadataRefresh = true;
 
-                i = p.tagData.find("hdr");
-                if (i != p.tagData.end())
+                const auto& hdr = p.hdrOptions.hdrData;
+                bool hasHDR = image::isHDR(hdr);
+                    
+                if (hasHDR)
                 {
                     videoRefresh = true;
                 }
@@ -1724,14 +1737,23 @@ namespace mrv
             {
                 posX = (int)uiPrefs->uiWindowXPosition->value();
                 posY = (int)uiPrefs->uiWindowYPosition->value();
+                screen = (int)uiPrefs->uiWindowScreen->value();
             }
             else
             {
                 posX = mw->x();
                 posY = mw->y();
+                screen = -1;
             }
 
-            Fl::screen_work_area(minX, minY, maxW, maxH, posX, posY); //, screen);
+            if (screen >= 0)
+            {
+                Fl::screen_work_area(minX, minY, maxW, maxH, screen);
+            }
+            else
+            {
+                Fl::screen_work_area(minX, minY, maxW, maxH, posX, posY); //, screen);
+            }
 
             int WBars = 0;
             int HBars = 0;
@@ -1878,15 +1900,29 @@ namespace mrv
             if (use_maximize && !p.presentation && p.resizeWindow)
             {
                 mw->maximize();
-#ifdef __linux__
-                // On Linux, we wait 100 milliseconds to account for
-                // the main Window's animation when maximize is used.
-                wait::milliseconds(100);
-#endif
             }
             else
             {
+                if (screen >= 0)
+                {
+                    mw->screen_num(screen);
+                }
                 mw->resize(posX, posY, W, H);
+            }
+            
+
+            if (desktop::Wayland())
+            {
+                // On Wayland, we wait 500 milliseconds to account for
+                // the main Window's animation on resizing.
+                // Otherwise when hiding the timeline, it would appear
+                // floating in space.
+                if (use_maximize ||
+                    (!uiPrefs->uiPrefsTimeline->value() &&
+                     (W > minW || H > minH)))
+                {
+                    wait::milliseconds(500);
+                }
             }
             
             if (frameView)
@@ -2007,32 +2043,46 @@ namespace mrv
             _p->missingFrameType = x;
         }
 
-        // Cannot be const image::Color4f& rgba, as we clamp values
-        void TimelineViewport::_updatePixelBar(image::Color4f& rgba) const noexcept
+        void TimelineViewport::_updatePixelBar(const image::Color4f& in) const noexcept
         {
             TLRENDER_P();
 
-            PixelToolBarClass* c = _p->ui->uiPixelWindow;
+            image::Color4f rgba = in;
+            image::Color4f rgba_display = rgba;
+
+            switch(p.ui->uiPixelWindow->uiPixelValue->value())
+            {
+            case PixelValue::kLinear:
+                rgba_display = _pq_to_linear(rgba);
+                break;
+            case PixelValue::kNits:
+                rgba_display = _pq_to_nits(rgba);
+                break;
+            default:
+                break;
+            }
+            
+            PixelToolBarClass* c = p.ui->uiPixelWindow;
             char buf[24];
             switch (c->uiAColorType->value())
             {
             case kRGBA_Float:
-                c->uiPixelR->value(float_printf(buf, rgba.r));
-                c->uiPixelG->value(float_printf(buf, rgba.g));
-                c->uiPixelB->value(float_printf(buf, rgba.b));
-                c->uiPixelA->value(float_printf(buf, rgba.a));
+                c->uiPixelR->value(float_printf(buf, rgba_display.r));
+                c->uiPixelG->value(float_printf(buf, rgba_display.g));
+                c->uiPixelB->value(float_printf(buf, rgba_display.b));
+                c->uiPixelA->value(float_printf(buf, rgba_display.a));
                 break;
             case kRGBA_Hex:
-                c->uiPixelR->value(hex_printf(buf, rgba.r));
-                c->uiPixelG->value(hex_printf(buf, rgba.g));
-                c->uiPixelB->value(hex_printf(buf, rgba.b));
-                c->uiPixelA->value(hex_printf(buf, rgba.a));
+                c->uiPixelR->value(hex_printf(buf, rgba_display.r));
+                c->uiPixelG->value(hex_printf(buf, rgba_display.g));
+                c->uiPixelB->value(hex_printf(buf, rgba_display.b));
+                c->uiPixelA->value(hex_printf(buf, rgba_display.a));
                 break;
             case kRGBA_Decimal:
-                c->uiPixelR->value(dec_printf(buf, rgba.r));
-                c->uiPixelG->value(dec_printf(buf, rgba.g));
-                c->uiPixelB->value(dec_printf(buf, rgba.b));
-                c->uiPixelA->value(dec_printf(buf, rgba.a));
+                c->uiPixelR->value(dec_printf(buf, rgba_display.r));
+                c->uiPixelG->value(dec_printf(buf, rgba_display.g));
+                c->uiPixelB->value(dec_printf(buf, rgba_display.b));
+                c->uiPixelA->value(dec_printf(buf, rgba_display.a));
                 break;
             }
 
@@ -2116,7 +2166,7 @@ namespace mrv
 
             mrv::BrightnessType brightness_type =
                 (mrv::BrightnessType)c->uiLType->value();
-            hsv.a = calculate_brightness(rgba, brightness_type);
+            hsv.a = calculate_brightness(in, brightness_type);
 
             c->uiPixelL->value(float_printf(buf, hsv.a));
         }
@@ -2234,7 +2284,7 @@ namespace mrv
             {
                 setOCIOOptions(screen, o);
             }
-
+            
             redrawWindows();
         }
 
@@ -2475,7 +2525,7 @@ namespace mrv
                     swap_interval(0);
                     p.ui->uiTimeline->swap_interval(0);
                 }
-                else
+                else if (vsync == MonitorVSync::kVSyncAlways)
                 {
                     swap_interval(1);
                     p.ui->uiTimeline->swap_interval(1);
@@ -2484,7 +2534,8 @@ namespace mrv
                     _setFullScreen(false);
                 if (p.ui->uiView == reinterpret_cast<MyViewport*>(this))
                     Fl::add_timeout(
-                        0.01, (Fl_Timeout_Handler)restore_ui_state, p.ui);
+                        kFullScreenTimeout,
+                        (Fl_Timeout_Handler)restore_ui_state, p.ui);
                 p.presentation = false;
                 _updateCursor();
             }
@@ -2497,7 +2548,7 @@ namespace mrv
                     swap_interval(1);
                     p.ui->uiTimeline->swap_interval(1);
                 }
-                else
+                else if (vsync == MonitorVSync::kVSyncNone)
                 {
                     swap_interval(0);
                     p.ui->uiTimeline->swap_interval(0);
@@ -2537,22 +2588,20 @@ namespace mrv
                     swap_interval(0);
                     p.ui->uiTimeline->swap_interval(0);
                 }
-                else
+                else if (vsync == MonitorVSync::kVSyncAlways)
                 {
                     swap_interval(1);
                     p.ui->uiTimeline->swap_interval(1);
                 }
                 if (!p.presentation)
                     _setFullScreen(false);
-                if (p.fullScreen || p.presentation)
-                {
 #ifdef __APPLE__
-                    restore_ui_state(p.ui);
+                restore_ui_state(p.ui);
 #else
-                    Fl::add_timeout(
-                        0.01, (Fl_Timeout_Handler)restore_ui_state, p.ui);
+                Fl::add_timeout(
+                    kFullScreenTimeout,
+                    (Fl_Timeout_Handler)restore_ui_state, p.ui);
 #endif
-                }
                 p.presentation = false;
             }
             else
@@ -2685,19 +2734,6 @@ namespace mrv
         image::Color4f TimelineViewport::rgba_to_hsv(
             int hsv_colorspace, image::Color4f& rgba) const noexcept
         {
-            if (rgba.r < 0.F)
-                rgba.r = 0.F;
-            else if (rgba.r > 1.F)
-                rgba.r = 1.F;
-            if (rgba.g < 0.F)
-                rgba.g = 0.F;
-            else if (rgba.g > 1.F)
-                rgba.g = 1.F;
-            if (rgba.b < 0.F)
-                rgba.b = 0.F;
-            else if (rgba.b > 1.F)
-                rgba.b = 1.F;
-
             image::Color4f hsv;
 
             switch (hsv_colorspace)
@@ -3398,8 +3434,12 @@ namespace mrv
         {
             TLRENDER_P();
 
-            const math::Size2i& renderSize = getRenderSize();
-            unsigned dataSize = renderSize.w * renderSize.h * 4 * sizeof(float);
+            const math::Box2i box = p.colorAreaInfo.box;
+
+            const uint32_t W = box.w();
+            const uint32_t H = box.h();
+                
+            unsigned dataSize = W * H * 4 * sizeof(float);
 
             if (dataSize != p.rawImageSize || !p.image)
             {
@@ -3419,18 +3459,22 @@ namespace mrv
             if (!p.image)
                 return;
 
-            const math::Size2i& renderSize = getRenderSize();
-            unsigned maxY = renderSize.h;
-            unsigned maxX = renderSize.w;
-            for (int Y = 0; Y < maxY; ++Y)
+            const math::Box2i box = p.colorAreaInfo.box;
+
+            const uint32_t x = box.x();
+            const uint32_t y = box.y();
+            const uint32_t w = box.w();
+            const uint32_t h = box.h();
+            
+            for (int Y = 0; Y < h; ++Y)
             {
-                for (int X = 0; X < maxX; ++X)
+                for (int X = 0; X < w; ++X)
                 {
                     float* data = reinterpret_cast<float*>(p.image);
-                    image::Color4f& rgba = (image::Color4f&)data[(X + maxX * Y) * 4];
+                    image::Color4f& rgba = (image::Color4f&)data[(X + w * Y) * 4];
                     rgba.r = rgba.g = rgba.b = rgba.a = 0.f;
 
-                    math::Vector2i pos(X, Y);
+                    math::Vector2i pos(X + x, Y + y);
                     for (const auto& video : p.videoData)
                     {
                         for (const auto& layer : video.layers)
@@ -3462,9 +3506,9 @@ namespace mrv
                             rgba.b += pixel.b;
                             rgba.a += pixel.a;
                         }
-                        float tmp = rgba.r;
-                        rgba.r = rgba.b;
-                        rgba.b = tmp;
+#ifdef OPENGL_BACKEND
+                        std::swap(rgba.r, rgba.b);
+#endif
                     }
                 }
             }
@@ -3545,8 +3589,19 @@ namespace mrv
             TLRENDER_P();
             if (p.selection == area)
                 return;
-
+                
             p.selection = area;
+
+            // Check min < max
+            if (p.selection.min.x > p.selection.max.x)
+            {
+                std::swap(p.selection.min.x, p.selection.max.x);
+            }
+            if (p.selection.min.y > p.selection.max.y)
+            {
+                std::swap(p.selection.min.y, p.selection.max.y);
+            }
+            
             redrawWindows();
 
             bool send = p.ui->uiPrefs->SendColor->value();
@@ -3684,10 +3739,72 @@ namespace mrv
             return _p->tagData;
         }
 
+        void TimelineViewport::_getHDR() noexcept
+        {
+            TLRENDER_P();
+            
+            if (p.videoData.empty() || p.videoData[0].layers.empty() ||
+                !p.videoData[0].layers[0].image)
+            {
+                p.ocio_disabled = false;
+                return;
+            }
+                    
+            auto hdrData = p.videoData[0].layers[0].image->getHDR();
+            if (hdrData)
+            {
+                // When we have video data, we must tonemap it with libplacebo.
+                p.hdrOptions.hdrData = *hdrData;
+                p.hdrOptions.tonemap = true;
+                
+                if (p.ui->uiPrefs->uiOCIONotOnVideos->value())
+                    p.ocio_disabled = true;
+                else
+                    p.ocio_disabled = false;
+            }
+            else
+            {
+                const auto path = p.player->player()->getPath();
+                const auto extension = path.getExtension();
+                if (file::isMovie(extension) || file::isOTIO(path))
+                {
+                    p.hdrOptions.tonemap = true;
+                    p.hdrOptions.hdrData = image::nameToPrimaries("BT709");
+
+                    if (p.ui->uiPrefs->uiOCIONotOnVideos->value())
+                        p.ocio_disabled = true;
+                    else
+                        p.ocio_disabled = false;
+                }
+                else if (file::isSRGB(extension))
+                {
+                    p.hdrOptions.tonemap = true;
+                    p.hdrOptions.hdrData = image::nameToPrimaries("SRGB");
+                    
+                    if (p.ui->uiPrefs->uiOCIONotOnVideos->value())
+                        p.ocio_disabled = true;
+                    else
+                        p.ocio_disabled = false;
+                }
+                else
+                {
+                    // A linear or log image.  Do not tonemap with libplacebo.
+                    p.hdrOptions.tonemap = false;
+
+                    // Make sure ocio is enabled.
+                    p.ocio_disabled = false;
+                        
+                    // We pass BT709 metadata unless OCIO changes it in
+                    // Viewport::_updateHDRMetadata().
+                    p.hdrOptions.hdrData = image::nameToPrimaries("BT709");
+                }
+            }
+        }
+        
         void TimelineViewport::_getTags() noexcept
         {
             TLRENDER_P();
-
+            
             p.tagData.clear();
 
             if (!p.player)
@@ -3709,6 +3826,17 @@ namespace mrv
             if (!p.videoData.empty() && !p.videoData[0].layers.empty() &&
                 p.videoData[0].layers[0].image)
             {
+                if (p.displayOptions.empty() ||
+                    p.displayOptions[0].hdrInfo == timeline::HDRInformation::Inactive)
+                {
+                    p.hdrOptions.tonemap = true;
+                    p.hdrOptions.hdrData = image::nameToPrimaries("BT709");
+                }
+                else
+                {
+                    _getHDR();
+                }
+                
                 const auto& tags = p.videoData[0].layers[0].image->getTags();
                 for (const auto& tag : tags)
                 {
@@ -3725,33 +3853,6 @@ namespace mrv
                 s >> videoRotation;
             }
             _setVideoRotation(videoRotation);
-
-            i = p.tagData.find("hdr");
-            if (i != p.tagData.end())
-            {
-                if (p.displayOptions.empty() ||
-                    p.displayOptions[0].hdrInfo ==
-                    timeline::HDRInformation::Inactive)
-                {
-                    p.hdrOptions.hdrData = image::HDRData();
-                }
-                else
-                {
-                    p.hdrOptions.tonemap = true;
-                    if (p.hdr != i->second)
-                    {
-                        p.hdr = i->second;
-                        
-                        // Parse the JSON string back 
-                        nlohmann::json j = nlohmann::json::parse(p.hdr);
-                        p.hdrOptions.hdrData = j.get<image::HDRData>();
-                    }
-                }
-            }
-            else
-            {
-                p.hdrOptions.tonemap = false;
-            }
 
             // \@bug: Apple (macOS Intel at least) is too slow and goes black.
 #ifndef __APPLE__
@@ -3809,8 +3910,8 @@ namespace mrv
                     0.F, static_cast<float>(renderSize.w),
                     0.F, static_cast<float>(renderSize.h), -1.F, 1.F);
 
-            const auto renderAspect = renderSize.getAspect();
-            const auto viewportAspect = viewportSize.getAspect();
+            const auto renderAspect = math::aspectRatio(renderSize);
+            const auto viewportAspect = math::aspectRatio(viewportSize);
 
             math::Matrix4x4f renderMVP;
             math::Vector2f transformOffset;
@@ -3878,9 +3979,9 @@ namespace mrv
             TLRENDER_P();
 
             const auto& renderSize = getRenderSize();
-            const auto renderAspect = renderSize.getAspect();
+            const auto renderAspect = math::aspectRatio(renderSize);
             const auto& viewportSize = getViewportSize();
-            const auto viewportAspect = viewportSize.getAspect();
+            const auto viewportAspect = math::aspectRatio(viewportSize);
 
             math::Vector2f transformOffset;
             if (viewportAspect > 1.F)
@@ -3914,9 +4015,9 @@ namespace mrv
             TLRENDER_P();
 
             const auto& renderSize = getRenderSize();
-            const auto renderAspect = renderSize.getAspect();
             const auto& viewportSize = getViewportSize();
-            const auto viewportAspect = viewportSize.getAspect();
+            const auto renderAspect = math::aspectRatio(renderSize);
+            const auto viewportAspect = math::aspectRatio(viewportSize);
 
             math::Vector2f transformOffset;
             if (viewportAspect > 1.F)

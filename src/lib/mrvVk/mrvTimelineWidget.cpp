@@ -27,7 +27,6 @@
 #include <tlTimelineVk/Render.h>
 #include <tlTimelineVk/RenderShadersBinary.h>
 
-#include <tlUI/IClipboard.h>
 #include <tlUI/IWindow.h>
 
 #include <tlVk/Init.h>
@@ -138,42 +137,6 @@ namespace mrv
             }
         };
 
-        class Clipboard : public ui::IClipboard
-        {
-            TLRENDER_NON_COPYABLE(Clipboard);
-
-        public:
-            void _init(const std::shared_ptr<system::Context>& context)
-            {
-                IClipboard::_init(context);
-            }
-
-            Clipboard() {}
-
-        public:
-            ~Clipboard() override {}
-
-            static std::shared_ptr<Clipboard>
-            create(const std::shared_ptr<system::Context>& context)
-            {
-                auto out = std::shared_ptr<Clipboard>(new Clipboard);
-                out->_init(context);
-                return out;
-            }
-
-            std::string getText() const override
-            {
-                std::string text;
-                if (Fl::event_text())
-                    text = Fl::event_text();
-                return text;
-            }
-
-            void setText(const std::string& value) override
-            {
-                Fl::copy(value.c_str(), value.size());
-            }
-        };
     } // namespace
 
     namespace vulkan
@@ -185,6 +148,8 @@ namespace mrv
 
             ViewerUI* ui = nullptr;
             Fl_Window* topWindow = nullptr;
+
+            int screen_index = 0;
 
             
             TimelinePlayer* player = nullptr;
@@ -208,9 +173,7 @@ namespace mrv
 
             // Render data
             std::shared_ptr<ui::Style> style;
-            std::shared_ptr<ui::IconLibrary> iconLibrary;
             std::shared_ptr<image::FontSystem> fontSystem;
-            std::shared_ptr<Clipboard> clipboard;
             std::shared_ptr<timeline_vlk::Render> render;
             timelineui_vk::DisplayOptions displayOptions;
             std::shared_ptr<timelineui_vk::TimelineWidget> timelineWidget;
@@ -225,6 +188,7 @@ namespace mrv
             //! Flags
             bool draggingClip = false;
             bool continueReversePlaying = false;
+            timeline::EditMode editMode = timeline::EditMode::Move;
 
             //! Observers
             std::shared_ptr<observer::ValueObserver<timeline::PlayerCacheInfo> >
@@ -271,12 +235,9 @@ namespace mrv
 
 
             p.style = ui::Style::create(context);
-            p.iconLibrary = ui::IconLibrary::create(context);
             p.fontSystem = image::FontSystem::create(context);
-            p.clipboard = Clipboard::create(context);
 
             p.timelineWindow = TimelineWindow::create(context);
-            p.timelineWindow->setClipboard(p.clipboard);
             
             
             p.timelineWidget =
@@ -341,6 +302,12 @@ namespace mrv
             return _p->timelineWidget->getSelectedItems();
         }
         
+        std::vector<const otio::Transition* >
+        TimelineWidget::getSelectedTransitions() const
+        {
+            return _p->timelineWidget->getSelectedTransitions();
+        }
+        
         bool TimelineWidget::isEditable() const
         {
             return _p->timelineWidget->isEditable();
@@ -353,6 +320,7 @@ namespace mrv
 
         void TimelineWidget::setEditMode(const timeline::EditMode value)
         {
+            _p->editMode = value;
             _p->timelineWidget->setEditMode(value);
         }
         
@@ -740,8 +708,7 @@ namespace mrv
                             "transform.mvp", pm, vlk::kShaderVertex);
                         p.shader->addFBO("textureSampler");
                         p.shader->addPush("opacity", 1.0, vlk::kShaderFragment);
-                        auto bindingSet = p.shader->createBindingSet();
-                        p.shader->useBindingSet(bindingSet);
+                        p.shader->createBindingSet();
                     }
                 }
                 catch (const std::exception& e)
@@ -859,6 +826,26 @@ namespace mrv
             
             VkCommandBuffer cmd = getCurrentCommandBuffer();
 
+            bool changed_screen = false;
+            if (p.screen_index != this->screen_num())
+            {
+                p.screen_index = this->screen_num();
+                changed_screen = true;
+            }
+
+            // If we changed screen we may have gone to a monitor with
+            // different scaling.  Recreate swapchain.
+            if (changed_screen)
+            {
+                // If we changed screen, we should still begin/end the clear
+                // render pass.
+                begin_render_pass(cmd);
+                end_render_pass(cmd);
+                m_swapchain_needs_recreation = true;
+                redraw();
+                return;
+            }
+
             std::vector<int> markers;
             if (p.player && p.player->hasAnnotations())
             {
@@ -934,10 +921,11 @@ namespace mrv
                         p.render->setClipRectEnabled(true);
                         
                         ui::DrawEvent drawEvent(
-                            p.style, p.iconLibrary, p.render, p.fontSystem);
+                            p.style, p.render, p.fontSystem);
                         p.render->beginLoadRenderPass();
                         _drawEvent(
-                            p.timelineWindow, math::Box2i(renderSize),
+                            p.timelineWindow,
+                            math::Box2i(0, 0, renderSize.w, renderSize.h),
                             drawEvent);
                         p.render->endRenderPass();
                         
@@ -1063,13 +1051,15 @@ namespace mrv
                     region.srcSubresource.baseArrayLayer = 0;
                     region.srcSubresource.layerCount = 1;
                     region.srcOffsets[0] = {0, 0, 0};
-                    region.srcOffsets[1] = {pixel_w(), pixel_h(), 1};
+                    int32_t W = pixel_w();
+                    int32_t H = pixel_h();
+                    region.srcOffsets[1] = {W, H, 1};
                     region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
                     region.dstSubresource.mipLevel = 0;
                     region.dstSubresource.baseArrayLayer = 0;
                     region.dstSubresource.layerCount = 1;
                     region.dstOffsets[0] = {0, 0, 0};
-                    region.dstOffsets[1] = {pixel_w(), pixel_h(), 1};
+                    region.dstOffsets[1] = {W, H, 1};
                     vkCmdBlitImage(
                         cmd,
                         srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -1737,6 +1727,11 @@ namespace mrv
                 p.ui->uiEdit->do_callback();
                 return 1;
             }
+            if (key == FL_Delete && p.editMode == timeline::EditMode::Select)
+            {
+                edit_remove_selected_cb(nullptr, p.ui);
+                return 1;
+            }
             bool send = App::ui->uiPrefs->SendTimeline->value();
             if (send)
             {
@@ -2005,7 +2000,7 @@ namespace mrv
         void TimelineWidget::_tickEvent()
         {
             TLRENDER_P();
-            ui::TickEvent tickEvent(p.style, p.iconLibrary, p.fontSystem);
+            ui::TickEvent tickEvent(p.style, p.fontSystem);
             _tickEvent(_p->timelineWindow, true, true, tickEvent);
         }
 
@@ -2047,7 +2042,7 @@ namespace mrv
             TLRENDER_P();
             const float devicePixelRatio = pixelRatio();
             ui::SizeHintEvent sizeHintEvent(
-                p.style, p.iconLibrary, p.fontSystem, devicePixelRatio);
+                p.style, p.fontSystem, devicePixelRatio);
             _sizeHintEvent(p.timelineWindow, sizeHintEvent);
         }
 
@@ -2081,17 +2076,18 @@ namespace mrv
             const math::Box2i& clipRect, bool clipped)
         {
             const math::Box2i& g = widget->getGeometry();
-            clipped |= !g.intersects(clipRect);
+            clipped |= !math::intersects(g, clipRect);
             clipped |= !widget->isVisible(false);
-            const math::Box2i clipRect2 = g.intersect(clipRect);
+            const math::Box2i clipRect2 = math::intersect(g, clipRect);
             widget->clipEvent(clipRect2, clipped);
-            const math::Box2i childrenClipRect =
-                widget->getChildrenClipRect().intersect(clipRect2);
+            const math::Box2i childrenClipRect = math::intersect(
+                widget->getChildrenClipRect(), clipRect2);
             for (const auto& child : widget->getChildren())
             {
                 const math::Box2i& childGeometry = child->getGeometry();
                 _clipEvent(
-                    child, childGeometry.intersect(childrenClipRect), clipped);
+                    child, math::intersect(childGeometry, childrenClipRect),
+                    clipped);
             }
         }
 
@@ -2128,15 +2124,17 @@ namespace mrv
                 event.render->setClipRect(drawRect);
                 widget->drawEvent(drawRect, event);
                 const math::Box2i childrenClipRect =
-                    widget->getChildrenClipRect().intersect(drawRect);
+                    math::intersect(widget->getChildrenClipRect(),
+                                    drawRect);
                 event.render->setClipRect(childrenClipRect);
                 for (const auto& child : widget->getChildren())
                 {
                     const math::Box2i& childGeometry = child->getGeometry();
-                    if (childGeometry.intersects(childrenClipRect))
+                    if (math::intersects(childGeometry, childrenClipRect))
                     {
                         _drawEvent(
-                            child, childGeometry.intersect(childrenClipRect),
+                            child, math::intersect(childGeometry,
+                                                   childrenClipRect),
                             event);
                     }
                 }

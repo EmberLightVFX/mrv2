@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <random>
 namespace fs = std::filesystem;
 
 namespace mrv
@@ -50,7 +51,7 @@ namespace mrv
         }
         std::sort(files.begin(), files.end());
 
-        std::string root, frame, view, ext;
+        std::string root, frame, view, suffix, ext;
         SequenceList tmpseqs;
 
         for (const auto& file : files)
@@ -60,6 +61,7 @@ namespace mrv
             const std::string root = path.getBaseName();
             const std::string frame = path.getNumber();
             const std::string view = ""; // @todo: path.getView();
+            const std::string suffix = path.getSuffix();
             const std::string ext = path.getExtension();
             if (file::isMovie(ext))
                 movies.push_back(file);
@@ -71,6 +73,7 @@ namespace mrv
                 s.root = dir + root;
                 s.view = view;
                 s.number = frame;
+                s.suffix = suffix;
                 s.ext = ext;
 
                 tmpseqs.push_back(s);
@@ -94,7 +97,8 @@ namespace mrv
             for (; *s == '0'; ++s)
                 ++z;
 
-            if (i.root != root || i.view != view || i.ext != ext ||
+            if (i.root != root || i.view != view || i.suffix != suffix ||
+                i.ext != ext ||
                 (padding != z && z != padding - 1))
             {
                 // New sequence
@@ -102,11 +106,13 @@ namespace mrv
                 padding = z;
                 number = first = i.number;
                 view = i.view;
+                suffix = i.suffix;
                 ext = i.ext;
 
                 std::string file = root;
                 file += first;
                 file += view;
+                file += suffix;
                 file += ext;
                 sequences.push_back(file);
             }
@@ -118,4 +124,45 @@ namespace mrv
         }
     }
 
+    std::string generateRandomNumbers(int length) {
+        // Define the character set to choose from
+        const std::string alphabet = "0123456789";
+    
+        // Setup the random number generator
+        std::random_device rd;  // Obtain a random seed from the hardware
+        std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    
+        // Define the range (0 to the last index of the alphabet string)
+        std::uniform_int_distribution<size_t> distrib(0, alphabet.size() - 1);
+
+        std::string result = "";
+        
+        // Generate the random letters
+        for (int i = 0; i < length; ++i) {
+            result += alphabet[distrib(gen)];
+        }
+    
+        return result;
+    }
+    
+    std::string generateRandomLetters(int length) {
+        // Define the character set to choose from
+        const std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    
+        // Setup the random number generator
+        std::random_device rd;  // Obtain a random seed from the hardware
+        std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    
+        // Define the range (0 to the last index of the alphabet string)
+        std::uniform_int_distribution<size_t> distrib(0, alphabet.size() - 1);
+
+        std::string result = "";
+        
+        // Generate the random letters
+        for (int i = 0; i < length; ++i) {
+            result += alphabet[distrib(gen)];
+        }
+    
+        return result;
+    }
 } // namespace mrv

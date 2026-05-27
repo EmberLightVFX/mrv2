@@ -25,7 +25,7 @@ namespace mrv
 
     enum PixelDisplay { kRGBA_Float, kRGBA_Hex, kRGBA_Decimal };
 
-    enum PixelValue { kFull, kOriginal };
+    enum PixelValue { kLinear, kNits, kFull, kOriginal };
 
     enum Blit { kNoBlit, kBlit };
 
@@ -50,5 +50,12 @@ namespace mrv
         kScrubLoopButton,
         kScrubLoopInactive,
         kScrubLoopActive
+    };
+    
+    enum ThumnailsSize
+    {
+        kThumbnailNone,
+        kThumbnailSmall,
+        kThumbnailNormal
     };
 }

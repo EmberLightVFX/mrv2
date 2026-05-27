@@ -38,6 +38,79 @@ namespace mrv
     namespace color
     {
 
+        // ─────────────────────────────────────────────────────────────────────────
+        // ST.2084 (PQ) Inverse EOTF: Maps [0, 1] PQ → [0, 1] Linear (1.0 = 10k nits)
+        // ──────────────────────────────────────────────────────────────────────
+        inline float inverse_st2084_eotf(float N) noexcept
+        {
+            if (N <= 0.f) return 0.f;
+    
+            constexpr float m1 = 2610.f / 16384.f;
+            constexpr float m2 = (2523.f / 4096.f) * 128.f;
+            constexpr float c1 = 3424.f / 4096.f;
+            constexpr float c2 = (2413.f / 4096.f) * 32.f;
+            constexpr float c3 = (2392.f / 4096.f) * 32.f;
+
+            float Npw = std::pow(N, 1.f / m2);
+            float num = std::max(Npw - c1, 0.f);
+            float den = c2 - c3 * Npw;
+    
+            return std::pow(num / den, 1.f / m1);
+        }
+        
+        /** 
+         * Calculates Absolute Nits values from a PQ value.
+         * 
+         * @param v PQ value.
+         * 
+         * @return nits value (in 0...10000 range).
+         */
+        inline float pqToNits(float v) {
+            return 10000.0f * inverse_st2084_eotf(v);
+        }
+
+        inline image::Color4f pqToNits(const image::Color4f& value)
+        {
+            return image::Color4f(pqToNits(value.r),
+                                  pqToNits(value.g),
+                                  pqToNits(value.b),
+                                  value.a);
+        }
+        
+        inline float pqToLinear(float v, const float reference_white = 100.F)
+        {
+            float nits = pqToNits(v);
+            return nits / reference_white;
+        }
+
+        inline image::Color4f pqToLinear(const image::Color4f& value)
+        {
+            return image::Color4f(pqToLinear(value.r),
+                                  pqToLinear(value.g),
+                                  pqToLinear(value.b),
+                                  value.a);
+        }
+        
+        inline float srgbToLinear(float srgb)
+        {
+            if (srgb <= 0.04045f)
+            {
+                return srgb / 12.92f;
+            }
+            else
+            {
+                return std::pow((srgb + 0.055f) / 1.055f, 2.4f);
+            }
+        }
+        
+        inline image::Color4f srgbToLinear(const image::Color4f& value)
+        {
+            return image::Color4f(srgbToLinear(value.r),
+                                  srgbToLinear(value.g),
+                                  srgbToLinear(value.b),
+                                  value.a);
+        }
+        
         extern Imath::V3f kD50_whitePoint;
         extern Imath::V3f kD65_whitePoint;
 #ifdef TLRENDER_EXR
@@ -117,6 +190,7 @@ namespace mrv
             image::Color4f to_YDbDr(const image::Color4f& rgb) noexcept;
             image::Color4f to_ITU601(const image::Color4f& rgb) noexcept;
             image::Color4f to_ITU709(const image::Color4f& rgb) noexcept;
+            image::Color4f to_Rec2020(const image::Color4f& rgb) noexcept;
         } // namespace rgb
 
         namespace yuv

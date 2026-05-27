@@ -22,15 +22,6 @@ namespace mrv
         using tl::file::Path;
         using tl::file::PathOptions;
 
-        /** 
-         * Given a path with backslashes (\) returns a string with forward
-         * slashes / replaced.
-         * 
-         * @param path path with backslashes
-         * 
-         * @return normalized path
-         */
-        std::string normalizePath(const std::string& path);
         
         /**
          * Given a tlRender's path, return whether the file can be loaded by
@@ -65,6 +56,21 @@ namespace mrv
         inline bool isMovie(const Path& path)
         {
             return isMovie(tl::string::toLower(path.getExtension()));
+        }
+        
+        /**
+         * Given a lowercase filename extension, return whether the extension is
+         * from an sRGBB image format.
+         *
+         * @param ext Filename extension.
+         *
+         * @return true if a valis Rec.709 image format.
+         */
+        bool isSRGB(const std::string& ext);
+
+        inline bool issSRGB(const Path& path)
+        {
+            return isSRGB(tl::string::toLower(path.getExtension()));
         }
 
         /**

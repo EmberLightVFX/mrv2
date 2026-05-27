@@ -43,6 +43,11 @@ get_cmake_version
 get_git_version
 
 #
+# Get the compilers
+#
+get_compilers
+
+#
 # These are some of the expensive mrv2 options
 #
 if [ -z "$MSYS2_INSTALL" ]; then
@@ -170,6 +175,14 @@ if [ -z "$TLRENDER_FFMPEG_MINIMAL" ]; then
     export TLRENDER_FFMPEG_MINIMAL=ON
 fi
 
+if [ -z "$TLRENDER_LIBDOVI" ]; then
+    if [[ $TLRENDER_FFMPEG == ON || $TLRENDER_FFMPEG == 1 ]]; then
+	export TLRENDER_LIBDOVI=ON
+    else
+	export TLRENDER_LIBDOVI=OFF
+    fi
+fi
+
 if [ -z "$TLRENDER_LIBPLACEBO" ]; then
     if [[ $TLRENDER_FFMPEG == ON || $TLRENDER_FFMPEG == 1 ]]; then
 	export TLRENDER_LIBPLACEBO=ON
@@ -266,7 +279,7 @@ if [ -z "$VULKAN_SDK" ]; then
 	    fi
 	fi
 
-	if [ -z $VULKAN_SDK ]; then
+	if [ ! -d "$VULKAN_SDK" ]; then
 	    if [[ -d /usr/local/include/vulkan ]]; then
 		export VULKAN_SDK=/usr/local/
 	    else
@@ -277,12 +290,17 @@ if [ -z "$VULKAN_SDK" ]; then
     if [[ -e "$VULKAN_SDK/include/vulkan/vulkan.h" ]]; then
 	echo "Guessed VULKAN_SDK to ${VULKAN_SDK}"
     else
+	echo "Coukd not guess VULKAN_SDK, last guess ${VULKAN_SDK}"
 	unset VULKAN_SDK
 	export TLRENDER_VK=OFF
 	export MRV2_HDR=OFF
     fi
 else
     echo "Using VULKAN_SDK from environment: ${VULKAN_SDK}"
+    if [[ ! -e "${VULKAN_SDK}/include/vulkan/vulkan.h" ]]; then
+	echo "Could not find vulkan.h in ${VULKAN_SDK}/include"
+	exit 1
+    fi
 fi
     
 if [ -z "$TLRENDER_VK" ]; then
@@ -357,14 +375,30 @@ echo
 echo "C COMPILERS"
 echo "-----------"
 echo "Native C compiler ${NATIVE_C_COMPILER_NAME} version ${NATIVE_C_COMPILER_VERSION}"
+echo "${NATIVE_C_COMPILER}"
 echo "Generic C compiler ${GENERIC_C_COMPILER_NAME} version ${GENERIC_C_COMPILER_VERSION}"
-echo "Generic GNU C compiler ${GNU_C_COMPILER_NAME} ${GNU_C_COMPILER_VERSION}"
+echo "${GENERIC_C_COMPILER}"
+echo "GNU C compiler ${GNU_C_COMPILER_NAME} ${GNU_C_COMPILER_VERSION}"
 echo
 echo "CXX COMPILERS"
 echo "-------------"
 echo "Native CXX compiler ${NATIVE_CXX_COMPILER_NAME} version ${NATIVE_CXX_COMPILER_VERSION}"
-echo "Generic CXX with ${GENERIC_CXX_COMPILER_NAME} version ${GENERIC_CXX_COMPILER_VERSION}"
-echo "Generic GNU CXX compiler ${GNU_CXX_COMPILER_NAME} ${GNU_CXX_COMPILER_VERSION}"
+echo "${NATIVE_CXX_COMPILER}"
+echo "Generic CXX compiler with ${GENERIC_CXX_COMPILER_NAME} version ${GENERIC_CXX_COMPILER_VERSION}"
+echo "${GENERIC_CXX_COMPILER}"
+echo "GNU CXX compiler ${GNU_CXX_COMPILER_NAME} ${GNU_CXX_COMPILER_VERSION}"
+echo
+echo "LINKERS"
+echo "-------"
+echo "Native linker ${NATIVE_LINKER_NAME} version ${NATIVE_LINKER_VERSION}"
+echo "Generic linker with ${GENERIC_LINKER_NAME} version ${GENERIC_LINKER_VERSION}"
+echo "GNU linker ${GNU_LINKER_NAME} version ${GNU_LINKER_VERSION}"
+echo
+echo "ARCHIVERS"
+echo "---------"
+echo "Native archiver ${NATIVE_ARCHIVER_NAME} version ${NATIVE_ARCHIVER_VERSION}"
+echo "Generic archiver with ${GENERIC_ARCHIVER_NAME} version ${GENERIC_ARCHIVER_VERSION}"
+echo "GNU arhiver ${GNU_ARCHIVER_NAME} version ${GNU_ARCHIVER_VERSION}"
 echo
 
 
@@ -400,7 +434,7 @@ fi
 
 echo "mrv2 Options"
 echo
-echo "Build vcpkg......................... ${BUILD_VCPKG}		(BUILD_VCPKG)"
+echo "Build vcpkg......................... ${BUILD_VCPKG}	(BUILD_VCPKG)"
 echo "Build Python........................ ${BUILD_PYTHON} 	(BUILD_PYTHON)"
 if [[ ${BUILD_PYTHON} == OFF || ${BUILD_PYTHON} == 0 ]]; then
     echo "Python location: ${MRV2_PYTHON}"
@@ -432,8 +466,10 @@ if [[ $TLRENDER_FFMPEG == ON || $TLRENDER_FFMPEG == 1 ]]; then
     fi
     echo "    HAP/Snappy codec support ....... ${TLRENDER_HAP} 	(TLRENDER_HAP)"
     echo "    VPX codec support .............. ${TLRENDER_VPX} 	(TLRENDER_VPX)"
-    echo "    WebP codec support ............. ${TLRENDER_LIBWEBP}		(TLRENDER_LIBWEBP)"
+    echo "    WebP encoder support ........... ${TLRENDER_LIBWEBP}	(TLRENDER_LIBWEBP)"
     echo "    X264 codec support ............. ${TLRENDER_X264} 	(Use -gpl flag)"
+    echo "    libdovi    support ............. ${TLRENDER_LIBDOVI}         (TLRENDER_LIBDOVI)"
+
     echo "    libplacebo support ............. ${TLRENDER_LIBPLACEBO}         (TLRENDER_LIBPLACEBO)"
 fi
 echo
@@ -453,7 +489,6 @@ echo "OpenEXR support .................... ${TLRENDER_EXR} 	(TLRENDER_EXR)"
 echo "STB support (TGA, BMP, PSD) ........ ${TLRENDER_STB} 	(TLRENDER_STB)"
 echo "SSL support ........................ ${TLRENDER_SSL} 	(TLRENDER_SSL)"
 echo "TIFF support ....................... ${TLRENDER_TIFF} 	(TLRENDER_TIFF)"
-echo "tlRender API ....................... ${TLRENDER_API} 	(TLRENDER_API)"
 echo "USD support ........................ ${TLRENDER_USD} 	(TLRENDER_USD)"
 echo "ZFile support ...................... ${TLRENDER_ZFILE} 	(TLRENDER_ZFILE)"
 
@@ -525,6 +560,7 @@ cmd="cmake -G 'Ninja'
 	   -D TLRENDER_GL=${TLRENDER_GL}
            -D TLRENDER_HAP=${TLRENDER_HAP}
            -D TLRENDER_JPEG=${TLRENDER_JPEG}
+	   -D TLRENDER_LIBDOVI=${TLRENDER_LIBDOVI}
            -D TLRENDER_LIBPLACEBO=${TLRENDER_LIBPLACEBO}
 	   -D TLRENDER_LIBWEBP=${TLRENDER_LIBWEBP}
 	   -D TLRENDER_NDI=${TLRENDER_NDI}

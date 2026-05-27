@@ -44,6 +44,7 @@ set(HEADERS
     MemoryInline.h
     Mesh.h
     MeshInline.h
+    Monitor.h
     OS.h
     Observer.h
     Path.h
@@ -55,6 +56,7 @@ set(HEADERS
     RangeInline.h
     Size.h
     SizeInline.h
+    StatsSystem.h
     String.h
     StringFormat.h
     StringFormatInline.h
@@ -98,6 +100,7 @@ set(SOURCE
     Random.cpp
     Range.cpp
     Size.cpp
+    StatsSystem.cpp
     String.cpp
     StringFormat.cpp
     Time.cpp

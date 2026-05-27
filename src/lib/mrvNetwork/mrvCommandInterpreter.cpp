@@ -5,7 +5,7 @@
 #include "mrViewer.h"
 
 #include "mrvFl/mrvOCIO.h"
-#include "mrvFl/mrvCallbacks.h"
+#include "mrvFLTK/mrvCallbacks.h"
 #include "mrvFl/mrvIO.h"
 #include "mrvFl/mrvLaserFadeData.h"
 
@@ -16,10 +16,6 @@
 
 #include "mrvNetwork/mrvCommandInterpreter.h"
 #include "mrvOptions/mrvCompareOptions.h"
-#include "mrvOptions/mrvDisplayOptions.h"
-#include "mrvOptions/mrvImageOptions.h"
-#include "mrvOptions/mrvLUTOptions.h"
-#include "mrvOptions/mrvTimelineItemOptions.h"
 
 #if defined(OPENGL_BACKEND)
 #    include "mrvGL/mrvGLJson.h"
@@ -30,6 +26,8 @@
 #endif
 
 #include "mrvCore/mrvFile.h"
+
+#include <tlTimelineUI/IItem.h>
 
 #include <tlDraw/Annotation.h>
 
@@ -121,7 +119,12 @@ namespace mrv
 
             tcp->lock();
 
-            if (c == "setPlayback")
+            if (c == "sync")
+            {
+                tcp->unlock();
+                tcp->syncClient();
+            }
+            else if (c == "setPlayback")
             {
                 bool receive = prefs->ReceiveTimeline->value();
                 if (!receive || !player)
@@ -1224,6 +1227,18 @@ namespace mrv
 
                 set_edit_mode_cb(value, ui);
             }
+            else if (c == "WebRTC Panel")
+            {
+                bool receive = prefs->ReceiveUI->value();
+                if (!receive)
+                {
+                    tcp->unlock();
+                    return;
+                }
+                bool value = message["value"];
+                if ((!value && webrtcPanel) || (value && !webrtcPanel))
+                    webrtc_panel_cb(nullptr, ui);
+            }
             else if (c == "Network Panel")
             {
                 bool receive = prefs->ReceiveUI->value();
@@ -1316,6 +1331,19 @@ namespace mrv
                     (value && !vectorscopePanel))
                     vectorscope_panel_cb(nullptr, ui);
             }
+            else if (c == "Waveform Panel")
+            {
+                bool receive = prefs->ReceiveUI->value();
+                if (!receive)
+                {
+                    tcp->unlock();
+                    return;
+                }
+                bool value = message["value"];
+                if ((!value && waveformPanel) ||
+                    (value && !waveformPanel))
+                    waveform_panel_cb(nullptr, ui);
+            }
             else if (c == "Stereo 3D Panel")
             {
                 bool receive = prefs->ReceiveUI->value();
@@ -1328,6 +1356,18 @@ namespace mrv
                 if ((!value && stereo3DPanel) || (value && !stereo3DPanel))
                     stereo3D_panel_cb(nullptr, ui);
             }
+            else if (c == "Stats Panel")
+            {
+                bool receive = prefs->ReceiveUI->value();
+                if (!receive)
+                {
+                    tcp->unlock();
+                    return;
+                }
+                bool value = message["value"];
+                if ((!value && statsPanel) || (value && !statsPanel))
+                    stats_panel_cb(nullptr, ui);
+            }
             else if (c == "setTimelineDisplayOptions")
             {
                 bool receive = prefs->ReceiveUI->value();
@@ -1336,12 +1376,7 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-#ifdef OPENGL_BACKEND
-                timelineui::DisplayOptions value = message["value"];
-#endif
-#ifdef VULKAN_BACKEND
-                timelineui_vk::DisplayOptions value = message["value"];
-#endif
+                TIMELINEUI::DisplayOptions value = message["value"];
                 ui->uiTimeline->setDisplayOptions(value);
             }
             else if (c == "Timeline/FrameView")
@@ -1392,6 +1427,10 @@ namespace mrv
             {
                 int Aindex = message["value"];
                 add_clip_to_timeline_cb(Aindex, ui);
+            }
+            else if (c == "Edit/Remove Selected")
+            {
+                edit_remove_selected_cb(nullptr, ui);
             }
             else if (c == "Edit/Frame/Cut")
             {

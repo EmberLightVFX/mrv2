@@ -18,7 +18,6 @@
 #include "mrvUI/mrvDesktop.h"
 
 #define DEBUG_EVENTS 0
-#define USE_TIMEOUT 0
 
 namespace
 {
@@ -28,16 +27,6 @@ namespace
 
 namespace mrv
 {
-    
-    bool dragging = false;
-    static void drag_idle(void* v)
-    {
-        DragButton* self = static_cast<DragButton*>(v);
-        if (!dragging) return;
-        self->update_drag(); // compute new position
-        Fl::repeat_timeout(0.0, drag_idle, v);
-    }
-    
     DragButton::DragButton(int x, int y, int w, int h, const char* l) :
         Fl_Box(x, y, w, h, l)
     {
@@ -53,9 +42,11 @@ namespace mrv
         // This is the stable calculation.
         int current_mouse_x, current_mouse_y;
         get_global_coords(current_mouse_x, current_mouse_y);
+        int new_x, new_y;
+         
+        new_x = winx + (current_mouse_x - fromx);
+        new_y = winy + (current_mouse_y - fromy);
         
-        int new_x = winx + (current_mouse_x - fromx);
-        int new_y = winy + (current_mouse_y - fromy);
         window()->position(new_x, new_y);
         if (window()->parent())
             window()->parent()->init_sizes();
@@ -98,14 +89,8 @@ namespace mrv
             case FL_PUSH: // downclick in button creates cursor offsets
                 get_global_coords(fromx, fromy);
                 get_window_coords(winx, winy);
-                dragging = true;
-
-#if USE_TIMEOUT
-                Fl::add_timeout(0.0, drag_idle, this);
-#endif
                 return 1;
             case FL_DRAG:
-                dragging = true;
                 
                 if (was_docked)
                 {
@@ -115,16 +100,11 @@ namespace mrv
                     was_docked = false;
                     get_global_coords(fromx, fromy);
                     get_window_coords(winx, winy);
-#if USE_TIMEOUT
-                    Fl::add_timeout(0.0, drag_idle, this);
-#endif
                 }
-#if !USE_TIMEOUT
                 update_drag();
-#endif
                 return 1;
             case FL_RELEASE:
-                dragging = false;
+                
                 update_drag();
                     
                 // Finalize the dock state.
@@ -138,6 +118,7 @@ namespace mrv
                 {
                     hide_dock_group();
                 }
+                
                 return 1;                    
             default:
                 break; // Ignore other events.
@@ -165,7 +146,7 @@ namespace mrv
             {
                 tg->undock_grp(false); // undock the window
                 was_docked = true;     // note that we *just now* undocked
-                
+
                 int posX, posY;
                 get_global_coords(posX, posY);
                 

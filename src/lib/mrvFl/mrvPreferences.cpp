@@ -2,24 +2,16 @@
 // mrv2
 // Copyright Contributors to the mrv2 Project. All rights reserved.
 
-#include <algorithm>
-#include <filesystem>
-namespace fs = std::filesystem;
+#include "mrvPreferencesUI.h"
+#include "mrvHotkeyUI.h"
 
-#include <tlCore/AudioSystem.h>
-#include <tlCore/StringFormat.h>
+#include "mrvFLU/Flu_File_Chooser.h"
 
-#include <FL/fl_utf8.h>         // for fl_getenv
-#include <FL/Fl_Sys_Menu_Bar.H> // for macOS menus
+#include "mrvApp/mrvSettingsObject.h"
+#include "mrvApp/mrvApp.h"
 
-#include "mrvCore/mrvFile.h"
-#include "mrvCore/mrvHome.h"
-#include "mrvCore/mrvHotkey.h"
-#include "mrvCore/mrvLocale.h"
-#include "mrvCore/mrvMedia.h"
-#include "mrvCore/mrvUtil.h"
-
-#include "mrvWidgets/mrvLogDisplay.h"
+#include "mrvFl/mrvIO.h"
+#include "mrvFl/mrvOCIO.h"
 
 #ifdef MRV2_NETWORK
 #    include "mrvNetwork/mrvImageListener.h"
@@ -29,20 +21,29 @@ namespace fs = std::filesystem;
 #include "mrvFl/mrvHotkey.h"
 #include "mrvFl/mrvLanguages.h"
 
+#include "mrvWidgets/mrvLogDisplay.h"
+
 #include "mrvUI/mrvAsk.h"
 #include "mrvUI/mrvMenus.h"
 
-#include "mrvFLU/Flu_File_Chooser.h"
+#include "mrvCore/mrvFile.h"
+#include "mrvCore/mrvHome.h"
+#include "mrvCore/mrvHotkey.h"
+#include "mrvCore/mrvLocale.h"
+#include "mrvCore/mrvMedia.h"
+#include "mrvCore/mrvUtil.h"
 
-#include "mrvApp/mrvSettingsObject.h"
-#include "mrvApp/mrvApp.h"
+#include "mrvOS/mrvOS.h"
 
-#include "mrvPreferencesUI.h"
-#include "mrvHotkeyUI.h"
+#include <tlCore/AudioSystem.h>
+#include <tlCore/StringFormat.h>
 
-#include "mrvFl/mrvIO.h"
-#include "mrvFl/mrvOCIO.h"
-#include "mrvCore/mrvOS.h"
+#include <FL/fl_utf8.h>         // for fl_getenv
+#include <FL/Fl_Sys_Menu_Bar.H> // for macOS menus
+
+#include <algorithm>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 namespace
 {
@@ -286,7 +287,12 @@ namespace mrv
         gui.get("timeline_thumbnails", tmp, 0);
         uiPrefs->uiPrefsTimelineThumbnails->value(tmp);
 
-        gui.get("panel_thumbnails", tmp, 1);
+#ifdef __APPLE__
+        // On macOS, since users usually a laptop, default to Small thumbnail size.
+        gui.get("panel_thumbnails_size", tmp, 1);
+#else
+        gui.get("panel_thumbnails_size", tmp, 2);
+#endif
         uiPrefs->uiPrefsPanelThumbnails->value(tmp);
 
         gui.get("panel_thumbnails_manually", tmp, 0);
@@ -376,6 +382,17 @@ namespace mrv
         view.get("ocio_in_top_bar", tmp, 0);
         uiPrefs->uiPrefsOCIOInTopBar->value((bool)tmp);
 
+        view.get("debanding", tmp, 0);
+
+#ifdef VULKAN_BACKEND
+        if (tmp != 0)
+        {
+            LOG_WARNING(_("Debanding is not set to None.  This can make images show blurred"));
+        }
+#endif
+        
+        uiPrefs->uiPrefsDebanding->value(tmp);
+        
         view.get("video_levels", tmp, 0);
         uiPrefs->uiPrefsVideoLevels->value(tmp);
 
@@ -401,9 +418,28 @@ namespace mrv
         
         hdr.get("vulkan_use_rgb", tmp, 0);
         uiPrefs->uiPrefsVulkanUseRGB->value(tmp);
-        
+
         hdr.get("chromaticities", tmp, 0);
         uiPrefs->uiPrefsChromaticities->value(tmp);
+        
+
+        //
+        // HDR Peak Detection
+        //
+        hdr.get("peak_detection", tmp, 0);
+        uiPrefs->uiPrefsHDRPeakDetection->value(tmp);
+        
+        hdr.get("peak_detection_percentile", tmpF, 100.F);
+        uiPrefs->uiPrefsHDRPeakPercentile->value(tmpF);
+        
+        hdr.get("peak_detection_smoothing_period", tmpF, 20.F);
+        uiPrefs->uiPrefsHDRPeakSmoothingPeriod->value(tmpF);
+        
+        hdr.get("peak_detection_low_limit", tmpF, 1.F);
+        uiPrefs->uiPrefsHDRPeakLowLimit->value(tmpF);
+        
+        hdr.get("peak_detection_high_limit", tmpF, 3.F);
+        uiPrefs->uiPrefsHDRPeakHighLimit->value(tmpF);
         
         hdr.get("hdr_data", tmp, 0);
         uiPrefs->uiPrefsHDRInfo->value(tmp);
@@ -611,6 +647,9 @@ namespace mrv
 
         ocio.get("use_active_views", tmp, 1);
         uiPrefs->uiOCIOUseActiveViews->value(tmp);
+        
+        ocio.get("not_on_videos", tmp, 1);
+        uiPrefs->uiOCIONotOnVideos->value(tmp);
 
         Fl_Preferences ics(ocio, "ICS");
         {
@@ -666,6 +705,9 @@ namespace mrv
         hud.get("attributes", tmp, 0);
         uiPrefs->uiPrefsHudAttributes->value((bool)tmp);
 
+        hud.get("font_size", tmp, 12);
+        uiPrefs->uiPrefsHudFontSize->value(tmp);
+        
         Fl_Preferences win(view, "window");
 
         win.get("always_save_on_exit", tmp, 0);
@@ -685,14 +727,18 @@ namespace mrv
         }
         win.get("x_position", tmp, 0);
         uiPrefs->uiWindowXPosition->value(tmp);
+
         win.get("y_position", tmp, 0);
         uiPrefs->uiWindowYPosition->value(tmp);
 
         win.get("x_size", tmp, 640);
         uiPrefs->uiWindowXSize->value(tmp);
+        
         win.get("y_size", tmp, 530);
-
         uiPrefs->uiWindowYSize->value(tmp);
+
+        win.get("screen", tmp, 0);
+        uiPrefs->uiWindowScreen->value(tmp);
 
         Fl_Preferences flu(gui, "file_requester");
         //
@@ -1036,6 +1082,12 @@ namespace mrv
 
         ui->uiView->setBackgroundOptions(backgroundOptions);
 
+        // Handle Shader Options
+        timeline::ShaderOptions shaderOptions;
+        shaderOptions.debanding =
+            static_cast<timeline::Debanding>(uiPrefs->uiPrefsDebanding->value());
+        ui->uiView->setShaderOptions(shaderOptions);
+        
         // Handle Dockgroup size (based on percentage)
         float pct = settings->getValue<float>("gui/DockGroup/Width");
         if (pct < 0.2F)
@@ -1326,7 +1378,7 @@ namespace mrv
         gui.set("timeline_video_offset", uiPrefs->uiStartTimeOffset->value());
         gui.set(
             "timeline_thumbnails", uiPrefs->uiPrefsTimelineThumbnails->value());
-        gui.set("panel_thumbnails", uiPrefs->uiPrefsPanelThumbnails->value());
+        gui.set("panel_thumbnails_size", uiPrefs->uiPrefsPanelThumbnails->value());
         gui.set("panel_thumbnails_manually",
                 uiPrefs->uiPrefsManualPanelThumbnails->value());
         gui.set("remove_edls", uiPrefs->uiPrefsRemoveEDLs->value());
@@ -1355,6 +1407,8 @@ namespace mrv
         view.set("safe_areas", uiPrefs->uiPrefsSafeAreas->value());
         view.set("ocio_in_top_bar", uiPrefs->uiPrefsOCIOInTopBar->value());
         view.set("video_levels", uiPrefs->uiPrefsVideoLevels->value());
+        view.set("debanding", uiPrefs->uiPrefsDebanding->value());
+
         view.set("alpha_blend", uiPrefs->uiPrefsAlphaBlend->value());
         view.set("minify_filter", uiPrefs->uiPrefsMinifyFilter->value());
         view.set("magnify_filter", uiPrefs->uiPrefsMagnifyFilter->value());
@@ -1364,6 +1418,20 @@ namespace mrv
         Fl_Preferences hdr(gui, "hdr");
         hdr.set("vulkan_use_rgb", uiPrefs->uiPrefsVulkanUseRGB->value());
         hdr.set("chromaticities", uiPrefs->uiPrefsChromaticities->value());
+
+        // HDR Peak detection
+        hdr.set("peak_detection", uiPrefs->uiPrefsHDRPeakDetection->value());
+
+        
+        hdr.set("peak_detection_percentile",
+                uiPrefs->uiPrefsHDRPeakPercentile->value());
+        hdr.set("peak_detection_smoothing_period",
+                uiPrefs->uiPrefsHDRPeakSmoothingPeriod->value());
+        hdr.set("peak_detection_low_limit",
+                uiPrefs->uiPrefsHDRPeakLowLimit->value());
+        hdr.set("peak_detection_high_limit", 
+                uiPrefs->uiPrefsHDRPeakHighLimit->value());
+        
         hdr.set("hdr_data", uiPrefs->uiPrefsHDRInfo->value());
         hdr.set("tonemap_algorithm",
                 uiPrefs->uiPrefsTonemapAlgorithm->value());
@@ -1402,6 +1470,8 @@ namespace mrv
                 uiPrefs->uiOCIOUseDefaultDisplayView->value());
             ocio.set(
                 "use_active_views", uiPrefs->uiOCIOUseActiveViews->value());
+            ocio.set(
+                "not_on_videos", uiPrefs->uiOCIONotOnVideos->value());
 
             Fl_Preferences ics(ocio, "ICS");
             {
@@ -1435,6 +1505,7 @@ namespace mrv
         hud.set("cache", uiPrefs->uiPrefsHudCache->value());
         hud.set("memory", uiPrefs->uiPrefsHudMemory->value());
         hud.set("attributes", uiPrefs->uiPrefsHudAttributes->value());
+        hud.set("font_size", uiPrefs->uiPrefsHudFontSize->value());
 
         {
             Fl_Preferences win(view, "window");
@@ -1450,6 +1521,7 @@ namespace mrv
                 win.set("y_position", uiPrefs->uiWindowYPosition->value());
                 win.set("x_size", uiPrefs->uiWindowXSize->value());
                 win.set("y_size", uiPrefs->uiWindowYSize->value());
+                win.set("screen", uiPrefs->uiWindowScreen->value());
             }
             else
             {
@@ -1459,6 +1531,7 @@ namespace mrv
                 win.set("y_position", ui->uiMain->y());
                 win.set("x_size", ui->uiMain->w());
                 win.set("y_size", ui->uiMain->h());
+                win.set("screen", ui->uiMain->screen_num());
             }
         }
 
@@ -1967,6 +2040,11 @@ namespace mrv
             static_cast<timeline::HDRTonemapAlgorithm>(uiPrefs->uiPrefsTonemapAlgorithm->value());
         hdrOptions.gamutMapping =
             static_cast<timeline::HDRGamutMapping>(uiPrefs->uiPrefsGamutMapping->value());
+        hdrOptions.peak_detection = uiPrefs->uiPrefsHDRPeakDetection->value();
+        hdrOptions.peak_percentile = uiPrefs->uiPrefsHDRPeakPercentile->value();
+        hdrOptions.peak_smoothing_period = uiPrefs->uiPrefsHDRPeakSmoothingPeriod->value();
+        hdrOptions.peak_scene_high_limit = uiPrefs->uiPrefsHDRPeakHighLimit->value();
+        hdrOptions.peak_scene_low_limit = uiPrefs->uiPrefsHDRPeakLowLimit->value();
         ui->uiView->setHDROptions(hdrOptions);
 
         //
@@ -2164,7 +2242,7 @@ namespace mrv
             "single_instance", (int)uiPrefs->uiPrefsSingleInstance->value());
         base.flush();
 
-        panel::redrawThumbnails();
+        panel::refreshThumbnails();
 
         ui->uiMain->fill_menu(ui->uiMenuBar);
     }

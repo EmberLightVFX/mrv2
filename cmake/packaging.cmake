@@ -252,7 +252,6 @@ elseif(UNIX)
 	message(STATUS "-----------No hdr utility------------------")
     endif()
 
-
     set(CPACK_INSTALL_PREFIX /usr/local/${mrv2ShortName})
 
     #

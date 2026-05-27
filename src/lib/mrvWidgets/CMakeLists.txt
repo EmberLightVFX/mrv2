@@ -14,6 +14,7 @@ set( FL_SOURCES
     mrvPreferencesUI.fl
     mrvSaveImageOptionsUI.fl
     mrvURLLinkUI.fl
+    mrvURLMovieUI.fl
     mrViewer.fl
 )
 
@@ -34,6 +35,7 @@ set(HEADERS
     mrvDockGroup.h
     mrvDragButton.h
     mrvDropWindow.h
+    mrvEEGGraph.h
     mrvFileButton.h
     mrvFileDragger.h
     mrvFPSInput.h
@@ -75,6 +77,7 @@ set(HEADERS
     mrvVectorscope.h
     mrvVersion.h
     mrvVolumeSlider.h
+    mrvWaveform.h
 )
 
 set(SOURCES
@@ -89,6 +92,7 @@ set(SOURCES
     mrvDockGroup.cpp
     mrvDragButton.cpp
     mrvDropWindow.cpp
+    mrvEEGGraph.cpp
     mrvFileButton.cpp
     mrvFileDragger.cpp
     mrvFPSInput.cpp
@@ -125,20 +129,18 @@ set(SOURCES
     mrvVectorscope.cpp
     mrvVersion.cpp
     mrvVolumeSlider.cpp
+    mrvWaveform.cpp
 )
 
 
 list(APPEND LIBRARIES mrvFlmm mrvIcons mrvCore ${FLTK_LIBRARIES})
 list(APPEND LIBRARIES_PRIVATE ${JASPER_LIBRARIES} MINIZIP::minizip)
-message(STATUS "MRV2_BACKEND=${MRV2_BACKEND}")
-message(STATUS "TLRENDER_GL=${TLRENDER_GL}")
 if(TLRENDER_GL AND MRV2_BACKEND STREQUAL "GL")
     if (NOT WIN32)
 	list(APPEND LIBRARIES ${FLTK_gl_LIBRARY})
     endif()
 endif()
 
-message(STATUS "TLRENDER_VK=${TLRENDER_VK}")
 if(TLRENDER_VK AND MRV2_BACKEND STREQUAL "VK")
     if (NOT WIN32)
 	list(APPEND LIBRARIES ${FLTK_vk_LIBRARY})
@@ -146,11 +148,9 @@ if(TLRENDER_VK AND MRV2_BACKEND STREQUAL "VK")
     list(APPEND LIBRARIES Vulkan::Vulkan)
 endif()
 
-message(STATUS "mrvWidgets LIBRARIES=${LIBRARIES}")
-
 set(DISTRO_VERSION "")
-if(UNIX AND NOT APPLE)
-    
+
+if(UNIX AND NOT APPLE)    
     execute_process(COMMAND lsb_release -ds OUTPUT_VARIABLE LSB_INFO OUTPUT_STRIP_TRAILING_WHITESPACE)
     string(REPLACE "\"" "" DISTRO_INFO "${LSB_INFO}")
     

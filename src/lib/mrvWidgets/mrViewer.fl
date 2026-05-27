@@ -43,7 +43,7 @@ decl {\#include "mrvWidgets/mrvAudioButton.h"} {public global
 decl {\#include "mrvWidgets/mrvBackend.h"} {public global
 }
 
-decl {\#include "mrvWidgets/mrvButton.h"} {selected public global
+decl {\#include "mrvWidgets/mrvButton.h"} {public global
 }
 
 decl {\#include "mrvWidgets/mrvDockGroup.h"} {public global
@@ -91,7 +91,7 @@ decl {\#include "mrvWidgets/mrvTimelineGroup.h"} {public global
 decl {\#include "mrvFl/mrvLanguages.h"} {public global
 }
 
-decl {\#include "mrvFl/mrvCallbacks.h"} {public global
+decl {\#include "mrvFLTK/mrvCallbacks.h"} {public global
 }
 
 decl {\#include "mrvFl/mrvPreferences.h"} {public global
@@ -109,7 +109,7 @@ decl {\#include "mrvCore/mrvColorSpaces.h"} {private local
 decl {\#include "mrvCore/mrvMath.h"} {private global
 }
 
-decl {\#include "mrvCore/mrvI8N.h"} {public global
+decl {\#include "mrvOS/mrvI8N.h"} {public global
 }
 
 decl {\#include "mrvApp/mrvSettingsObject.h"} {private local
@@ -130,11 +130,11 @@ decl {class HotkeyUI;} {public global
 decl {class AboutUI;} {public global
 }
 
-widget_class PixelToolBarClass {
-  xywh {0 0 934 56} hide resizable
-  class Fl_Double_Window
+widget_class PixelToolBarClass {open
+  xywh {0 0 934 56} resizable
+  class Fl_Double_Window visible
 } {
-  Fl_Group {} {
+  Fl_Group {} {open
     xywh {0 0 933 30} box FLAT_BOX color 96
   } {
     Fl_Menu_Button uiZoom {
@@ -250,7 +250,7 @@ ui->uiView->centerView();}
             xywh {151 3 319 25}
           } {
             Fl_Menu_Button uiAColorType {
-              label RGBA user_data_type {void*}
+              label RGBA
               callback {ui->uiView->updatePixelBar();}
               tooltip {Switch RGBA display between floating point, hexadecimal (0..0xff) and decimal (0..255).} xywh {151 3 45 24} labelsize 9 align 48
               code0 {o->disable_glyph();}
@@ -359,19 +359,29 @@ ui->uiView->redraw();}
             }
           }
           Fl_Menu_Button uiPixelValue {
-            label F user_data_type {void*}
+            label F
             callback {select_character(uiPixelValue);
 ui->uiView->updatePixelBar();
-ui->uiView->redraw();}
+ui->uiView->redraw();} open
             tooltip {Displays:
+* Linear (Gamma, Gain and LUT in a linear scale where 1.0 is SDR white).    
 * Full Pixel Values (Gamma, Gain and LUT)
-* Original (No Gamma, No Gain, No Lut)} xywh {474 3 27 25} align 48
+* Original (No Gamma, No Gain, No Lut)
+* Nits Pixel Values (Monitor units in Vulkan)} xywh {474 3 27 25} align 48
             code0 {o->enable_character(); o->disable_glyph(); o->value(0);}
             class {mrv::PopupMenu}
           } {
             MenuItem {} {
-              label Full
+              label Linear
+              xywh {15 15 100 20}
+            }
+            MenuItem {} {
+              label Nits
               xywh {5 5 100 20}
+            }
+            MenuItem {} {
+              label Full
+              xywh {25 25 100 20}
             }
             MenuItem {} {
               label Original
@@ -441,9 +451,9 @@ decl {class HotkeyUI;} {public global
 decl {class AboutUI;} {public global
 }
 
-widget_class TimelineClass {
-  xywh {0 0 934 56} box NO_BOX hide resizable
-  class Fl_Double_Window
+widget_class TimelineClass {open
+  xywh {0 0 934 56} box NO_BOX resizable
+  class Fl_Double_Window visible
 } {
   Fl_Group {} {open
     xywh {0 0 933 29} box FLAT_BOX
@@ -716,7 +726,7 @@ else
 {   
    o->image( MRV2_LOAD_SVG(Audio) );
 }
-o->redraw();}
+o->redraw();} selected
             tooltip {Mute audio or switch audio tracks with the right mouse button.} xywh {576 3 27 24} type Toggle labelsize 10 align 80
             code1 {o->image( MRV2_LOAD_SVG(Audio) );}
             class {mrv::AudioButton}
@@ -869,8 +879,8 @@ uiSecondary = nullptr;} {}
       callback {int reason = Fl::callback_reason();
 if (reason == FL_REASON_CLOSED)
     exit_cb( o, v );} open
-      xywh {34 57 934 674} type Double color 1 align 80 hide resizable
-      class {mrv::MainWindow} size_range {934 674 0 0}
+      xywh {0 0 934 674} type Double color 1 align 80 resizable
+      class {mrv::MainWindow} size_range {934 674 0 0} visible
     } {
       Fl_Flex uiRegion {open
         xywh {0 0 934 674} box FLAT_BOX resizable fixed_size_tuples {5  0 30  1 29  3 29  4 30  5 25 }
@@ -1488,19 +1498,19 @@ settings->setValue( mrv::kPenColorA, a);}
             }
           }
           Fl_Group uiTimelineGroup {
-            label uiTimelineGroup
+            label uiTimelineGroup open
             xywh {0 560 934 30} box FLAT_BOX color 51 labeltype NO_LABEL
             class {mrv::TimelineGroup}
           } {
             Fl_Group uiTimeline {
               label uiTimeline
-              xywh {0 568 934 22} box FLAT_BOX color 6 labeltype NO_LABEL resizable
+              xywh {0 568 934 22} color 6 labeltype NO_LABEL resizable
               class MyTimelineWidget
             } {}
           }
         }
         Fl_Group uiBottomBar {
-          label BottomBar open
+          label BottomBar
           xywh {0 590 934 29} box FLAT_BOX labeltype NO_LABEL
         } {
           Fl_Group uiTimeWindow {open

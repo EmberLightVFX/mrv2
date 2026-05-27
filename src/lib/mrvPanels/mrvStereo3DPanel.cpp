@@ -116,7 +116,7 @@ namespace mrv
             if (player)
                 time = player->currentTime();
 
-            image::Size size(128, 64);
+            size = panel::calculateImageSize();
 
             file::Path lastPath;
 
@@ -136,13 +136,11 @@ namespace mrv
                     continue;
                 lastPath = path;
 
-                const std::string& protocol = path.getProtocol();
-                const std::string& dir = path.getDirectory();
-                const std::string& base = path.getBaseName();
-                const std::string& extension = path.getExtension();
-                const std::string file = base + path.getNumber() + extension;
-                const std::string fullfile = protocol + dir + file;
-
+                const std::string protocol = path.getProtocol();
+                const std::string dir = path.getDirectory();
+                const bool listdir = false;
+                const std::string file = path.getFileName(listdir);
+                
                 auto bW = new Widget<ClipButton>(
                     g->x(), g->y() + 20 + i * 68, g->w(), 68);
                 ClipButton* b = bW;
@@ -178,10 +176,19 @@ namespace mrv
 
                 _r->map.insert(std::make_pair(i, b));
 
-                const std::string& layer = getLayerName(media, layerId);
-                std::string text = protocol + dir + "\n" + file + layer;
-                b->copy_label(text.c_str());
-
+                std::string label;
+                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                    kThumbnailNormal)
+                {
+                    const std::string layer = getLayerName(media, layerId);
+                    label = protocol + dir + "\n" + file + layer;
+                }
+                else
+                {
+                    label = file;
+                }
+                b->copy_label(label.c_str());
+                
                 _createThumbnail(b, path, time, layerId);
             }
 
@@ -365,7 +372,7 @@ namespace mrv
             if (!player)
                 return;
 
-            image::Size size(128, 64);
+            size = panel::calculateImageSize();
 
             const auto& model = App::app->filesModel();
             auto Aindex = model->observeAIndex()->get();
@@ -378,11 +385,11 @@ namespace mrv
                 const auto& media = files->getItem(i);
                 const auto& path = media->path;
 
-                const std::string& protocol = path.getProtocol();
-                const std::string& dir = path.getDirectory();
-                const std::string file =
-                    path.getBaseName() + path.getNumber() + path.getExtension();
-                const std::string fullfile = protocol + dir + file;
+                const std::string protocol = path.getProtocol();
+                const std::string dir = path.getDirectory();
+                const bool listdir = false;
+                const std::string file = path.getFileName(listdir);
+                
                 ClipButton* b = m.second;
 
                 uint16_t layerId = media->videoLayer;
@@ -412,10 +419,18 @@ namespace mrv
                     time = media->currentTime;
                 }
                 
-                const std::string& layer = getLayerName(media, layerId);
-                std::string text = protocol + dir + "\n" + file + layer;
-                b->copy_label(text.c_str());
-                b->labelcolor(FL_WHITE);
+                std::string label;
+                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                    kThumbnailNormal)
+                {
+                    const std::string layer = getLayerName(media, layerId);
+                    label = protocol + dir + "\n" + file + layer;
+                }
+                else
+                {
+                    label = file;
+                }
+                b->copy_label(label.c_str());
 
                 _createThumbnail(b, path, time, layerId);
             }

@@ -20,14 +20,44 @@ namespace tl
     {
         //! Get the Vulkan's source texture format.
         VkFormat getTextureFormat(image::PixelType);
+        
+        std::size_t getDataByteCount(
+            const VkImageType type, uint32_t w, uint32_t h, uint32_t d,
+            VkFormat format);
 
+        enum class TextureBorder
+        {
+            ClampToEdge,
+            Repeat,
+            MirroredRepeat,
+            ClampToBorder,
+            MirrorClampToEdge,
+
+            Count,
+            First = ClampToEdge
+        };
+        TLRENDER_ENUM(TextureBorder);
+        TLRENDER_ENUM_SERIALIZE(TextureBorder);
+
+        struct TextureBorders
+        {
+            TextureBorder U = TextureBorder::ClampToEdge;
+            TextureBorder V = TextureBorder::ClampToEdge;
+            TextureBorder W = TextureBorder::ClampToEdge;
+            
+            bool operator==(const TextureBorders&) const;
+            bool operator!=(const TextureBorders&) const;
+        };        
+        
         //! Vulkan texture options.
         struct TextureOptions
         {
             timeline::ImageFilters filters;
-            bool pbo = false;
             VkImageTiling tiling = VK_IMAGE_TILING_LINEAR;
-
+            TextureBorders borders;
+            int usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                        VK_IMAGE_USAGE_SAMPLED_BIT;
+            VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
             bool operator==(const TextureOptions&) const;
             bool operator!=(const TextureOptions&) const;
         };
@@ -68,13 +98,16 @@ namespace tl
                 const uint32_t depth, const VkFormat format,
                 const std::string& name = "sampler1",
                 const TextureOptions& = TextureOptions());
-
+            
              //! Get the image information.
             const image::Info& getInfo() const;
 
             //! Get the size.
             const image::Size& getSize() const;
 
+            //! Get the options.
+            const TextureOptions& getOptions() const;
+            
             //! Get the width.
             int getWidth() const;
 
@@ -102,10 +135,11 @@ namespace tl
             void copy(const uint8_t*, const std::size_t,
                       const int rowPitch = 0);
 
-            //! \@todo:
             void copy(const std::shared_ptr<image::Image>&, int x, int y);
 
             ///@}
+
+            void setCurrentLayout(VkImageLayout);
             
             void transition(
                 VkCommandBuffer cmd,
@@ -134,7 +168,13 @@ namespace tl
             VkImage getImage() const;
 
             VkImageLayout getImageLayout() const;
+            
+            //! Get the number of objects currenty instantiated.
+            static size_t getObjectCount();
 
+            //! Get the total number of bytes currently used.
+            static size_t getTotalByteCount();
+            
         private:
             Fl_Vk_Context& ctx;
 
@@ -144,10 +184,14 @@ namespace tl
             void createImageView();
             void createSampler();
 
-            static uint64_t numTextures;
             static std::unique_ptr<SamplersCache> samplersCache;
             
             TLRENDER_PRIVATE();
         };
+        
+        //! Check whether the offscreen buffer should be created or re-created.
+        bool doCreate(
+            const std::shared_ptr<Texture>&, const math::Size2i&,
+            const TextureOptions&);
     } // namespace vlk
 } // namespace tl

@@ -44,19 +44,38 @@ namespace tl
         inline bool HDRData::operator==(const HDRData& other) const
         {
             return eotf == other.eotf && primaries == other.primaries &&
-                   displayMasteringLuminance ==
-                       other.displayMasteringLuminance &&
-                   maxCLL == other.maxCLL && maxFALL == other.maxFALL &&
-                   sceneMax[0] == other.sceneMax[0] &&
-                   sceneMax[1] == other.sceneMax[1] &&
+                displayMasteringLuminance ==
+                other.displayMasteringLuminance &&
+                maxCLL == other.maxCLL && maxFALL == other.maxFALL &&
+                sceneMax[0] == other.sceneMax[0] &&
+                sceneMax[1] == other.sceneMax[1] &&
                    sceneMax[2] == other.sceneMax[2] && ootf == other.ootf &&
-                   sceneAvg == other.sceneAvg && maxPQY == other.maxPQY &&
-                   avgPQY == other.avgPQY;
+                sceneAvg == other.sceneAvg && maxPQY == other.maxPQY &&
+                isDolbyVision == other.isDolbyVision &&
+                avgPQY == other.avgPQY &&
+                isDisplayReferred == other.isDisplayReferred;
         }
 
         inline bool HDRData::operator!=(const HDRData& other) const
         {
             return !(other == *this);
+        }
+        
+        inline bool isHDR(const HDRData& o)
+        {
+            return (o.eotf != image::EOTF_BT709 &&
+                    o.eotf != image::EOTF_BT601);
+        }
+        
+        inline bool isHDRPlus(const HDRData& o)
+        {
+            return (o.eotf == image::EOTF_BT2100_PQ &&
+                    o.sceneAvg != 0.F);
+        }
+        
+        inline bool isHDRDolbyVision(const HDRData& o)
+        {
+            return (o.eotf == image::EOTF_BT2020 && o.isDolbyVision);
         }
         
         inline std::ostream& operator<<(std::ostream& s, const HDRData& o)
@@ -73,10 +92,11 @@ namespace tl
               << "display luminance=" << o.displayMasteringLuminance.getMin()
               << " to " << o.displayMasteringLuminance.getMax() << std::endl
               << "maxCLL =" << o.maxCLL << std::endl
-              << "maxFALL=" << o.maxFALL << std::endl;
+              << "maxFALL=" << o.maxFALL;
             if (o.sceneMax[0] > 0.F)
             {
-                s << "sceneMax=" << o.sceneMax[0] << ", "
+                s << std::endl
+                  << "sceneMax=" << o.sceneMax[0] << ", "
                   << o.sceneMax[1] << ", "
                   << o.sceneMax[2] << std::endl
                   << "sceneAvg=" << o.sceneAvg << std::endl

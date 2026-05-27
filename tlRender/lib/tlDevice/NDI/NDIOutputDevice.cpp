@@ -40,6 +40,7 @@
 #include <iostream>
 #include <list>
 #include <mutex>
+#include <thread>
 #include <tuple>
 
 namespace tl
@@ -241,6 +242,26 @@ namespace tl
 #ifdef OPENGL_BACKEND
                     p.window->doneCurrent();
 #endif
+#ifdef VULKAN_BACKEND
+                    // Cleanup
+                    VkDevice device = ctx.device;
+                    if (device != VK_NULL_HANDLE)
+                    {
+                        if (p.thread.cmd != VK_NULL_HANDLE)
+                        {
+                            vkFreeCommandBuffers(device, p.thread.commandPool, 1, &p.thread.cmd);
+                            p.thread.cmd = VK_NULL_HANDLE;
+                        }
+                        if (p.thread.commandPool != VK_NULL_HANDLE)
+                        {
+                            vkDestroyCommandPool(device,
+                                                 p.thread.commandPool,
+                                                 nullptr);
+                            p.thread.commandPool = VK_NULL_HANDLE;
+                        }
+                    }
+#endif
+     
                 });
         }
 
@@ -971,7 +992,10 @@ namespace tl
 #endif
 
 #ifdef VULKAN_BACKEND
-            vkDeviceWaitIdle(ctx.device);
+            {
+                std::lock_guard<std::mutex> lock(ctx.queue_mutex());
+                vkDeviceWaitIdle(ctx.device); // needed
+            }
 #endif
             p.thread.offscreenBuffer.reset();
             p.thread.render.reset();
@@ -1126,7 +1150,7 @@ namespace tl
 
                 video_frame.frame_rate_N = numerator;
                 video_frame.frame_rate_D = denominator;
-                video_frame.picture_aspect_ratio = size.getAspect();
+                video_frame.picture_aspect_ratio = math::aspectRatio(size);
                 video_frame.frame_format_type =
                     NDIlib_frame_format_type_progressive;
 
@@ -1786,8 +1810,8 @@ namespace tl
                 math::Vector2i viewPos = p.thread.viewPos;
                 double viewZoom = p.thread.viewZoom;
 
-                const auto renderAspect = renderSize.getAspect();
-                const auto viewportAspect = sourceViewportSize.getAspect();
+                const auto renderAspect = math::aspectRatio(renderSize);
+                const auto viewportAspect = math::aspectRatio(sourceViewportSize);
                 if (viewportAspect > 1.F)
                 {
                     transformOffset.x = renderSize.w / 2.F;
@@ -1891,7 +1915,6 @@ namespace tl
                 }
                 if (!p.thread.videoData.empty())
                 {
-                    // This is almost fine
                     p.thread.render->setTransform(
                         pm * centerTranslationMatrix * resizeScaleMatrix *
                         translateMatrix * zoomMatrix * offsetTransformMatrix *
@@ -1980,18 +2003,26 @@ namespace tl
             p.thread.offscreenBuffer->submitReadback(p.thread.cmd);
 
             {
+                // This is needed.  Do not remove.
                 std::lock_guard<std::mutex> lock(ctx.queue_mutex());
                 vkQueueWaitIdle(ctx.queue());
             }
 
-            const void* data = p.thread.offscreenBuffer->getLatestReadPixels();
-            if (!data)
-                return;
+            void* data = nullptr;
+            VkResult result = VK_NOT_READY;
+            while (result == VK_NOT_READY)
+            {
+                result = p.thread.offscreenBuffer->getLatestReadPixels(data);
+            }
             
             vkFreeCommandBuffers(ctx.device, p.thread.commandPool, 1, &p.thread.cmd);
             p.thread.cmd = VK_NULL_HANDLE;
+
+            if (!data)
+                return;
             
             p.thread.frameIndex = (p.thread.frameIndex + 1) % vlk::MAX_FRAMES_IN_FLIGHT;
+
                                     
             copyPackPixels(video_frame.p_data, data, p.thread.size,
                            p.thread.outputPixelType);
@@ -2002,10 +2033,64 @@ namespace tl
             {
             case device::HDRMode::FromFile:
             case device::HDRMode::Custom:
+            {
                 if (p.thread.videoData.empty())
                     return;
+                const auto ocio = p.mutex.ocioOptions; 
                 hdrData = device::getHDRData(p.thread.videoData[0]);
+                if (!hdrData && !config.noMetadata)
+                {
+                    const std::string& display = ocio.display;
+                    const std::string& view = ocio.view;
+                    if (ocio.enabled && !display.empty() && !view.empty())
+                    {
+                        std::string displayView = ocio.display;
+                        if (!view.empty() && view != "Default" && 
+                            view != "(default)" && view != "None")
+                        {
+                            displayView += "/" + view;
+                        }
+
+                        hdrData.reset(new image::HDRData(image::nameToPrimaries(displayView)));
+                        hdrData->isDisplayReferred = true;
+                        
+                        float peak = 1000.F;
+                        if (view.find("10000") != std::string::npos)
+                        {
+                            peak = 10000.F;
+                        }
+                        else if (view.find("1000") != std::string::npos)
+                        {
+                            peak = 1000.F;
+                        }
+                        else if (view.find("100") != std::string::npos)
+                        {
+                            peak = 100.F;
+                        }
+                    
+                        switch (hdrData->eotf)
+                        {
+                        case image::EOTF_BT2100_PQ:
+                            hdrData->displayMasteringLuminance = math::FloatRange(0.0F, peak);
+                            hdrData->maxCLL = peak;
+                            hdrData->maxFALL = peak * 0.4;
+                            break;
+                        case image::EOTF_BT2100_HLG:
+                            hdrData->displayMasteringLuminance = math::FloatRange(0.0F, 1000.0F);
+                            hdrData->maxCLL = peak;
+                            hdrData->maxFALL = peak * 0.4;
+                            break;
+                        default: // SDR
+                            hdrData->displayMasteringLuminance = math::FloatRange(0.0F, 100.0F);
+                            hdrData->maxCLL = 100.0F;
+                            hdrData->maxFALL = 80.0F;
+                            break;
+                        }
+                    }
+
+                }
                 break;
+            }
             case device::HDRMode::Count:
             case device::HDRMode::kNone:
                 break;

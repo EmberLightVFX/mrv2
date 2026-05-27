@@ -98,6 +98,8 @@ else()
     endif()
 endif()
 
+# These ones are required not for building but for getting the include
+# path to their version.h file or similar.
 find_package(tlRender REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -125,7 +127,7 @@ endif()
 
 if(MRV2_NETWORK)
     find_package(Poco REQUIRED
-	COMPONENTS Net Foundation
+	COMPONENTS Net NetSSL Foundation
 	CONFIG)
     add_definitions( -DMRV2_NETWORK )
 endif()
@@ -256,6 +258,7 @@ endif()
 
 
 if(MRV2_PYBIND11 OR BUILD_PYTHON)
+    message(STATUS "PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}")
     find_package(Python REQUIRED COMPONENTS Interpreter Development)
 endif()
 

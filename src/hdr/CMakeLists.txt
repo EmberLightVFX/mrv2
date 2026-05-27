@@ -5,26 +5,19 @@
 
 set(HEADERS
     mrvContextObject.h
-    mrvEnv.h
     mrvFile.h
     mrvHDRApp.h
     mrvHome.h
-    mrvI8N.h
+    mrvIO.h
     mrvLanguages.h
-    mrvOS.h
-    mrvRoot.h
-    mrvString.h
 )
 set(SOURCES
     mrvContextObject.cpp
-    mrvEnv.cpp
     mrvFile.cpp
     mrvHDRApp.cpp
     mrvHome.cpp
+    mrvIO.cpp
     mrvLanguages.cpp
-    mrvOS.cpp
-    mrvRoot.cpp
-    mrvString.cpp
     main.cpp)
 
 hdr_files_to_absolute_paths()
@@ -38,12 +31,13 @@ endif()
 set(LIBRARIES
     mrvBaseApp
     mrvHDR
-    ${Intl_LIBRARIES})
+    mrvOS)
 
 find_package(Vulkan OPTIONAL_COMPONENTS glslang shaderc_combined SPIRV-Tools)
 
 list(APPEND LIBRARIES ${FLTK_LIBRARIES})
 list(APPEND LIBRARIES_PRIVATE Vulkan::Vulkan)
+list(APPEND LIBRARIES ${Intl_LIBRARIES})
 
 if(WIN32)
     list(APPEND LIBRARIES dxgi)
@@ -74,34 +68,10 @@ install(TARGETS hdr
     ARCHIVE DESTINATION lib COMPONENT libraries )
 
 
-
-if(TLRENDER_NDI)
-    # NDI libraries have two names: Advanced and normal.
-    # We use a glob to simplify and also for potential future development
-    # of NDI's SDK.
-    if (WIN32)
-	if (TLRENDER_NDI_SDK MATCHES ".*Advanced.*")
-	    # Advanced lib is ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.Advanced.x64.dll
-	    file( GLOB HDR_LIB_DYLIBS ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.Advanced.x64.dll )
-	else()
-	    # Normal lib is ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.x64.dll
-	    file( GLOB HDR_LIB_DYLIBS ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.x64.dll )
-	endif()
-	install( FILES  ${HDR_LIB_DYLIBS}
-	    DESTINATION bin
-	    COMPONENT applications )
-    elseif (APPLE)
-	file( GLOB HDR_LIB_DYLIBS ${TLRENDER_NDI_SDK}/lib/macOS/*.dylib* )
-	install( FILES ${HDR_LIB_DYLIBS}
-	    DESTINATION lib
-	    COMPONENT applications )
-    elseif(UNIX)
-	file( GLOB HDR_LIB_DSOS ${TLRENDER_NDI_SDK}/lib/x86_64-linux-gnu/*.so* )
-	install( FILES ${HDR_LIB_DSOS}
-	    DESTINATION lib
-	    COMPONENT applications )
-    endif()
-endif()
+#
+# Install NDI for the platform (on Linux tries to detect architecture)
+#
+install_ndi()
 
     
 if ( APPLE )

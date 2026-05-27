@@ -22,11 +22,14 @@
 #include "mrvPanels/mrvLogsPanel.h"
 #include "mrvPanels/mrvPlaylistPanel.h"
 #include "mrvPanels/mrvSettingsPanel.h"
+#include "mrvPanels/mrvStatsPanel.h"
 #include "mrvPanels/mrvStereo3DPanel.h"
 #include "mrvPanels/mrvVectorscopePanel.h"
+#include "mrvPanels/mrvWaveformPanel.h"
 
 #ifdef MRV2_NETWORK
 #    include "mrvPanels/mrvNetworkPanel.h"
+#    include "mrvPanels/mrvWebRTCPanel.h"
 #endif
 
 #ifdef MRV2_PYBIND11
@@ -61,14 +64,19 @@ namespace mrv
         extern ImageInfoPanel* imageInfoPanel;
         extern HistogramPanel* histogramPanel;
         extern VectorscopePanel* vectorscopePanel;
+        extern WaveformPanel* waveformPanel;
         extern EnvironmentMapPanel* environmentMapPanel;
         extern Stereo3DPanel* stereo3DPanel;
         extern BackgroundPanel* backgroundPanel;
+        extern StatsPanel* statsPanel;
 #ifdef MRV2_PYBIND11
         extern PythonPanel* pythonPanel;
 #endif
 #ifdef MRV2_NETWORK
         extern NetworkPanel* networkPanel;
+#endif
+#ifdef MRV2_NETWORK
+        extern WebRTCPanel* webrtcPanel;
 #endif
 #ifdef TLRENDER_USD
         extern USDPanel* usdPanel;
@@ -119,6 +127,9 @@ namespace mrv
         void settings_panel_cb(Fl_Widget* w, ViewerUI* ui);
         void usd_panel_cb(Fl_Widget* w, ViewerUI* ui);
         void vectorscope_panel_cb(Fl_Widget* w, ViewerUI* ui);
+        void waveform_panel_cb(Fl_Widget* w, ViewerUI* ui);
+        void webrtc_panel_cb(Fl_Widget* w, ViewerUI* ui);
+        void stats_panel_cb(Fl_Widget* w, ViewerUI* ui);
         void stereo3D_panel_cb(Fl_Widget* w, ViewerUI* ui);
         ///@}
     } // namespace panel

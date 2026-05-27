@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2021-2024 Darby Johnston
 // All rights reserved.
+// Copyright Contributors to the feather-tk project.
 
 #include <tlCore/Math.h>
 
@@ -115,14 +116,14 @@ namespace tl
         }
 
         template <typename T>
-        constexpr Matrix3x3<T> translate(const Vector2<T>& value)
+        constexpr Matrix3x3<T> translate(const Vector<2, T>& value)
         {
             return Matrix3x3<T>(
                 T(1), T(0), T(0), T(0), T(1), T(0), value.x, value.y, T(1));
         }
 
         template <typename T>
-        constexpr Matrix4x4<T> translate(const Vector3<T>& value)
+        constexpr Matrix4x4<T> translate(const Vector<3, T>& value)
         {
             return Matrix4x4<T>(
                 T(1), T(0), T(0), T(0), T(0), T(1), T(0), T(0), T(0), T(0),
@@ -157,7 +158,7 @@ namespace tl
         }
 
         template <typename T>
-        constexpr Matrix4x4<T> scale(const Vector3<T>& value)
+        constexpr Matrix4x4<T> scale(const Vector<3, T>& value)
         {
             return Matrix4x4<T>(
                 value.x, T(0), T(0), T(0), T(0), value.y, T(0), T(0), T(0),
@@ -213,11 +214,11 @@ namespace tl
         }
 
         template <typename T>
-        inline Vector2<T> operator*(const Matrix3x3<T>& a, const Vector2<T>& v)
+        inline Vector<2, T> operator*(const Matrix3x3<T>& a, const Vector<2, T>& v)
         {
             const T x = v[0] * a.e[0] + v[1] * a.e[3] + a.e[6];
             const T y = v[0] * a.e[1] + v[1] * a.e[4] + a.e[7];
-            return Vector2<T>(x, y);
+            return Vector<2, T>(x, y);
         }
 
         template <typename T>
@@ -241,7 +242,7 @@ namespace tl
         }
 
         template <typename T>
-        inline Vector3<T> operator*(const Matrix4x4<T>& a, const Vector3<T>& v)
+        inline Vector<3, T> operator*(const Matrix4x4<T>& a, const Vector<3, T>& v)
         {
             const T x = v[0] * a.e[0] + v[1] * a.e[4] + v[2] * a.e[8] + a.e[12];
             const T y = v[0] * a.e[1] + v[1] * a.e[5] + v[2] * a.e[9] + a.e[13];
@@ -249,13 +250,13 @@ namespace tl
                 v[0] * a.e[2] + v[1] * a.e[6] + v[2] * a.e[10] + a.e[14];
             const T w =
                 v[0] * a.e[3] + v[1] * a.e[7] + v[2] * a.e[11] + a.e[15];
-            return Vector3<T>(x / w, y / w, z / w);
+            return Vector<3, T>(x / w, y / w, z / w);
         }
 
         template <typename T>
-        inline Vector4<T> operator*(const Matrix4x4<T>& a, const Vector4<T>& v)
+        inline Vector<4, T> operator*(const Matrix4x4<T>& a, const Vector<4, T>& v)
         {
-            Vector4<T> out;
+            Vector<4, T> out;
             out.x =
                 v[0] * a.e[0] + v[1] * a.e[4] + v[2] * a.e[8] + v[3] * a.e[12];
             out.y =
@@ -266,5 +267,21 @@ namespace tl
                 v[0] * a.e[3] + v[1] * a.e[7] + v[2] * a.e[11] + v[3] * a.e[15];
             return out;
         }
+        
+        template<typename T>
+        Matrix3x3<T> transpose(const Matrix4x4<T>& m)
+        {
+            math::Matrix3x3f out(m.e[0],  // 0,0
+                                 m.e[4],  // 1,0
+                                 m.e[8],  // 2,0 
+                                 m.e[1],  // 0,1
+                                 m.e[5],  // 1,1
+                                 m.e[9],  // 2,1
+                                 m.e[2],  // 0,2
+                                 m.e[6],  // 1,2
+                                 m.e[10]); // 2,2
+            return out;
+        }
+        
     }; // namespace math
 } // namespace tl

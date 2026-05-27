@@ -1,12 +1,20 @@
 
 include(ExternalProject)
 
+include(ProcessorCount)
+ProcessorCount(NPROCS)
+
+if(NPROCS GREATER 1)
+    math(EXPR NPROCS "${NPROCS} / 2")
+endif()
+
+
 set(USD_DEPENDENCIES ${PYTHON_DEP})
 message(STATUS "USD DEPENDENCIES=${USD_DEPENDENCIES}")
 
 set(USD_GIT_REPOSITORY https://github.com/PixarAnimationStudios/OpenUSD.git)
 
-set(USD_GIT_TAG v25.11)
+set(USD_GIT_TAG v26.05)  # was v25.03 (with bandaid)
 
 #
 # If you are building a new USD version, make sure to run:
@@ -24,7 +32,7 @@ if( "${CMAKE_BUILD_TYPE_LC}" STREQUAL "relwithdebinfo" )
     set(CMAKE_BUILD_TYPE_LC relwithdebuginfo)
 endif()
 
-set(USD_ARGS -v --build-variant ${CMAKE_BUILD_TYPE_LC})
+set(USD_ARGS -v --build-variant ${CMAKE_BUILD_TYPE_LC} --generator Ninja -j ${NPROCS})
 if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
     list(APPEND USD_ARGS --build-args)
     list(APPEND USD_ARGS USD,"-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
@@ -34,13 +42,10 @@ if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
         oneTBB,-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
         oneTBB,-DCMAKE_CXX_OSX_DEPLOYMENT_TARGET_FLAG:STRING="-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}"
         oneTBB,-DCMAKE_C_OSX_DEPLOYMENT_TARGET_FLAG:STRING="-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-elseif(UNIX AND NOT APPLE)
-    list(APPEND USD_ARGS --build-args)
-    set(_include_bandaid "-include cstdint")
-    list(APPEND USD_ARGS MaterialX,"-DCMAKE_CXX_FLAGS='${_include_bandaid}'")
 endif()
 
 list(APPEND USD_ARGS --no-python --no-examples --no-tutorials --no-tools)
+list(APPEND USD_ARGS --no-docs --no-draco --no-mayapy-tests --no-embree --no-usdview --no-ptex)
 list(APPEND USD_ARGS --onetbb)
 list(APPEND USD_ARGS --verbose)
 

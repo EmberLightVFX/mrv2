@@ -9,7 +9,7 @@
 #include "mrvIcons/NDI.h"
 
 #include "mrvCore/mrvFile.h"
-#include "mrvCore/mrvWait.h"
+#include "mrvFLTK/mrvWait.h"
 
 #include <tlCore/StringFormat.h>
 
@@ -40,6 +40,7 @@ namespace mrv
 
         ThumbnailPanel::~ThumbnailPanel()
         {
+            _cancelRequests();
             Fl::remove_timeout((Fl_Timeout_Handler)timerEvent_cb, this);
         }
 
@@ -72,19 +73,27 @@ namespace mrv
                             rgbImage->alloc_array = true;
                             uint8_t* d = pixelData;
                             const uint8_t* s = image->getData();
+                            if (s)
+                            {
 
 #ifdef OPENGL_BACKEND
-                            for (int y = 0; y < h; ++y)
-                            {
-                                std::memcpy(
-                                    d + (h - 1 - y) * w * 4, s + y * w * 4,
-                                    w * 4);
-                            }
+                                for (int y = 0; y < h; ++y)
+                                {
+                                    std::memcpy(
+                                        d + (h - 1 - y) * w * 4, s + y * w * 4,
+                                        w * 4);
+                                }
 #endif
 
 #ifdef VULKAN_BACKEND
-                            std::memcpy(d, s, w * h * depth);
+                                std::memcpy(d, s, w * h * depth);
 #endif
+                            }
+                            else
+                            {
+                                std::memset(d, 255, w * h * depth);
+                            }
+                            
                             i->first->bind_image(rgbImage);
                             i->first->redraw();
                         }
@@ -108,7 +117,8 @@ namespace mrv
 
             static Fl_SVG_Image* NDIimage = MRV2_LOAD_SVG(NDI);
 
-            if (!p.ui->uiPrefs->uiPrefsPanelThumbnails->value())
+            if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                kThumbnailNone)
             {
                 widget->bind_image(nullptr);
                 return;

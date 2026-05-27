@@ -17,6 +17,7 @@
 #include <tlCore/Assert.h>
 #include <tlCore/Context.h>
 #include <tlCore/Error.h>
+#include <tlCore/Monitor.h>
 #include <tlCore/String.h>
 #include <tlCore/StringFormat.h>
 
@@ -77,7 +78,10 @@ namespace
                              0, 0, nullptr, 0, nullptr, 1, &beginBarrier);
 
         // 3. Dispatch the Compute Shader
-        shader->dispatch(cmd, width, height);
+        uint32_t groupCountX = (width + 15) / 16;
+        uint32_t groupCountY = (height + 15) / 16;
+            
+        shader->dispatch(cmd, groupCountX, groupCountY);
 
         // 4. Barrier: Transition Output Image to SHADER_READ_ONLY for the Fragment Shader
         VkImageMemoryBarrier endBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
@@ -146,6 +150,7 @@ namespace
         return output;
     }
 
+
 #if defined(TLRENDER_LIBPLACEBO)
     VkFormat to_vk_format(pl_fmt fmt)
     {
@@ -161,14 +166,14 @@ namespace
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16_UINT
-                                              : VK_FORMAT_R8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16_UINT
+                       : VK_FORMAT_R8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16_SINT
-                                              : VK_FORMAT_R8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16_SINT
+                       : VK_FORMAT_R8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
@@ -183,87 +188,87 @@ namespace
             if (fmt->type == PL_FMT_FLOAT)
             {
                 return size == 2 ? VK_FORMAT_R16G16_SFLOAT
-                                 : VK_FORMAT_R32G32_SFLOAT;
+                    : VK_FORMAT_R32G32_SFLOAT;
             }
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16G16_UINT
-                                              : VK_FORMAT_R8G8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16G16_UINT
+                       : VK_FORMAT_R8G8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16G16_SINT
-                                              : VK_FORMAT_R8G8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16G16_SINT
+                       : VK_FORMAT_R8G8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16_UNORM
-                                 : VK_FORMAT_R8G8_UNORM;
+                    : VK_FORMAT_R8G8_UNORM;
             }
             else if (fmt->type == PL_FMT_SNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16_SNORM
-                                 : VK_FORMAT_R8G8_SNORM;
+                    : VK_FORMAT_R8G8_SNORM;
             }
             break;
         case 3:
             if (fmt->type == PL_FMT_FLOAT)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16_SFLOAT
-                                 : VK_FORMAT_R32G32B32_SFLOAT;
+                    : VK_FORMAT_R32G32B32_SFLOAT;
             }
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16_UINT
-                                              : VK_FORMAT_R8G8B8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16_UINT
+                       : VK_FORMAT_R8G8B8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16_SINT
-                                              : VK_FORMAT_R8G8B8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16_SINT
+                       : VK_FORMAT_R8G8B8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16_UNORM
-                                 : VK_FORMAT_R8G8B8_UNORM;
+                    : VK_FORMAT_R8G8B8_UNORM;
             }
             else if (fmt->type == PL_FMT_SNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16_SNORM
-                                 : VK_FORMAT_R8G8B8_SNORM;
+                    : VK_FORMAT_R8G8B8_SNORM;
             }
             break;
         case 4:
             if (fmt->type == PL_FMT_FLOAT)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16A16_SFLOAT
-                                 : VK_FORMAT_R32G32B32A32_SFLOAT;
+                    : VK_FORMAT_R32G32B32A32_SFLOAT;
             }
             else if (fmt->type == PL_FMT_UINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32A32_UINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16A16_UINT
-                                              : VK_FORMAT_R8G8B8A8_UINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16A16_UINT
+                       : VK_FORMAT_R8G8B8A8_UINT);
             }
             else if (fmt->type == PL_FMT_SINT)
             {
                 return size == 4 ? VK_FORMAT_R32G32B32A32_SINT
-                                 : (size == 2 ? VK_FORMAT_R16G16B16A16_SINT
-                                              : VK_FORMAT_R8G8B8A8_SINT);
+                    : (size == 2 ? VK_FORMAT_R16G16B16A16_SINT
+                       : VK_FORMAT_R8G8B8A8_SINT);
             }
             else if (fmt->type == PL_FMT_UNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16A16_UNORM
-                                 : VK_FORMAT_R8G8B8A8_UNORM;
+                    : VK_FORMAT_R8G8B8A8_UNORM;
             }
             else if (fmt->type == PL_FMT_SNORM)
             {
                 return size == 2 ? VK_FORMAT_R16G16B16A16_SNORM
-                                 : VK_FORMAT_R8G8B8A8_SNORM;
+                    : VK_FORMAT_R8G8B8A8_SNORM;
             }
             break;
         }
@@ -290,8 +295,6 @@ namespace tl
             std::vector<std::shared_ptr<vlk::Texture> > out;
             vlk::TextureOptions options;
             options.filters = imageFilters;
-            options.pbo =
-                info.size.w >= pboSizeMin || info.size.h >= pboSizeMin;
             switch (info.pixelType)
             {
             case image::PixelType::YUV_420P_U8:
@@ -726,7 +729,9 @@ namespace tl
 #endif // TLRENDER_OCIO
 
 #if defined(TLRENDER_LIBPLACEBO)
-        LibPlaceboData::LibPlaceboData()
+        LibPlaceboData::LibPlaceboData(Fl_Vk_Context& ctx,
+                                       const bool peak_detection) :
+            ctx(ctx)
         {
             log = pl_log_create(PL_API_VER, NULL);
             if (!log)
@@ -790,13 +795,42 @@ namespace tl
                 
             state = nullptr;
             res = nullptr;
+
+            if (peak_detection)
+            {
+                VkCommandPoolCreateInfo pool_info = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+                pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+                pool_info.queueFamilyIndex = ctx.queueFamilyIndex;  // Use compute queue if available
+                vkCreateCommandPool(ctx.device, &pool_info, nullptr, &ssboCmdPool);
+
+                // Allocate e.g., 2 buffers for double-buffering
+                VkCommandBufferAllocateInfo alloc_info = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+                alloc_info.commandPool = ssboCmdPool;
+                alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+                alloc_info.commandBufferCount = vlk::MAX_FRAMES_IN_FLIGHT;
+
+                ssboCmds.resize(vlk::MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+                vkAllocateCommandBuffers(ctx.device, &alloc_info, ssboCmds.data());
+
+                ssboFences.resize(vlk::MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+                for (int i = 0; i < ssboFences.size(); ++i)
+                {
+                    VkFenceCreateInfo fenceInfo{
+                        VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+                    fenceInfo.flags =
+                        VK_FENCE_CREATE_SIGNALED_BIT; // allow reuse on first frame
+                    vkCreateFence(ctx.device, &fenceInfo, nullptr,
+                                  &ssboFences[i]);
+                }
+            }
         }
 
         LibPlaceboData::~LibPlaceboData()
         {
             pl_shader_free(&shader);
             res = nullptr;
-            if (state) {
+            if (state)
+            {
                 pl_shader_obj_destroy(&state);
                 state = nullptr;
             }
@@ -805,6 +839,28 @@ namespace tl
             pcUBOSize = 0;
             pl_gpu_dummy_destroy(&gpu);
             pl_log_destroy(&log);
+            
+            for (int i = 0; i < ssboCmds.size(); ++i)
+            {
+                if (ssboCmds[i] != VK_NULL_HANDLE)
+                {
+                    vkFreeCommandBuffers(ctx.device, ssboCmdPool, 1, &ssboCmds[i]);
+                }
+            }
+
+            for (int i = 0; i < ssboFences.size(); ++i)
+            {
+                if (ssboFences[i] != VK_NULL_HANDLE)
+                {
+                    vkResetFences(ctx.device, 1, &ssboFences[i]);
+                    vkDestroyFence(ctx.device, ssboFences[i], nullptr);
+                }
+            }
+
+            if (ssboCmdPool != VK_NULL_HANDLE)
+            {
+                vkDestroyCommandPool(ctx.device, ssboCmdPool, nullptr);
+            }
         }
 #endif // TLRENDER_LIBPLACEBO
 
@@ -820,12 +876,45 @@ namespace tl
             {
                 p.textureCache = std::make_shared<TextureCache>();
             }
+
+            if (!p.statsSystem)
+            {
+                p.statsSystem = context->getSystem<system::StatsSystem>();
+                p.statsSystem->addSampler("Vulkan Memory/Buffers: ",
+                                          [] {
+                                              return vlk::OffscreenBuffer::getTotalByteCount();
+                                          });
+                p.statsSystem->addSampler("Vulkan Memory/Meshes: ",
+                                          [] {
+                                              return vlk::VBO::getTotalByteCount();
+                                          });
+                p.statsSystem->addSampler("Vulkan Memory/Textures: ",
+                                          [] {
+                                              return vlk::Texture::getTotalByteCount();
+                                          });
+                
+                p.statsSystem->addSampler("Vulkan Objects/Buffers: ",
+                                          [] {
+                                              return vlk::OffscreenBuffer::getObjectCount();
+                                          });
+                p.statsSystem->addSampler("Vulkan Objects/Meshes: ",
+                                          [] {
+                                              return vlk::VBO::getObjectCount();
+                                          });
+                p.statsSystem->addSampler("Vulkan Objects/Shaders: ",
+                                          [] {
+                                              return vlk::Shader::getObjectCount();
+                                          });
+                p.statsSystem->addSampler("Vulkan Objects/Textures: ",
+                                          [] {
+                                              return vlk::Texture::getObjectCount();
+                                          });
+            }
             
             p.glyphTextureAtlas = vlk::TextureAtlas::create(
                 ctx, 1, 4096, image::PixelType::L_U8,
                 timeline::ImageFilter::Linear);
 
-            p.logTimer = std::chrono::steady_clock::now();
         }
 
         Render::Render(Fl_Vk_Context& context) :
@@ -837,24 +926,12 @@ namespace tl
             for (int i = 0; i < vlk::MAX_FRAMES_IN_FLIGHT; ++i)
             {
                 p.garbage[i].pipelines.reserve(20);
-                p.garbage[i].bindingSets.reserve(30);
+                p.garbage[i].pipelineLayouts.reserve(20);
+                p.garbage[i].bindingSets.reserve(20);
+                p.garbage[i].buffers.reserve(20);
             }
         }
 
-        void Render::wait_queue()
-        {
-            VkQueue queue = ctx.queue();
-            
-            std::lock_guard<std::mutex> lock(ctx.queue_mutex());
-            vkQueueWaitIdle(queue);
-        }
-
-        void Render::wait_device()
-        {
-            VkDevice device = ctx.device;
-            vkDeviceWaitIdle(device);
-        }
-        
         Render::~Render()
         {
             TLRENDER_P();
@@ -865,7 +942,7 @@ namespace tl
             {
                 vkDestroyPipeline(device, pipeline.second, nullptr);
             }
-
+            
             for (auto& [_, pipelineLayout] : p.pipelineLayouts)
             {
                 vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -963,6 +1040,7 @@ namespace tl
             g.pipelines.clear();
             g.pipelineLayouts.clear();
             g.bindingSets.clear();
+            g.buffers.clear();
             
             const math::Matrix4x4f transform;
             const image::Color4f color(1.F, 1.F, 1.F);
@@ -1145,6 +1223,50 @@ namespace tl
 
                 _createBindingSet(p.shaders["difference"]);
             }
+            if (!p.shaders["multiply"])
+            {
+#if USE_PRECOMPILED_SHADERS
+                p.shaders["multiply"] = vlk::Shader::create(
+                    ctx,
+                    Vertex3_spv,
+                    Vertex3_spv_len,
+                    multiplyFragment_spv,
+                    multiplyFragment_spv_len, "multiply");
+#else
+                p.shaders["multiply"] = vlk::Shader::create(
+                    ctx, vertexSource(), multiplyFragmentSource(),
+                    "multiply");
+#endif
+
+                p.shaders["multiply"]->createUniform(
+                    "transform.mvp", transform, vlk::kShaderVertex);
+                p.shaders["multiply"]->addFBO("textureSampler");
+                p.shaders["multiply"]->addFBO("textureSamplerB");
+
+                _createBindingSet(p.shaders["multiply"]);
+            }
+            if (!p.shaders["add"])
+            {
+#if USE_PRECOMPILED_SHADERS
+                p.shaders["add"] = vlk::Shader::create(
+                    ctx,
+                    Vertex3_spv,
+                    Vertex3_spv_len,
+                    addFragment_spv,
+                    addFragment_spv_len, "add");
+#else
+                p.shaders["add"] = vlk::Shader::create(
+                    ctx, vertexSource(), addFragmentSource(),
+                    "add");
+#endif
+
+                p.shaders["add"]->createUniform(
+                    "transform.mvp", transform, vlk::kShaderVertex);
+                p.shaders["add"]->addFBO("textureSampler");
+                p.shaders["add"]->addFBO("textureSamplerB");
+
+                _createBindingSet(p.shaders["add"]);
+            }
             if (!p.shaders["dissolve"])
             {
 #if USE_PRECOMPILED_SHADERS
@@ -1219,6 +1341,42 @@ namespace tl
                 p.shaders["wipe"]->addPush("color", color, vlk::kShaderFragment);
                 _createBindingSet(p.shaders["wipe"]);
             }
+#if USE_DUMMY_SHADER
+            if (!p.shaders["dummy"])
+            {
+                p.shaders["dummy"] = vlk::Shader::create(
+                    ctx, vertexDummy(), fragmentDummy(), "dummy");
+                p.shaders["dummy"]->createUniform(
+                    "transform.mvp", transform, vlk::kShaderVertex);
+                p.shaders["dummy"]->addPush("color", color, vlk::kShaderFragment);
+                _createBindingSet(p.shaders["dummy"]);
+            }
+#endif
+            if (!p.shaders["pbr"])
+            {
+                p.shaders["pbr"] = vlk::Shader::create(
+                    ctx, vertexUSD(), fragmentUSD(), "pbr");
+                
+                PBRTransform transform;
+                p.shaders["pbr"]->createUniform("u_Transform", transform,
+                                                vlk::kShaderVertex);
+
+                p.shaders["pbr"]->addTexture("u_DiffuseMap");
+                p.shaders["pbr"]->addTexture("u_MetallicMap");
+                p.shaders["pbr"]->addTexture("u_RoughnessMap");
+                p.shaders["pbr"]->addTexture("u_NormalMap");
+                p.shaders["pbr"]->addTexture("u_AOMap");
+                
+                PBRMaterial material;
+                
+                p.shaders["pbr"]->createUniform("u_Material", material);
+                
+                PBRScene scene;
+                scene.lightColor = math::Vector3f(1, 1, 1);
+                p.shaders["pbr"]->createUniform("u_Scene", scene);
+                
+                _createBindingSet(p.shaders["pbr"]);
+            }
             if (!p.compute["rgbf16_to_rgbaf16"])
             {
 #if USE_PRECOMPILED_SHADERS
@@ -1254,8 +1412,52 @@ namespace tl
                 p.compute["rgbf32_to_rgbaf32"]->createComputePipeline();
             }
             
+            if (!p.compute["hdr_peak_detection"])
+            {
+                try
+                {
+#if USE_PRECOMPILED_SHADERS
+#if __APPLE__
+                    p.compute["hdr_peak_detection"] = vlk::Shader::create(ctx,
+                                                                          hdr_peak_detection_Compute_spv,
+                                                                          hdr_peak_detection_Compute_spv_len,
+                                                                          "hdr_peak_detection");
+#else
+                    try
+                    {
+                        p.compute["hdr_peak_detection"] = vlk::Shader::create(ctx,
+                                                                              hdr_peak_detection_NVidia_Compute_spv,
+                                                                              hdr_peak_detection_NVidia_Compute_spv_len,
+                                                                              "hdr_peak_detection");
+                    }
+                    catch(const std::exception& e)
+                    {
+                        p.compute["hdr_peak_detection"] = vlk::Shader::create(ctx,
+                                                                              hdr_peak_detection_Compute_spv,
+                                                                              hdr_peak_detection_Compute_spv_len,
+                                                                              "hdr_peak_detection");
+                    }
+#endif
+                
+#else
+                    p.compute["hdr_peak_detection"] = vlk::Shader::create(ctx,
+                                                                          computeHDRPeakDetection(),
+                                                                          "hdr_peak_detection");
+#endif
+                    hdr::PeakData peakData;
+                    p.compute["hdr_peak_detection"]->addFBO("img", vlk::kShaderCompute);
+                    p.compute["hdr_peak_detection"]->addSSBO("PeakData", peakData, vlk::kShaderCompute);
+                    _createBindingSet(p.compute["hdr_peak_detection"]);
+                    p.compute["hdr_peak_detection"]->createComputePipeline();
+                }
+                catch(const std::exception& e)
+                {
+                }
+            }
             
-            _displayShader();
+
+            if (!p.shaders["display"])
+                _displayShader();
 
 
             //
@@ -1325,80 +1527,6 @@ namespace tl
             TLRENDER_P();
 
             p.fbo->transitionToShaderRead(p.cmd);
-
-            const auto now = std::chrono::steady_clock::now();
-            const auto diff =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - p.timer);
-            p.currentStats.time = diff.count();
-            p.stats.push_back(p.currentStats);
-            p.currentStats = Private::Stats();
-            while (p.stats.size() > 60)
-            {
-                p.stats.pop_front();
-            }
-            
-            const std::chrono::duration<float> logDiff = now - p.logTimer;
-            if (logDiff.count() > 10.F)
-            {
-                p.logTimer = now;
-                if (auto context = _context.lock())
-                {
-                    Private::Stats average;
-                    const size_t size = p.stats.size();
-                    if (size > 0)
-                    {
-                        for (const auto& i : p.stats)
-                        {
-                            average.time += i.time;
-                            average.rects += i.rects;
-                            average.meshes += i.meshes;
-                            average.meshTriangles += i.meshTriangles;
-                            average.text += i.text;
-                            average.textTriangles += i.textTriangles;
-                            average.textures += i.textures;
-                            average.images += i.images;
-                            average.pipelineChanges += i.pipelineChanges;
-                        }
-                        average.time /= p.stats.size();
-                        average.rects /= p.stats.size();
-                        average.meshes /= p.stats.size();
-                        average.meshTriangles /= p.stats.size();
-                        average.text /= p.stats.size();
-                        average.textTriangles /= p.stats.size();
-                        average.textures /= p.stats.size();
-                        average.images /= p.stats.size();
-                        average.pipelineChanges /= p.stats.size();
-                    }
-
-                    context->log(
-                        string::Format("tl::timeline_vlk::Render {0}").arg(this),
-                        string::Format(
-                            "\n"
-                            "    Average render time: {0}ms\n"
-                            "    Average rectangle count: {1}\n"
-                            "    Average mesh count: {2}\n"
-                            "    Average mesh triangles: {3}\n"
-                            "    Average text count: {4}\n"
-                            "    Average text triangles: {5}\n"
-                            "    Average texture count: {6}\n"
-                            "    Average image count: {7}\n"
-                            "    Average pipeline changes: {8}\n"
-                            "    Glyph texture atlas: {9}%\n"
-                            "    Glyph IDs: {10}")
-                            .arg(average.time)
-                            .arg(average.rects)
-                            .arg(average.meshes)
-                            .arg(average.meshTriangles)
-                            .arg(average.text)
-                            .arg(average.textTriangles)
-                            .arg(average.textures)
-                            .arg(average.images)
-                            .arg(average.pipelineChanges)
-                            .arg(p.glyphTextureAtlas->getPercentageUsed())
-                            .arg(p.glyphIDs.size()));
-                }
-            }
         }
 
         VkCommandBuffer Render::getCommandBuffer() const
@@ -1411,19 +1539,17 @@ namespace tl
             return _p->frameIndex;
         }
         
-        void Render::setMonitorHDRSupported(bool value)
+        void Render::setMonitorCapabilities(const monitor::Capabilities& value)
         {
-            _p->hdrMonitorFound = value;
-        }
+            TLRENDER_P();
+            
+            if (p.monitor == value)
+                return;
+            
+            p.monitor = value;
 
-        void Render::setMonitorMinNits(float value)
-        {
-            _p->monitorMinNits = value;
-        }
-        
-        void Render::setMonitorMaxNits(float value)
-        {
-            _p->monitorMaxNits = value;
+            p.shaders["display"].reset();
+            _displayShader();
         }
         
         Fl_Vk_Context& Render::getContext() const
@@ -1451,11 +1577,6 @@ namespace tl
             _p->viewport = value;
         }
         
-        void Render::createBindingSet(const std::string& shaderName)
-        {
-            _createBindingSet(_p->shaders[shaderName]);
-        }
-
         void Render::beginLoadRenderPass()
         {
             TLRENDER_P();
@@ -1509,6 +1630,10 @@ namespace tl
             // buffer
             vkCmdBeginRenderPass(p.cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdEndRenderPass(p.cmd);
+            
+            // Update C++ layout tracking to match render pass
+            //finalLayout
+            p.fbo->setImageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         }
 
         bool Render::getClipRectEnabled() const
@@ -1566,6 +1691,8 @@ namespace tl
                 if (i.second)
                 {
                     i.second->bind(p.frameIndex);
+                    if (i.second->getName() == "pbr")
+                        continue;
                     i.second->setUniform("transform.mvp", p.transform,
                                          vlk::kShaderVertex);
                 }
@@ -1580,73 +1707,214 @@ namespace tl
         }
 
 #if defined(TLRENDER_OCIO)
+        std::string Render::_getOCIOUniforms(const OCIO::GpuShaderDescRcPtr& shaderDesc)
+        {
+            std::stringstream s;
+            const unsigned numUniforms = shaderDesc->getNumUniforms();
+            for (unsigned i = 0; i < numUniforms; ++i)
+            {
+                OCIO::GpuShaderDesc::UniformData data;
+                const char* name = shaderDesc->getUniform(i, data);
+        
+                switch (data.m_type)
+                {
+                case OCIO::UNIFORM_DOUBLE:
+                    s << "uniform float " << name << ";\n";
+                    break;
+                case OCIO::UNIFORM_BOOL:
+                    s << "uniform bool " << name << ";\n";
+                    break;
+                    // Handle other types as needed by your OCIO version
+                default:
+                    break;
+                }
+            }
+            return s.str();
+        }
+        
 
+        void
+        Render::_updateOCIOUniforms(const OCIO::GpuShaderDescRcPtr& shaderDesc)
+        {
+            TLRENDER_P();
+            
+            const unsigned numUniforms = shaderDesc->getNumUniforms();
+            for (unsigned i = 0; i < numUniforms; ++i)
+            {
+                OCIO::GpuShaderDesc::UniformData data;
+                const char* name = shaderDesc->getUniform(i, data);
+        
+                if (data.m_type == OCIO::UNIFORM_DOUBLE)
+                {
+                    // Note: OCIO uses double, but GLSL usually uses float
+                    float value = static_cast<float>(data.m_getDouble());
+                    p.shaders["display"]->setUniform(name, value);
+                }
+                else if (data.m_type == OCIO::UNIFORM_BOOL)
+                {
+                    int value = data.m_getBool() ? 1 : 0;
+                    p.shaders["display"]->setUniform(name, value);
+                }
+                else if (data.m_type == OCIO::UNIFORM_FLOAT3)
+                {
+                    const OCIO::Float3 value = data.m_getFloat3();
+                    p.shaders["display"]->setUniform(name, value);
+                }
+                else if (data.m_type == OCIO::UNIFORM_VECTOR_INT)
+                {
+                    const size_t size = data.m_vectorInt.m_getSize();
+                    const int* value = data.m_vectorInt.m_getVector();
+                }
+                else if (data.m_type == OCIO::UNIFORM_VECTOR_FLOAT)
+                {
+                    const size_t size = data.m_vectorFloat.m_getSize();
+                    const float* value = data.m_vectorFloat.m_getVector();
+                }
+            }
+        }
+        
+        void
+        Render::_createOCIOUniforms(const OCIO::GpuShaderDescRcPtr& shaderDesc)
+        {
+            TLRENDER_P();
+            const unsigned numUniforms = shaderDesc->getNumUniforms();
+            for (unsigned i = 0; i < numUniforms; ++i)
+            {
+                OCIO::GpuShaderDesc::UniformData data;
+                const char* name = shaderDesc->getUniform(i, data);
+        
+                if (data.m_type == OCIO::UNIFORM_DOUBLE)
+                {
+                    // Note: OCIO uses double, but GLSL usually uses float
+                    float value = static_cast<float>(data.m_getDouble());
+                    p.shaders["display"]->createUniform(name, value); 
+                }
+                else if (data.m_type == OCIO::UNIFORM_BOOL)
+                {
+                    int value = data.m_getBool() ? 1 : 0;
+                    p.shaders["display"]->createUniform(name, value);
+                }
+                else if (data.m_type == OCIO::UNIFORM_FLOAT3)
+                {
+                    OCIO::Float3 value = data.m_getFloat3();
+                    p.shaders["display"]->createUniform(name, value);
+                }
+                else if (data.m_type == OCIO::UNIFORM_VECTOR_INT)
+                {
+                    const size_t size = data.m_vectorInt.m_getSize();
+                    const int* value = data.m_vectorInt.m_getVector();
+                }
+                else if (data.m_type == OCIO::UNIFORM_VECTOR_FLOAT)
+                {
+                    const size_t size = data.m_vectorFloat.m_getSize();
+                    const float* value = data.m_vectorFloat.m_getVector();
+                }
+            }
+        }
+
+        // Parse index from name "ocio_lut3d_XSampler" to sort correctly
+        int ocioIndexFromSamplerName(const std::string& samplerName,
+                                     const int previousIndex)
+        {
+            int index = previousIndex + 1; // Just for safety
+            std::string sName = samplerName;
+            size_t lastUnderscore = sName.find_last_of('_');
+            if (lastUnderscore != std::string::npos) {
+                // Extract number between last underscore and 'Sampler'
+                // Format is usually ocio_lut3d_<INDEX>Sampler
+                std::string numPart = sName.substr(lastUnderscore + 1);
+                // Remove "Sampler" suffix if present to get just the number
+                size_t samplerPos = numPart.find("Sampler");
+                if (samplerPos != std::string::npos) numPart = numPart.substr(0, samplerPos);
+                try { index = std::stoi(numPart); } catch(...) {}
+            }
+            return index;
+        }
+        
         void Render::_addTextures(
             std::vector<std::shared_ptr<vlk::Texture> >& textures,
             const OCIO::GpuShaderDescRcPtr& shaderDesc)
         {
             TLRENDER_P();
 
-            // Create 3D textures.
+            // Use a map to automatically sort textures by their OCIO index
+            // (0, 1, 2...)
+            // This ensures they align with Binding 6, 7, 8, etc.
+            std::map<int, std::vector<std::shared_ptr<vlk::Texture > > >
+                sortedTextures;
+
+            vlk::TextureOptions options;
+            options.tiling = VK_IMAGE_TILING_OPTIMAL; // Always use Optimal for performance
+
+            // --- Process 3D Textures ---
             const unsigned num3DTextures = shaderDesc->getNum3DTextures();
+            int index = 5;
             for (unsigned i = 0; i < num3DTextures; ++i)
             {
                 const char* textureName = nullptr;
                 const char* samplerName = nullptr;
                 unsigned edgelen = 0;
                 OCIO::Interpolation interpolation = OCIO::INTERP_LINEAR;
-                shaderDesc->get3DTexture(
-                    i, textureName, samplerName, edgelen, interpolation);
-                if (!textureName || !*textureName || !samplerName ||
-                    !*samplerName || 0 == edgelen)
-                {
-                    throw std::runtime_error(
-                        "The OCIO texture data is corrupted");
-                }
+                shaderDesc->get3DTexture(i, textureName, samplerName, edgelen, interpolation);
+
+                if (!textureName || !*textureName || !samplerName || !*samplerName || 0 == edgelen) continue;
 
                 const float* values = nullptr;
                 shaderDesc->get3DTextureValues(i, values);
-                if (!values)
+                if (!values) continue;
+
+                // Set filters based on interpolation
+                if (interpolation == OCIO::INTERP_NEAREST) {
+                    options.filters.minify = timeline::ImageFilter::Nearest;
+                    options.filters.magnify = timeline::ImageFilter::Nearest;
+                }
+                else
                 {
-                    throw std::runtime_error(
-                        "The OCIO texture values are missing");
+                    options.filters.minify = timeline::ImageFilter::Linear;
+                    options.filters.magnify = timeline::ImageFilter::Linear;
                 }
 
+                // Set filters based on interpolation
+                if (interpolation == OCIO::INTERP_NEAREST) {
+                    options.filters.minify = timeline::ImageFilter::Nearest;
+                    options.filters.magnify = timeline::ImageFilter::Nearest;
+                }
+                else
+                {
+                    options.filters.minify = timeline::ImageFilter::Linear;
+                    options.filters.magnify = timeline::ImageFilter::Linear;
+                }
+
+                // 3D Texture Creation
                 VkFormat imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+                // OCIO 3D LUTs are RGB, we pad to RGBA
                 const uint32_t width = edgelen;
                 const uint32_t height = edgelen;
                 const uint32_t depth = edgelen;
                 const uint16_t channels = 4;
 
-                float* newvalues = new float[width * height * depth * channels];
-                float* n = newvalues;
-                for (int d = 0; d < depth; ++d)
-                {
-                    for (int h = 0; h < height; ++h)
-                    {
-                        for (int w = 0; w < width; ++w)
-                        {
-                            for (int j = 0; j < 3; ++j)
-                            {
-                                    *n++ = *values++;
-                            }
-                            *n++ = 1.F;
-                        }
-                    }
+                // Pad data to RGBA
+                std::vector<float> newvalues(width * height * depth * 4);
+                const float* v = values;
+                float* n = newvalues.data();
+                for (size_t k = 0; k < width * height * depth; ++k) {
+                    *n++ = *v++; // R
+                    *n++ = *v++; // G
+                    *n++ = *v++; // B
+                    *n++ = 1.0f; // A
                 }
-                
+
                 auto texture = vlk::Texture::create(
                     ctx, VK_IMAGE_TYPE_3D, width, height, depth, imageFormat,
-                    samplerName);
-                texture->copy(
-                    reinterpret_cast<const uint8_t*>(newvalues),
-                    width * height * depth * channels * sizeof(float));
-                delete [] newvalues;
+                    samplerName, options);
+            
+                texture->copy(reinterpret_cast<const uint8_t*>(newvalues.data()), newvalues.size() * sizeof(float));
                 texture->transitionToShaderRead(p.cmd);
-                textures.push_back(texture);
-            }
+                index = ocioIndexFromSamplerName(samplerName, index);
+                sortedTextures[index].push_back(texture);
+           }
 
-            // Create 1D textures.
+            // --- Process 1D Textures ---
             const unsigned numTextures = shaderDesc->getNumTextures();
             for (unsigned i = 0; i < numTextures; ++i)
             {
@@ -1654,61 +1922,97 @@ namespace tl
                 unsigned height = 0;
                 const char* textureName = nullptr;
                 const char* samplerName = nullptr;
-                OCIO::GpuShaderDesc::TextureType channel =
-                    OCIO::GpuShaderDesc::TEXTURE_RGB_CHANNEL;
-                OCIO::GpuShaderCreator::TextureDimensions dimensions =
-                    OCIO::GpuShaderDesc::TEXTURE_1D;
+                OCIO::GpuShaderDesc::TextureType channel = OCIO::GpuShaderDesc::TEXTURE_RED_CHANNEL;
+                OCIO::GpuShaderCreator::TextureDimensions dimensions = OCIO::GpuShaderDesc::TEXTURE_1D;
                 OCIO::Interpolation interpolation = OCIO::INTERP_LINEAR;
-                shaderDesc->getTexture(
-                    i, textureName, samplerName, width, height, channel,
-                    dimensions, interpolation);
-                if (!textureName || !*textureName || !samplerName ||
-                    !*samplerName || width == 0)
-                {
-                    throw std::runtime_error(
-                        "The OCIO texture data is corrupted");
-                }
+        
+                shaderDesc->getTexture(i, textureName, samplerName, width, height, channel, dimensions, interpolation);
+
+                if (!textureName || !*textureName || !samplerName || !*samplerName || width == 0) continue;
 
                 const float* values = nullptr;
                 shaderDesc->getTextureValues(i, values);
-                if (!values)
-                {
-                    throw std::runtime_error(
-                        "The OCIO texture values are missing");
+                if (!values) continue;
+
+                if (interpolation == OCIO::INTERP_NEAREST) {
+                    options.filters.minify = timeline::ImageFilter::Nearest;
+                    options.filters.magnify = timeline::ImageFilter::Nearest;
+                } else {
+                    options.filters.minify = timeline::ImageFilter::Linear;
+                    options.filters.magnify = timeline::ImageFilter::Linear;
                 }
 
-                uint16_t channels = 3;
-                VkFormat imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
-                if (OCIO::GpuShaderCreator::TEXTURE_RED_CHANNEL == channel)
+                if (interpolation == OCIO::INTERP_NEAREST) {
+                    options.filters.minify = timeline::ImageFilter::Nearest;
+                    options.filters.magnify = timeline::ImageFilter::Nearest;
+                } else {
+                    options.filters.minify = timeline::ImageFilter::Linear;
+                    options.filters.magnify = timeline::ImageFilter::Linear;
+                }
+
+                VkFormat imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+                int channels = 4;
+        
+                std::vector<float> paddedValues;
+                const void* dataPtr = values;
+                size_t dataSize = 0;
+
+                if (channel == OCIO::GpuShaderDesc::TEXTURE_RED_CHANNEL)
                 {
-                    channels = 1;
                     imageFormat = VK_FORMAT_R32_SFLOAT;
+                    channels = 1;
+                    dataSize = width * height * sizeof(float);
+                    dataPtr = values;
+                }
+                else
+                {
+                    // TEXTURE_RGB_CHANNEL (0) -> Convert RGB to RGBA
+                    // Note: Even if OCIO implies RGB, we upload as RGBA for Vulkan compatibility
+                    paddedValues.resize(width * height * 4);
+                    const float* v = values;
+                    float* n = paddedValues.data();
+                    for (size_t k = 0; k < width * height; ++k) {
+                        *n++ = *v++; // R
+                        *n++ = *v++; // G
+                        *n++ = *v++; // B
+                        *n++ = 1.0f; // A
+                    }
+                    dataPtr = paddedValues.data();
+                    dataSize = paddedValues.size() * sizeof(float);
                 }
 
                 VkImageType imageType;
-                switch (dimensions)
+                switch(dimensions)
                 {
-                case OCIO::GpuShaderDesc::TEXTURE_1D:
-                    imageType = VK_IMAGE_TYPE_1D;
-                    if (height == 0)
-                        height = 1;
-                    break;
-                case OCIO::GpuShaderDesc::TEXTURE_2D:
-                    imageType = VK_IMAGE_TYPE_2D;
-                    break;
+                    case OCIO::GpuShaderDesc::TEXTURE_1D:
+                        imageType = VK_IMAGE_TYPE_1D;
+                        break;
+                    case OCIO::GpuShaderDesc::TEXTURE_2D:
+                        imageType = VK_IMAGE_TYPE_2D;
+                        break;
                 default:
-                    throw std::runtime_error("Unknown OCIO image type");
+                    throw std::runtime_error("Unknown OCIO dimension");
                 }
-
+                
+                // NOTE: We use the 'height' returned by OCIO. Do NOT force it to 1.
                 auto texture = vlk::Texture::create(
-                    ctx, imageType, width, height, 0, imageFormat, samplerName);
-                texture->copy(
-                    reinterpret_cast<const uint8_t*>(values),
-                    width * height * channels * sizeof(float));
+                    ctx, imageType, width, height, 1, imageFormat,
+                    samplerName, options);
+
+                texture->copy(reinterpret_cast<const uint8_t*>(dataPtr), dataSize);
                 texture->transitionToShaderRead(p.cmd);
-                textures.push_back(texture);
+                index = ocioIndexFromSamplerName(samplerName, index);
+                
+                sortedTextures[index].push_back(texture);
+            }
+
+            for (const auto& [_, textureList] : sortedTextures)
+            {
+                for (const auto& texture: textureList)
+                    textures.push_back(texture);
             }
         }
+
 #endif // TLRENDER_OCIO
 
 #if defined(TLRENDER_LIBPLACEBO)
@@ -1963,10 +2267,15 @@ namespace tl
                             "Cannot create OCIO ICS shader description");
                     }
 
+#if USE_OCIO_VULKAN
+                    p.ocioData->icsDesc->setLanguage(
+                        OCIO::GPU_LANGUAGE_GLSL_VK_4_6);
+#else
                     p.ocioData->icsDesc->setLanguage(
                         OCIO::GPU_LANGUAGE_GLSL_4_0);
+#endif
                     p.ocioData->icsDesc->setFunctionName("ocioICSFunc");
-                    p.ocioData->icsDesc->setResourcePrefix("ocioICS"); // ocio?
+                    p.ocioData->icsDesc->setResourcePrefix("ocioICS");
                     p.ocioData->gpuProcessor->extractGpuShaderInfo(
                         p.ocioData->icsDesc);
                     try
@@ -1996,7 +2305,8 @@ namespace tl
                     }
                     p.ocioData->lvp->setDisplayViewTransform(
                         p.ocioData->transform);
-                    p.ocioData->lvp->setLooksOverrideEnabled(true);
+                    const bool hasLooks = !p.ocioOptions.look.empty();
+                    p.ocioData->lvp->setLooksOverrideEnabled(hasLooks);
                     p.ocioData->lvp->setLooksOverride(
                         p.ocioOptions.look.c_str());
 
@@ -2025,8 +2335,11 @@ namespace tl
                         throw std::runtime_error(
                             "Cannot create OCIO shader description");
                     }
-                    p.ocioData->shaderDesc->setLanguage(
-                        OCIO::GPU_LANGUAGE_GLSL_4_0);
+#if USE_OCIO_VULKAN
+                    p.ocioData->shaderDesc->setLanguage(OCIO::GPU_LANGUAGE_GLSL_VK_4_6);
+#else
+                    p.ocioData->shaderDesc->setLanguage(OCIO::GPU_LANGUAGE_GLSL_4_0);
+#endif
                     p.ocioData->shaderDesc->setFunctionName("ocioDisplayFunc");
                     p.ocioData->shaderDesc->setResourcePrefix("ocio");
                     p.ocioData->gpuProcessor->extractGpuShaderInfo(
@@ -2056,7 +2369,6 @@ namespace tl
                 return;
 
 #if defined(TLRENDER_OCIO)
-            //wait_device();
             p.lutData.reset();
 #endif // TLRENDER_OCIO
 
@@ -2104,7 +2416,11 @@ namespace tl
                     throw std::runtime_error(
                         "Cannot create OCIO shader description");
                 }
+#if USE_OCIO_VULKAN
+                p.lutData->shaderDesc->setLanguage(OCIO::GPU_LANGUAGE_GLSL_VK_4_6);
+#else
                 p.lutData->shaderDesc->setLanguage(OCIO::GPU_LANGUAGE_GLSL_4_0);
+#endif
                 p.lutData->shaderDesc->setFunctionName("lutFunc");
                 p.lutData->shaderDesc->setResourcePrefix("lut");
                 p.lutData->gpuProcessor->extractGpuShaderInfo(p.lutData->shaderDesc);
@@ -2124,466 +2440,646 @@ namespace tl
             _displayShader();
         }
 
+        void Render::setShaderOptions(const timeline::ShaderOptions& value)
+        {
+            TLRENDER_P();
+            if (value == p.shaderOptions)
+                return;
+
+            p.shaderOptions = value;
+            
+            p.shaders["display"].reset();
+            _displayShader();
+        }
+
         void Render::setHDROptions(const timeline::HDROptions& value)
         {
             TLRENDER_P();
-            if (value == p.hdrOptions &&
-                value.passthru == p.hdrOptions.passthru)
-                return;
+            
+           // 1. Identify what specifically changed
+           const bool tonemapChanged = (value.tonemap != p.hdrOptions.tonemap);
+           const bool hdrDataChanged = (value.hdrData != p.hdrOptions.hdrData);
+           const bool peakDetectionChanged = (value.peak_detection != p.hdrOptions.peak_detection);
+           const bool algorithmChanged = (value.algorithm != p.hdrOptions.algorithm);
+           const bool oldIsHDRPlus = image::isHDRPlus(p.hdrOptions.hdrData);
+           const bool oldIsDolby = image::isHDRDolbyVision(p.hdrOptions.hdrData);
+           
+           // Determine if we should run Peak Detection
+           // Requirement: Tonemap ON, Peak Detection ON, and
+           // NOT HDR10+/Dolby
+           const bool isHDRPlus = image::isHDRPlus(value.hdrData);
+           const bool isDolby = image::isHDRDolbyVision(value.hdrData);
 
-            p.hdrOptions = value;
-            p.hdrOptions.passthru = value.passthru;
+           const bool metadataChanged = (isHDRPlus != oldIsHDRPlus) ||
+                                        (isDolby != oldIsDolby);
 
+           if (tonemapChanged || algorithmChanged || metadataChanged)
+           {                              
 #if defined(TLRENDER_LIBPLACEBO)
-            if (p.hdrOptions.passthru || p.hdrOptions.tonemap)
+               if (p.placeboData && p.placeboData->state)
+               {
+                   pl_shader_obj_destroy(&p.placeboData->state);
+                   p.placeboData->state = NULL;
+               }
+#endif
+           }
+
+           // 2. Optimization: Initialize update flag based on Option changes
+           bool updateDisplayShader = (tonemapChanged || hdrDataChanged ||
+                                       peakDetectionChanged ||
+                                       algorithmChanged ||
+                                       metadataChanged);
+           
+           p.hdrOptions = value;
+                                                                   
+#if defined(TLRENDER_LIBPLACEBO)
+            if (p.hdrOptions.tonemap)
             {
-                p.placeboData.reset(new LibPlaceboData);
+                const bool effectivePeakDetection =
+                    p.hdrOptions.peak_detection && !isHDRPlus && !isDolby;
+                
+                if (!p.placeboData || peakDetectionChanged || hdrDataChanged ||
+                    metadataChanged)
+                {
+                    // This ensures we have a valid object even if
+                    // 'effectivePeakDetection' is false
+                    p.placeboData.reset(new LibPlaceboData(ctx, effectivePeakDetection));
+                }
+
+                // --- LOGIC B: Run Peak Detection Compute Shader ---
+                // Only run the expensive compute shader if actually enabled and valid.
+                if (effectivePeakDetection && p.buffers["video"])
+                {
+                    // Persistent states
+                    static float previous_avg = 0.F;
+                    static float current_avg = PL_COLOR_SDR_WHITE;
+                    static float current_peak = PL_COLOR_SDR_WHITE;
+
+                    // IMPORTANT: If peak detection was just enabled or content changed, 
+                    // reset the "previous" values so the first frame of detection always 
+                    // triggers a "New Shot" recreation.
+                    if (peakDetectionChanged || hdrDataChanged)
+                    {
+                        previous_avg = 0.F;
+                    }
+
+                    const std::string shaderName = "hdr_peak_detection";
+                    const auto shader = p.compute[shaderName];
+                    const auto img = p.buffers["video"];
+                                        
+                    _createBindingSet(shader);
+
+                    shader->bind(p.frameIndex);
+                    shader->setFBO("img", img);
+                        
+                    const std::string pipelineLayoutName = shaderName;
+                    _bindComputeDescriptorSets(pipelineLayoutName,
+                                               shaderName);
+
+                    VkCommandBuffer cmd = p.placeboData->ssboCmds[p.frameIndex];
+                    vkResetCommandBuffer(cmd, 0);
+                        
+                    VkCommandBufferBeginInfo beginInfo = {};
+                    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+                    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+                    vkBeginCommandBuffer(cmd, &beginInfo);
+                            
+                    img->transitionToShaderRead(cmd);
+
+                    // This seems to not entirely clear the data alwayss
+                    shader->clearSSBO(cmd, "PeakData");
+
+                        
+                    const size_t width = p.fbo->getWidth();
+                    const size_t height = p.fbo->getHeight();
+                    const uint32_t groupCountX = (width + 15) / 16;
+                    const uint32_t groupCountY = (height + 15) / 16;
+                    shader->dispatch(cmd, groupCountX, groupCountY);
+                        
+                    img->transitionToColorAttachment(cmd);
+
+                    vkEndCommandBuffer(cmd);
+
+                    vkResetFences(ctx.device, 1, &p.placeboData->ssboFences[p.frameIndex]);
+                    
+                    VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                    VkSubmitInfo submitInfo = {};
+                    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                    submitInfo.waitSemaphoreCount = 0;
+                    submitInfo.pWaitDstStageMask = &pipe_stage_flags;
+                    submitInfo.commandBufferCount = 1;
+                    submitInfo.pCommandBuffers = &cmd;
+                    submitInfo.signalSemaphoreCount = 0;
+                            
+                    {
+                        std::lock_guard<std::mutex> lock(ctx.queue_mutex());
+                        vkQueueSubmit(ctx.queue(), 1, &submitInfo,
+                                      p.placeboData->ssboFences[p.frameIndex]);
+                    }
+                    
+                    vkWaitForFences(ctx.device, 1,
+                                    &p.placeboData->ssboFences[p.frameIndex],
+                                    VK_TRUE, UINT64_MAX);
+
+                    bool allow_delayed = true;
+
+                    // This calls shader->mapSSO("PeakData") to read the
+                    // histogram values
+                    hdr::process_peak_data(
+                        shader,
+                        p.hdrOptions.peak_percentile,
+                        p.hdrOptions.peak_smoothing_period,
+                        p.hdrOptions.peak_scene_low_limit,
+                        p.hdrOptions.peak_scene_high_limit,
+                        allow_delayed,
+                        previous_avg,
+                        current_avg,
+                        current_peak);
+
+                    previous_avg = current_avg;
+
+                    p.placeboData->maxPeak = current_peak / 10000.F;
+                    p.placeboData->avgPeak = current_avg / 10000.F;
+                    
+                    updateDisplayShader = true;
+                }
+                else
+                {
+                    p.placeboData->maxPeak = p.placeboData->avgPeak = 0.F;
+                }
             }
             else
             {
+                // Only destroy data if Tone Mapping is completely OFF
                 p.placeboData.reset();
             }
 #endif // TLRENDER_LIBPLACEBO
             
-            p.shaders["display"].reset();
-            _displayShader();
+            if (updateDisplayShader || !p.shaders["display"])
+            {
+                _displayShader();
+            }
         }
 
         void Render::_displayShader()
         {
             TLRENDER_P();
 
-            if (!p.shaders["display"])
-            {
-                if (p.pipelines.count("display") != 0)
-                {
-                    auto pair = p.pipelines["display"];
-                    p.garbage[p.frameIndex].pipelines.push_back(pair.second);
-                
+            std::string toneMapDef;
+            std::string ocioICSDef;
+            std::string ocioICS;
+            std::string ocioDef;
+            std::string ocio;
+            std::string lutDef;
+            std::string lut;
+            std::string toneMap;
 
-                    vlk::PipelineCreationState pipelineState;
-                    pair = std::make_pair(pipelineState, VK_NULL_HANDLE);
-                    p.pipelines["display"] = pair;
-                }
-                if (p.pipelineLayouts["display"])
-                {
-                    p.garbage[p.frameIndex].pipelineLayouts.push_back(p.pipelineLayouts["display"]);
-                    p.pipelineLayouts["display"] = VK_NULL_HANDLE;
-                }
-
-                std::string toneMapDef;
-                std::string ocioICSDef;
-                std::string ocioICS;
-                std::string ocioDef;
-                std::string ocio;
-                std::string lutDef;
-                std::string lut;
-                std::string toneMap;
-
-                // Start of binding index (0 to 5 are the standard UBOs in
-                // tlRender).
-                p.bindingIndex = 6;
-                std::size_t pushSize = 0;
+            // Start of binding index (1 is for main texture)
+            // (2 to 5 are the standard UBOs in tlRender).
+            // (6 and more are for libplacebo and OCIO).
+            p.bindingIndex = 6;
+            std::size_t pushSize = 0;
 #if defined(TLRENDER_LIBPLACEBO)
-                if (p.placeboData)
-                {
-                    pl_shader_params shader_params;
-                    memset(&shader_params, 0, sizeof(pl_shader_params));
+            if (p.placeboData)
+            {
+                pl_shader_params shader_params;
+                memset(&shader_params, 0, sizeof(pl_shader_params));
                 
-                    shader_params.id = 1;
-                    shader_params.gpu = p.placeboData->gpu;
-                    shader_params.dynamic_constants = false;
+                shader_params.id = 1;
+                shader_params.gpu = p.placeboData->gpu;
+                shader_params.dynamic_constants = false;
             
-                    pl_shader_reset(p.placeboData->shader, &shader_params);
+                pl_shader_reset(p.placeboData->shader, &shader_params);
 
-                    pl_color_map_params cmap = pl_color_map_high_quality_params;
+                pl_color_map_params cmap = pl_color_map_high_quality_params;
 
+                cmap.gamut_mapping = nullptr;
+                cmap.tone_mapping_function = nullptr;
+
+                const image::HDRData& data = p.hdrOptions.hdrData;
+
+                pl_color_space src_colorspace;
+                memset(&src_colorspace, 0, sizeof(pl_color_space));
+
+                bool isHDRVideo = false;
+                src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+                src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+
+                switch (data.eotf)
+                {
+                case image::EOTFType::EOTF_BT2100_PQ: 
+                case image::EOTFType::EOTF_BT2020:    
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
+                    src_colorspace.transfer = PL_COLOR_TRC_PQ;
+                    isHDRVideo = true;
+                    break;
+
+                case image::EOTFType::EOTF_BT2100_HLG:
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
+                    src_colorspace.transfer = PL_COLOR_TRC_HLG;
+                    isHDRVideo = true;
+                    break;
+
+                case image::EOTFType::EOTF_BT709:
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+#ifdef __APPLE___
+                    // BT.1886 is technically correct per spec, but macOS ColorSync
+                    // treats BT.709 SDR content with the sRGB-like curve.
+                    // Use SRGB to match QuickTime's output.
+                    src_colorspace.transfer = PL_COLOR_TRC_SRGB;  // was PL_COLOR_TRC_BT_1886
+#else
+                    src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+#endif
+                    break;
+
+                case image::EOTFType::EOTF_BT601:
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_601_525;
+                    src_colorspace.transfer = PL_COLOR_TRC_BT_1886; 
+                    break;
+
+                case image::EOTFType::EOTF_SRGB: 
+                default:
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+                    src_colorspace.transfer = PL_COLOR_TRC_SRGB;
+                    break;
+                }
+
+                if (isHDRVideo)
+                {                        
+                    cmap.metadata = PL_HDR_METADATA_ANY;
+
+                    pl_hdr_metadata& hdr = src_colorspace.hdr;
+                    hdr.min_luma = data.displayMasteringLuminance.getMin();
+                    hdr.max_luma = data.displayMasteringLuminance.getMax();
+                    hdr.prim.red.x = data.primaries[image::HDRPrimaries::Red][0];
+                    hdr.prim.red.y = data.primaries[image::HDRPrimaries::Red][1];
+                    hdr.prim.green.x = data.primaries[image::HDRPrimaries::Green][0];
+                    hdr.prim.green.y = data.primaries[image::HDRPrimaries::Green][1];
+                    hdr.prim.blue.x = data.primaries[image::HDRPrimaries::Blue][0];
+                    hdr.prim.blue.y = data.primaries[image::HDRPrimaries::Blue][1];
+                    hdr.prim.white.x = data.primaries[image::HDRPrimaries::White][0];
+                    hdr.prim.white.y = data.primaries[image::HDRPrimaries::White][1];
+                    hdr.max_cll = data.maxCLL;
+                    hdr.max_fall = data.maxFALL;
+
+                    hdr.scene_max[0] = data.sceneMax[0];
+                    hdr.scene_max[1] = data.sceneMax[1];
+                    hdr.scene_max[2] = data.sceneMax[2];
+                    hdr.scene_avg = data.sceneAvg;
+
+                    hdr.ootf.target_luma = data.ootf.targetLuma;
+                    hdr.ootf.knee_x = data.ootf.kneeX;
+                    hdr.ootf.knee_y = data.ootf.kneeY;
+                    hdr.ootf.num_anchors = data.ootf.numAnchors;
+                    for (int i = 0; i < hdr.ootf.num_anchors; i++)
+                        hdr.ootf.anchors[i] = data.ootf.anchors[i];
+                    
+                    if (p.placeboData->maxPeak > 0.F)
+                    {
+                        hdr.max_pq_y = p.placeboData->maxPeak;
+                        hdr.avg_pq_y = p.placeboData->avgPeak;
+                    }
+                    else
+                    {
+                        hdr.max_pq_y = data.maxPQY;
+                        hdr.avg_pq_y = data.avgPQY;
+                    }                    
+                    
+                    // defaults, generates LUTs if state is set.
+                    cmap.gamut_mapping = &pl_gamut_map_perceptual;
+                    switch (p.hdrOptions.gamutMapping)
+                    {
+                    case timeline::HDRGamutMapping::Clip:
+                        cmap.gamut_mapping = &pl_gamut_map_clip;
+                        break;
+                    case timeline::HDRGamutMapping::Perceptual:
+                        cmap.gamut_mapping = &pl_gamut_map_perceptual;
+                        break;
+                    case timeline::HDRGamutMapping::Relative:
+                        cmap.gamut_mapping = &pl_gamut_map_relative;
+                        break;
+                    case timeline::HDRGamutMapping::Saturation:
+                        cmap.gamut_mapping = &pl_gamut_map_saturation;
+                        break;
+                    case timeline::HDRGamutMapping::Absolute:
+                        cmap.gamut_mapping = &pl_gamut_map_absolute;
+                        break;
+                    case timeline::HDRGamutMapping::Desaturate:
+                        cmap.gamut_mapping = &pl_gamut_map_desaturate;
+                        break;
+                    case timeline::HDRGamutMapping::Darken:
+                        cmap.gamut_mapping = &pl_gamut_map_darken;
+                        break;
+                    case timeline::HDRGamutMapping::Highlight:
+                        cmap.gamut_mapping = &pl_gamut_map_highlight;
+                        break;
+                    case timeline::HDRGamutMapping::Linear:
+                        cmap.gamut_mapping = &pl_gamut_map_linear;
+                        break;
+                    default:
+                        break;
+                    }
+                    
+
+                    switch (p.hdrOptions.algorithm)
+                    {
+                    case timeline::HDRTonemapAlgorithm::kNone:
+                        cmap.tone_mapping_function = nullptr;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Clip:
+                        break;
+                    case timeline::HDRTonemapAlgorithm::ST2094_10:
+                        cmap.tone_mapping_function = &pl_tone_map_st2094_10;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::BT2390:
+                        cmap.tone_mapping_function = &pl_tone_map_bt2390;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::BT2446A:
+                        cmap.tone_mapping_function = &pl_tone_map_bt2446a;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Reinhard:
+                        cmap.tone_mapping_function = &pl_tone_map_reinhard;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Mobius:
+                        cmap.tone_mapping_function = &pl_tone_map_mobius;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Hable:
+                        cmap.tone_mapping_function = &pl_tone_map_hable;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Gamma:
+                        cmap.tone_mapping_function = &pl_tone_map_gamma;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Linear:
+                        cmap.tone_mapping_function = &pl_tone_map_linear;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::LinearLight:
+                        cmap.tone_mapping_function = &pl_tone_map_linear_light;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::ST2094_40:
+                        cmap.tone_mapping_function = &pl_tone_map_st2094_40;
+                        break;
+                    case timeline::HDRTonemapAlgorithm::Spline:
+                    default:
+                        cmap.tone_mapping_function = &pl_tone_map_spline;
+                        break;
+                    }
+                }
+
+                pl_color_space dst_colorspace;
+                memset(&dst_colorspace, 0, sizeof(pl_color_space));
+
+                // Resolve dst color space from swapchain FIRST, independent
+                // of HDR logic.
+                auto vkColorSpace = ctx.colorSpace; 
+                
+                if (vkColorSpace == VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
+                {
+                    // Non-linear Display P3, sRGB transfer (what macOS/P3 displays expect for SDR)
+                    dst_colorspace.primaries = PL_COLOR_PRIM_DISPLAY_P3;
+                    dst_colorspace.transfer  = PL_COLOR_TRC_SRGB;
+                    dst_colorspace.hdr.max_luma = PL_COLOR_SDR_WHITE;
+                    dst_colorspace.hdr.min_luma = p.monitor.min_nits;
+                    const struct pl_raw_primaries* raw =
+                        pl_raw_primaries_get(PL_COLOR_PRIM_DISPLAY_P3);
+                    dst_colorspace.hdr.prim.red   = raw->red;
+                    dst_colorspace.hdr.prim.green = raw->green;
+                    dst_colorspace.hdr.prim.blue  = raw->blue;
+                    dst_colorspace.hdr.prim.white = raw->white;
+                }
+                else if (vkColorSpace == VK_COLOR_SPACE_HDR10_ST2084_EXT)
+                {
+                    dst_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
+                    dst_colorspace.transfer  = PL_COLOR_TRC_PQ;
+                    dst_colorspace.hdr.min_luma = p.monitor.min_nits;
+                    dst_colorspace.hdr.max_luma = p.monitor.max_nits;
+
+                    if (p.monitor.red.x > 0)
+                    {
+                        dst_colorspace.hdr.prim.red.x = p.monitor.red.x;
+                        dst_colorspace.hdr.prim.red.y = p.monitor.red.y;
+                        dst_colorspace.hdr.prim.green.x = p.monitor.green.x;
+                        dst_colorspace.hdr.prim.green.y = p.monitor.green.y;
+                        dst_colorspace.hdr.prim.blue.x = p.monitor.blue.x;
+                        dst_colorspace.hdr.prim.blue.y = p.monitor.blue.y;
+                        dst_colorspace.hdr.prim.white.x = p.monitor.white.x;
+                        dst_colorspace.hdr.prim.white.y = p.monitor.white.y;
+                    }
+                }
+                else // VK_COLOR_SPACE_SRGB_NONLINEAR_KHR — standard SDR fallback
+                {
+                    dst_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+                    dst_colorspace.transfer  = PL_COLOR_TRC_BT_1886;
+                    dst_colorspace.hdr.max_luma = PL_COLOR_SDR_WHITE;
+                    dst_colorspace.hdr.min_luma = 0.F;
+                    const struct pl_raw_primaries* raw =
+                        pl_raw_primaries_get(PL_COLOR_PRIM_BT_709);
+                    dst_colorspace.hdr.prim.red   = raw->red;
+                    dst_colorspace.hdr.prim.green = raw->green;
+                    dst_colorspace.hdr.prim.blue  = raw->blue;
+                    dst_colorspace.hdr.prim.white = raw->white;
+                }
+
+                if (p.monitor.hdr_enabled)
+                {
+                    if (!isHDRVideo)
+                    {
+                        // Strict gamut mapping.
+                        cmap.gamut_mapping = &pl_gamut_map_clip;
+
+                        // Strict SDR passthrough (we need to use spline not
+                        // clip as suggested by Gemini)
+                        cmap.tone_mapping_function = &pl_tone_map_spline;
+                        
+                        // Ensure libplacebo doesn't try to stretch or boost
+                        // the image dynamically
+                        cmap.inverse_tone_mapping = false;
+                        cmap.metadata = PL_HDR_METADATA_NONE;
+                        
+                        src_colorspace.hdr.max_luma = PL_COLOR_SDR_WHITE; //203.0;
+                        src_colorspace.hdr.min_luma = 0.0;
+                    }
+                    
+                }
+                else
+                {
+                    if (!isHDRVideo)
+                    {
+                        // SDR video on SDR monitor - do not do any gamut or
+                        // tone mapping
+                        
+                        // Explicitly set src luminance so libplacebo doesn't have to infer
+                        src_colorspace.hdr.max_luma = PL_COLOR_SDR_WHITE;
+                        src_colorspace.hdr.min_luma = 0.F;
+
+                        if (vkColorSpace == VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
+                        {
+                            // BT.709 is a strict subset of P3, so clip is lossless here.
+                            // But we need something non-null so libplacebo handles the
+                            // primaries remap correctly and doesn't leave gamut undefined.
+                            cmap.gamut_mapping = &pl_gamut_map_clip;
+                            cmap.tone_mapping_function = nullptr; // same luminance range
+                        }
+                        else
+                        {
+                            // sRGB swapchain: src and dst are both BT.709, no conversion needed
+                            cmap.gamut_mapping = nullptr;
+                            cmap.tone_mapping_function = nullptr;
+                        }
+
+                        // Prevent any signal boosting regardless of default params
+                        cmap.inverse_tone_mapping = false;
+                        cmap.metadata = PL_HDR_METADATA_NONE;
+                    }
+                }
+                
+
+                //
+                //  If OCIO is active, do not use libplacebo for tone-mapping.
+                //
+                if (p.ocioData &&
+                    (p.ocioData->icsDesc || p.ocioData->shaderDesc))
+                {
+                    dst_colorspace.primaries = src_colorspace.primaries;
+                    dst_colorspace.transfer = src_colorspace.transfer;
+                        
+                    dst_colorspace.hdr.min_luma = 0.F;
+                    dst_colorspace.hdr.max_luma = src_colorspace.hdr.max_luma > 0 ? src_colorspace.hdr.max_luma : p.monitor.max_nits;
+                        
                     cmap.gamut_mapping = nullptr;
                     cmap.tone_mapping_function = nullptr;
+                }
 
-                    const image::HDRData& data = p.hdrOptions.hdrData;
+                pl_color_space_infer(&src_colorspace);
+                pl_color_space_infer(&dst_colorspace);
+                        
+                pl_color_map_args color_map_args;
+                memset(&color_map_args, 0, sizeof(pl_color_map_args));
 
-                    pl_color_space src_colorspace;
-                    memset(&src_colorspace, 0, sizeof(pl_color_space));
-
-                    bool hasHDR = false;
-                    src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
-                    src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                color_map_args.src = src_colorspace;
+                color_map_args.dst = dst_colorspace;
+                color_map_args.prelinearized = false;
                     
-                    switch (data.eotf)
+                color_map_args.state = &(p.placeboData->state);
+                    
+                pl_shader_color_map_ex(p.placeboData->shader, &cmap,
+                                       &color_map_args);
+                
+                const pl_shader_res* res = pl_shader_finalize(p.placeboData->shader);
+                p.placeboData->res = res;
+                if (!res)
+                {
+                    p.placeboData.reset();
+                    throw std::runtime_error("pl_shader_finalize failed!");
+                }
+
+                std::stringstream s;
+
+                // std::cerr << "num_descriptors="
+                //           << res->num_descriptors << std::endl
+                //           << "num_variables=" << res->num_variables
+                //           << std::endl
+                //           << "num_constants="
+                //           << res->num_constants << std::endl;
+                for (int i = 0; i < res->num_descriptors; i++)
+                {
+                    const pl_shader_desc* sd = &res->descriptors[i];
+                    const pl_desc* desc = &sd->desc;
+                    switch (desc->type)
                     {
-                    case image::EOTFType::EOTF_BT2100_PQ: // PQ (HDR10)
-                    case image::EOTFType::EOTF_BT2020:    // PQ (HDR10)
-                        src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
-                        src_colorspace.transfer = PL_COLOR_TRC_PQ;
-                        hasHDR = true;
+                    case PL_DESC_SAMPLED_TEX:
+                    case PL_DESC_STORAGE_IMG:
+                    {
+                        static const char* types[] = {
+                            "sampler1D",
+                            "sampler2D",
+                            "sampler3D",
+                        };
+
+                        pl_desc_binding binding = sd->binding;
+                        pl_tex tex = (pl_tex)binding.object;
+                        int dims = pl_tex_params_dimension(tex->params);
+                        const char* type = types[dims - 1];
+
+                        char prefix = ' ';
+                        switch (tex->params.format->type)
+                        {
+                        case PL_FMT_UINT:
+                            prefix = 'u';
+                            break;
+                        case PL_FMT_SINT:
+                            prefix = 'i';
+                            break;
+                        case PL_FMT_FLOAT:
+                        case PL_FMT_UNORM:
+                        case PL_FMT_SNORM:
+                        default:
+                            break;
+                        }
+
+                        s << "layout(binding=" << p.bindingIndex++
+                          << ") uniform " << prefix << type << " "
+                          << desc->name << ";" << std::endl;
                         break;
-                    case image::EOTFType::EOTF_BT2100_HLG: // HLG
-                        src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
-                        src_colorspace.transfer = PL_COLOR_TRC_HLG;
-                        hasHDR = true;
+                    }
+                    case PL_DESC_BUF_UNIFORM:
+                        throw "buf uniform";
                         break;
-                    case image::EOTFType::EOTF_BT709:
-                        src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
-                        src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
+                    case PL_DESC_BUF_STORAGE:
+                        throw "buf storage";
+                    case PL_DESC_BUF_TEXEL_UNIFORM:
+                        throw "buf texel uniform";
+                    case PL_DESC_BUF_TEXEL_STORAGE:
+                        throw "buf texel storage";
+                    case PL_DESC_INVALID:
+                    case PL_DESC_TYPE_COUNT:
+                        throw "invalid or count";
                         break;
-                    case image::EOTFType::EOTF_BT601:
+                    }
+                }
+
+                s << "//" << std::endl
+                  << "// Variables" << std::endl
+                  << "//" << std::endl
+                  << std::endl;
+
+                _parseVariables(s, pushSize, res,
+                                ctx.gpu_props.limits.maxPushConstantsSize);
+                    
+                s << std::endl
+                  << "//" << std::endl
+                  << "// Constants" << std::endl
+                  << "//" << std::endl
+                  << std::endl;
+                for (int i = 0; i < res->num_constants; ++i)
+                {
+                    // s << "layout(constant_id=" << i << ") ";
+                    const struct pl_shader_const constant =
+                        res->constants[i];
+                    switch (constant.type)
+                    {
+                    case PL_VAR_SINT:
+                        s << "const int " << constant.name << " = "
+                          << *(reinterpret_cast<const int*>(constant.data));
+                        break;
+                    case PL_VAR_UINT:
+                        s << "const uint " << constant.name << " = "
+                          << *(reinterpret_cast<const unsigned*>(
+                                   constant.data));
+                        break;
+                    case PL_VAR_FLOAT:
+                        s << "const float " << constant.name << " = "
+                          << *(reinterpret_cast<const float*>(
+                                   constant.data));
+                        break;
                     default:
-                        src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
-                        src_colorspace.transfer = PL_COLOR_TRC_SRGB;
                         break;
                     }
+                    s << ";" << std::endl;
+                }
 
-                    if (hasHDR)
-                    {
-                        // defaults, generates LUTs if state is set.
-                        cmap.gamut_mapping = &pl_gamut_map_perceptual;
-                        switch (p.hdrOptions.gamutMapping)
-                        {
-                        case timeline::HDRGamutMapping::Clip:
-                            cmap.gamut_mapping = &pl_gamut_map_clip;
-                            break;
-                        case timeline::HDRGamutMapping::Perceptual:
-                            cmap.gamut_mapping = &pl_gamut_map_perceptual;
-                            break;
-                        case timeline::HDRGamutMapping::Relative:
-                            cmap.gamut_mapping = &pl_gamut_map_relative;
-                            break;
-                        case timeline::HDRGamutMapping::Saturation:
-                            cmap.gamut_mapping = &pl_gamut_map_saturation;
-                            break;
-                        case timeline::HDRGamutMapping::Absolute:
-                            cmap.gamut_mapping = &pl_gamut_map_absolute;
-                            break;
-                        case timeline::HDRGamutMapping::Desaturate:
-                            cmap.gamut_mapping = &pl_gamut_map_desaturate;
-                            break;
-                        case timeline::HDRGamutMapping::Darken:
-                            cmap.gamut_mapping = &pl_gamut_map_darken;
-                            break;
-                        case timeline::HDRGamutMapping::Highlight:
-                            cmap.gamut_mapping = &pl_gamut_map_highlight;
-                            break;
-                        case timeline::HDRGamutMapping::Linear:
-                            cmap.gamut_mapping = &pl_gamut_map_linear;
-                            break;
-                        default:
-                            break;
-                        }
-                    
-
-                        switch (p.hdrOptions.algorithm)
-                        {
-                        case timeline::HDRTonemapAlgorithm::kNone:
-                            cmap.tone_mapping_function = nullptr;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Clip:
-                            break;
-                        case timeline::HDRTonemapAlgorithm::ST2094_10:
-                            cmap.tone_mapping_function = &pl_tone_map_st2094_10;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::BT2390:
-                            cmap.tone_mapping_function = &pl_tone_map_bt2390;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::BT2446A:
-                            cmap.tone_mapping_function = &pl_tone_map_bt2446a;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Spline:
-                            cmap.tone_mapping_function = &pl_tone_map_spline;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Reinhard:
-                            cmap.tone_mapping_function = &pl_tone_map_reinhard;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Mobius:
-                            cmap.tone_mapping_function = &pl_tone_map_mobius;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Hable:
-                            cmap.tone_mapping_function = &pl_tone_map_hable;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Gamma:
-                            cmap.tone_mapping_function = &pl_tone_map_gamma;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::Linear:
-                            cmap.tone_mapping_function = &pl_tone_map_linear;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::LinearLight:
-                            cmap.tone_mapping_function = &pl_tone_map_linear_light;
-                            break;
-                        case timeline::HDRTonemapAlgorithm::ST2094_40:
-                        default:
-                            cmap.tone_mapping_function = &pl_tone_map_st2094_40;
-                            break;
-                        }
-                        
-                        cmap.metadata = PL_HDR_METADATA_ANY;
-
-                        pl_hdr_metadata& hdr = src_colorspace.hdr;
-                        hdr.min_luma = data.displayMasteringLuminance.getMin();
-                        hdr.max_luma = data.displayMasteringLuminance.getMax();
-                        hdr.prim.red.x = data.primaries[image::HDRPrimaries::Red][0];
-                        hdr.prim.red.y = data.primaries[image::HDRPrimaries::Red][1];
-                        hdr.prim.green.x = data.primaries[image::HDRPrimaries::Green][0];
-                        hdr.prim.green.y = data.primaries[image::HDRPrimaries::Green][1];
-                        hdr.prim.blue.x = data.primaries[image::HDRPrimaries::Blue][0];
-                        hdr.prim.blue.y = data.primaries[image::HDRPrimaries::Blue][1];
-                        hdr.prim.white.x = data.primaries[image::HDRPrimaries::White][0];
-                        hdr.prim.white.y = data.primaries[image::HDRPrimaries::White][1];
-                        hdr.max_cll = data.maxCLL;
-                        hdr.max_fall = data.maxFALL;
-                        hdr.scene_max[0] = data.sceneMax[0];
-                        hdr.scene_max[1] = data.sceneMax[1];
-                        hdr.scene_max[2] = data.sceneMax[2];
-                        hdr.scene_avg = data.sceneAvg;
-                        hdr.ootf.target_luma = data.ootf.targetLuma;
-                        hdr.ootf.knee_x = data.ootf.kneeX;
-                        hdr.ootf.knee_y = data.ootf.kneeY;
-                        hdr.ootf.num_anchors = data.ootf.numAnchors;
-                        for (int i = 0; i < hdr.ootf.num_anchors; i++)
-                            hdr.ootf.anchors[i] = data.ootf.anchors[i];
-                    }  // hasHDR
-                    else
-                    {
-                        cmap.gamut_mapping = nullptr;
-                        cmap.tone_mapping_function = nullptr;
-                    }
-
-                    pl_color_space_infer(&src_colorspace);
-
-                    pl_color_space dst_colorspace;
-                    memset(&dst_colorspace, 0, sizeof(pl_color_space));
-
-                    if (p.hdrMonitorFound)
-                    {
-                        dst_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
-                        dst_colorspace.transfer = PL_COLOR_TRC_PQ;
-                        dst_colorspace.hdr.min_luma = p.monitorMinNits;
-                        dst_colorspace.hdr.max_luma = p.monitorMaxNits;
-                        
-                        if (ctx.colorSpace ==
-                            VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
-                        {
-                            dst_colorspace.primaries = PL_COLOR_PRIM_DISPLAY_P3;
-                            dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
-                        }
-                        else if (ctx.colorSpace == VK_COLOR_SPACE_HDR10_HLG_EXT)
-                        {
-                            dst_colorspace.transfer = PL_COLOR_TRC_HLG;
-                        }
-                        else if (
-                            ctx.colorSpace == VK_COLOR_SPACE_DOLBYVISION_EXT)
-                        {
-                            dst_colorspace.transfer = PL_COLOR_TRC_PQ;
-                        }
-                    }
-                    else
-                    {
-                        dst_colorspace.primaries = PL_COLOR_PRIM_BT_709;
-                        dst_colorspace.transfer = PL_COLOR_TRC_BT_1886;
-                        
-                        dst_colorspace.hdr.min_luma = 0.F;
-
-                        // SDR peak in nits
-                        // See ITU-R Report BT.2408 for more information.
-                        // or libplacebo's colorspace.h
-                        dst_colorspace.hdr.max_luma = 203.F; 
-                    }
-
-                    pl_color_space_infer(&dst_colorspace);
-                        
-                    pl_color_map_args color_map_args;
-                    memset(&color_map_args, 0, sizeof(pl_color_map_args));
-
-                    color_map_args.src = src_colorspace;
-                    color_map_args.dst = dst_colorspace;
-                    color_map_args.prelinearized = false;
-                    
-                    if (p.placeboData->state) {
-                        pl_shader_obj_destroy(&p.placeboData->state);
-                        p.placeboData->state = NULL;
-                    }
-                    color_map_args.state = &(p.placeboData->state);
-                    
-                    pl_shader_color_map_ex(p.placeboData->shader, &cmap,
-                                           &color_map_args);
-                    
-                    const pl_shader_res* res = pl_shader_finalize(p.placeboData->shader);
-                    p.placeboData->res = res;
-                    if (!res)
-                    {
-                        p.placeboData.reset();
-                        throw std::runtime_error("pl_shader_finalize failed!");
-                    }
-
-                    std::stringstream s;
-
-                    // std::cerr << "num_vertex_attribs=" <<
-                    // res->num_vertex_attribs
-                    //           << std::endl
-                    //           << "num_descriptors="
-                    //           << res->num_descriptors << std::endl
-                    //           << "num_variables=" << res->num_variables
-                    //           << std::endl
-                    //           << "num_constants="
-                    //           << res->num_constants << std::endl;
-                    for (int i = 0; i < res->num_descriptors; i++)
-                    {
-                        const pl_shader_desc* sd = &res->descriptors[i];
-                        const pl_desc* desc = &sd->desc;
-                        switch (desc->type)
-                        {
-                        case PL_DESC_SAMPLED_TEX:
-                        case PL_DESC_STORAGE_IMG:
-                        {
-                            static const char* types[] = {
-                                "sampler1D",
-                                "sampler2D",
-                                "sampler3D",
-                            };
-
-                            pl_desc_binding binding = sd->binding;
-                            pl_tex tex = (pl_tex)binding.object;
-                            int dims = pl_tex_params_dimension(tex->params);
-                            const char* type = types[dims - 1];
-
-                            char prefix = ' ';
-                            switch (tex->params.format->type)
-                            {
-                            case PL_FMT_UINT:
-                                prefix = 'u';
-                                break;
-                            case PL_FMT_SINT:
-                                prefix = 'i';
-                                break;
-                            case PL_FMT_FLOAT:
-                            case PL_FMT_UNORM:
-                            case PL_FMT_SNORM:
-                            default:
-                                break;
-                            }
-
-                            s << "layout(binding=" << p.bindingIndex++
-                              << ") uniform " << prefix << type << " "
-                              << desc->name << ";" << std::endl;
-                            break;
-                        }
-                        case PL_DESC_BUF_UNIFORM:
-                            throw "buf uniform";
-                            break;
-                        case PL_DESC_BUF_STORAGE:
-                            throw "buf storage";
-                        case PL_DESC_BUF_TEXEL_UNIFORM:
-                            throw "buf texel uniform";
-                        case PL_DESC_BUF_TEXEL_STORAGE:
-                            throw "buf texel storage";
-                        case PL_DESC_INVALID:
-                        case PL_DESC_TYPE_COUNT:
-                            throw "invalid or count";
-                            break;
-                        }
-                    }
-
-                    s << "//" << std::endl
-                      << "// Variables" << std::endl
-                      << "//" << std::endl
-                      << std::endl;
-
-                    _parseVariables(s, pushSize, res, ctx.gpu_props.limits.maxPushConstantsSize);
-                    
-                    s << std::endl
-                      << "//" << std::endl
-                      << "// Constants" << std::endl
-                      << "//" << std::endl
-                      << std::endl;
-                    for (int i = 0; i < res->num_constants; ++i)
-                    {
-                        // s << "layout(constant_id=" << i << ") ";
-                        const struct pl_shader_const constant =
-                            res->constants[i];
-                        switch (constant.type)
-                        {
-                        case PL_VAR_SINT:
-                            s << "const int " << constant.name << " = "
-                              << *(reinterpret_cast<const int*>(constant.data));
-                            break;
-                        case PL_VAR_UINT:
-                            s << "const uint " << constant.name << " = "
-                              << *(reinterpret_cast<const unsigned*>(
-                                       constant.data));
-                            break;
-                        case PL_VAR_FLOAT:
-                            s << "const float " << constant.name << " = "
-                              << *(reinterpret_cast<const float*>(
-                                       constant.data));
-                            break;
-                        default:
-                            break;
-                        }
-                        s << ";" << std::endl;
-                    }
-
-                    s << res->glsl << std::endl;
-                    toneMapDef = s.str();
+                s << res->glsl << std::endl;
+                toneMapDef = s.str();
                 
-                    try
-                    {
-                        _addTextures(p.placeboData->textures, res);
-                    }
-                    catch (const std::exception& e)
-                    {
-                        std::cerr << e.what() << std::endl;
-                        p.placeboData.reset();
-                        throw e;
-                    }
-                    toneMap = "outColor = ";
-                    toneMap += res->name;
-                    toneMap += "(outColor);\n";
-
-#if DEBUG_TONEMAPPING
-                    std::cerr << "toneMapDef="
-                              << std::endl
-                              << toneMapDef
-                              << std::endl;
-                    std::cerr << "toneMap=" << std::endl
-                              << toneMap
-                              << std::endl;
-#endif
-                }
-#endif
-#if defined(TLRENDER_OCIO)
-                if (p.ocioData && p.ocioData->icsDesc)
-                {
-                    ocioICSDef = p.ocioData->icsDesc->getShaderText();
-                    ocioICSDef =
-                        replaceUniformSampler(ocioICSDef, p.bindingIndex);
-                    ocioICS = "outColor = ocioICSFunc(outColor);";
-                }
-                if (p.ocioData && p.ocioData->shaderDesc)
-                {
-                    ocioDef = p.ocioData->shaderDesc->getShaderText();
-                    ocioDef = replaceUniformSampler(ocioDef, p.bindingIndex);
-                    ocio = "outColor = ocioDisplayFunc(outColor);";
-                }
-                if (p.lutData && p.lutData->shaderDesc)
-                {
-                    lutDef = p.lutData->shaderDesc->getShaderText();
-                    lutDef = replaceUniformSampler(lutDef, p.bindingIndex);
-                    lut = "outColor = lutFunc(outColor);";
-                }
-#endif // TLRENDER_OCIO
-                
-                const std::string source = displayFragmentSource(
-                    ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
-                    p.lutOptions.order, toneMapDef, toneMap);
-#if DEBUG_DISPLAY_SHADER
-                std::cerr << source << std::endl;
-#endif
-                if (auto context = _context.lock())
-                {
-                    context->log(
-                        "tl::vlk::VulkanRender", "Creating display shader");
-                }
-
-
 #if defined(TLRENDER_LIBPLACEBO)
                 try
                 {
@@ -2601,7 +3097,99 @@ namespace tl
                     throw e;
                 }
 #endif
-                    
+
+                toneMap =  "outColor.rgb = max(outColor.rgb, vec3(0.0));\n";
+                toneMap += "    outColor = clamp(";
+                toneMap += res->name;
+                toneMap += "(outColor), 0.0, 1.0);\n";
+            }
+#endif
+#if defined(TLRENDER_OCIO)
+            if (p.ocioData && p.ocioData->icsDesc)
+            {
+                ocioICSDef = p.ocioData->icsDesc->getShaderText();
+                ocioICSDef =
+                    replaceUniformSampler(ocioICSDef, p.bindingIndex);
+                ocioICS = "outColor = ocioICSFunc(outColor);";
+            }
+            if (p.ocioData && p.ocioData->shaderDesc)
+            {
+                ocioDef = _getOCIOUniforms(p.ocioData->shaderDesc); 
+                ocioDef = p.ocioData->shaderDesc->getShaderText();
+                ocioDef = replaceUniformSampler(ocioDef, p.bindingIndex);
+                ocio = "outColor = ocioDisplayFunc(outColor);";
+            }
+            
+            if (p.lutData && p.lutData->shaderDesc)
+            {
+                lutDef = p.lutData->shaderDesc->getShaderText();
+                lutDef = replaceUniformSampler(lutDef, p.bindingIndex);
+                lut = "outColor = lutFunc(outColor);";
+            }
+#endif // TLRENDER_OCIO
+
+            std::string debandingDef, debanding;
+            switch(p.shaderOptions.debanding)
+            {
+            case timeline::Debanding::High:
+                debandingDef = debandingFragmentSource(200.F, 32.F, 4, 96);
+                break;
+            case timeline::Debanding::Medium:
+                debandingDef = debandingFragmentSource(100.F, 24.F, 1, 64);
+                break;
+            case timeline::Debanding::Low:
+                debandingDef = debandingFragmentSource(48.F, 16.F, 1, 32);
+                break;
+            case timeline::Debanding::kNone:
+            case timeline::Debanding::Count:
+                break;
+            }
+
+            if (p.shaderOptions.debanding != timeline::Debanding::kNone)
+            {
+                debanding = "outColor = deband(textureSampler, t);\n";
+            }
+            else
+            {
+                debanding = "outColor = texture(textureSampler, t);\n";
+            }
+            
+            const std::string source = displayFragmentSource(
+                ocioICSDef, ocioICS, ocioDef, ocio, lutDef, lut,
+                p.lutOptions.order, toneMapDef, toneMap,
+                debandingDef, debanding);
+                
+            bool recreateShader = false;
+            if (!p.shaders["display"] || p.oldSource != source)
+            {
+                recreateShader = true;
+                p.oldSource = source;
+                
+#if DEBUG_DISPLAY_SHADER
+                std::cerr << source << std::endl;
+#endif
+            }
+
+
+            if (recreateShader)
+            {
+                // Stage pipeline and pipeline layouts for cleanup.
+                if (p.pipelines.count("display") != 0)
+                {
+                    auto pair = p.pipelines["display"];
+                    p.garbage[p.frameIndex].pipelines.push_back(pair.second);
+
+                    vlk::PipelineCreationState pipelineState;
+                    pair = std::make_pair(pipelineState, VK_NULL_HANDLE);
+                    p.pipelines["display"] = pair;
+                }
+                if (p.pipelineLayouts["display"])
+                {
+                    p.garbage[p.frameIndex].pipelineLayouts.push_back(std::move(p.pipelineLayouts["display"]));
+                    p.pipelineLayouts["display"] = VK_NULL_HANDLE;
+                }
+
+                // Recreate display shader
 #if USE_PRECOMPILED_SHADERS
                 p.shaders["display"] =
                     vlk::Shader::create(ctx, Vertex3_spv, Vertex3_spv_len,
@@ -2610,11 +3198,26 @@ namespace tl
                 p.shaders["display"] =
                     vlk::Shader::create(ctx, vertexSource(), source, "display");
 #endif
-
+                
                 p.shaders["display"]->createUniform(
                     "transform.mvp", p.transform, vlk::kShaderVertex);
                 p.shaders["display"]->addFBO("textureSampler");
 
+#if defined(TLRENDER_OCIO)
+                if (p.ocioData && p.ocioData->icsDesc)
+                {
+                    _createOCIOUniforms(p.ocioData->icsDesc);
+                }
+                if (p.ocioData && p.ocioData->shaderDesc)
+                {
+                    _createOCIOUniforms(p.ocioData->shaderDesc);
+                }
+                if (p.lutData && p.lutData->shaderDesc)
+                {
+                    _createOCIOUniforms(p.lutData->shaderDesc);
+                }
+#endif
+                
                 UBOLevels uboLevels;
                 p.shaders["display"]->createUniform("uboLevels", uboLevels);
 
@@ -2629,7 +3232,7 @@ namespace tl
 
                 UBOColor uboColor;
                 p.shaders["display"]->createUniform("uboColor", uboColor);
-
+                
                 UBOOptions ubo;
                 p.shaders["display"]->createUniform("ubo", ubo);
                 
@@ -2660,7 +3263,7 @@ namespace tl
 #endif // TLRENDER_OCIO
 
 #if defined(TLRENDER_LIBPLACEBO)
-                // This UBO must be added last for binding insdex to be correct.
+                // This UBO must be added last for binding index to be correct.
                 if (p.placeboData && p.placeboData->pcUBOSize > 0)
                 {
                     const size_t size = p.placeboData->pcUBOSize;
@@ -2680,9 +3283,12 @@ namespace tl
                 }
 #endif
                 p.shaders["display"]->createPush("libplacebo", pushSize, vlk::kShaderFragment);
-                
                 _createBindingSet(p.shaders["display"]);
-            }
+#if DEBUG_DISPLAY_DESCRIPTOR_SETS
+                p.shaders["display"]->debugDescriptorSets();
+#endif
+            } // recreateShader
+                
         }
     
 

@@ -82,7 +82,7 @@ etc/:
 		Windows' MSys installs and pre-flight compilation runs.
 	functions.sh
 		Auxiliary functions to extract mrv2's version, cmake's version,
-		and python version.
+		and python version and os compilers and linkers.
 	install_cmake.sh
 		Auxiliary function to install cmake.  Not used but kept in case
 		cmake gets broken on GitHub actions as it happened before.
@@ -108,30 +108,207 @@ Development Instructions
 src/icons
 	Original SVG icons in .svg format.
 
+tlRender/lib/
+	tlCore		   - Core tlRender classes.
+	tlDevice  	   - Device classes (NDI)
+	tlDraw        	   - Annotation Drawing classes.
+	tlGL	       	   - Base OpenGL classes
+	tlIO	       	   - I/O Plugin classes.
+	tlTimeline     	   - OpenTimelineIO Timeline classes.
+	tlTimelineGL	   - OpenGL Timeline drawing and tonemapping classes.
+	tlTimelineUI	   - OpenGL and Vulkan Timeline drawing/editing classes.
+	tlTimelineVK	   - Vulkan Timeline drawing and HDR classes.
+	tlUI               - Legacy GLFW drawing classes (may be removed)
+	tlVk		   - Base Vulkan classes
+	
+
 src/lib:
 
-	mrvApp     - Main application, command-line parsing and settings.
-	mrvCore    - Core functionality.
-	mrvDraw    - Annotation Drawing classes.
-	mrvEdit    - Editing callbacks and functions.
-	mrvIcons   - Binary SVG icons for faster loading.
-	mrvFl      - mrv2's classes for different functions 
-	             (needs refactoring).
-	mrvFlmm    - Mathias Melcher's Flmm_ColorA_Chooser.
-	mrvFLU     - mrv2's custom file chooser (based on origina FLU
-	             file chooser).  Needs refactoring and code cleanup.
-	mrvGL      - OpenGL driver classes.
-	mrvNetwork - Network classes.
-	mrvOptions - Options classes for mrv2's custom code.
-	mrvPanels  - All of mrv2's Docking Panels/Windows.
-	mrvPDF     - PDF exporting classes.  Needs updating to FLTK's new
-		         PDF classes (don't work under Windows 8.1 thou)?
-	mrvPy      - Python (pybind11) code.  Must remove mrv2 namespace.
-	mrvUI      - Menus, Desktop and SVG loading functions.
-	mrvViewport- Viewport functions common to all backends.
-	mrvWidgets - FLTK custom widgets and main fluid UI (.fl) files.
-	             .fl files should be refactored to mrvUI?
+	mrvApp		- Main application, command-line parsing and settings.
+	                  ----------------------------------------------------
+			  mrvApp             - Main application class (refactor)
+			  mrvFilesModel      - Files data
+			  mrvGlobals         - Global flags
+			  mrvMainControl     - Main controller
+			  mrvOpenSeparateAudioDialog - move to mrvUI
+			  mrvPlaylistModel   - Playlist model
+			  mrvSettingsObject  - Settings storage
+			  mrvStdAnyHelper    - Auxiliary functions for
+			  		       std::any class
+	mrvBaseAp	- Base classes for an application
+			  -------------------------------
+			  mrvBaseApp	     - Main base application
+			  mrvCmdLine	     - Command line parser
+			  mrvCmdLineInline   - Inline functions for command-line
+
+	mrvCore    	- Core functionality.
+			  ------------------
+			  mrvActionMode.h    - UI Action mode (refactor)
+			  mrvBackend.h       - Defines and namespaces for UI
+			  		       backend
+					       Currently OpenGL and Vulkan.
+			  mrvColorAreaInfo.h - Color area selection information
+			  		       (refactor)
+			  mrvColorSpaces.h   - Transform color among different
+			  		       color spaces
+					       (depends on Imf::Chromaticities)
+			  mrvCPU.cpp         - get CPU capabilities
+			  mrvFile.h/cpp      - Query functions for file types
+			  		       (rename to mrvFileType.h)
+			  mrvFonts.h/cpp     - list and compare fonts
+			  mrvHome.h/cpp      - list paths to several useful
+			 		       directories like preferences,
+					       user's home, etc.
+		  	  mrvHotkey.h/cpp    - Hotkey class and HotkeyEntry
+			  		       class to store user's hotkeys
+					       (refactor to mrvUI)
+			  mrvLocale.h/cpp    - RAII class to switch locale
+			  		       settings (usually LC_NUMERIC)
+			  mrvMath.h	     - Auxiliary math classes
+			  mrvMedia.h         - Static strings for ocio ICS
+			  		       defaults (refactor to mrvUI)
+			  mrvMesh.h          - Functions to create auxiliary
+			  		       meshes compatible with tlRender.
+			  mrvOrderedMap.h   - like std::map but keeps the order
+			  		      of insertion.
+			  mrvPathMapping.h/cpp
+					    - Implements path mapping algorithm.
+
+ 			  mrvSequence.h	    - Sorts sequence based on basename,
+			  		      number, view and extension.
+					      (merge into tlCore/Path.h)
+			  mrvString.h          - String auxiliary functions
+					         (some overlap with tlRender now)
+			  mrvTimeObject.h/cpp - Timecode functions.
+			  mrvUtil.h	      - Some utils that don't fit anywhere	   
+			  
+	mrvEdit    	- Editing callbacks and functions.
+			  mrvCreateEDLFromFiles - given a list of files, create
+			  			  EDL.
+			  mrvEditCallbacks      - FLTK Editing callbacks
+			  mrvEditMode		- Editing mode enum class
+			  mrvEditUtil		- Utilities for editing.
+			  
+	mrvFLTK	        - FLTK auxiliary functions and callbacks
+	
+			  mrvCallbacks          - FLTK callbacks
+			  mrvColorSchemes	- FLTK color themes
+			  mrvFileRequester	- FLTK entry point functions
+			  			  for file requester.
+			  mrvSave		  FLTK Save entry functions
+			  			 
+	mrvFl      	- mrv2's classes for different functions
+
+			  mrvContextObject	- FLTK context object
+			  			  (updates tlRender's observers)
+			  mrvHotkey		  Hotkey UI functions
+			  			  (refactor to mrvUI)
+			  mrvIO			  Main logging and output.
+			  			  (refactor to mrvCore?)
+			  mrvInit		  Initialize tlRender.
+			  mrvLanguages		  Handle internationalization.
+			  			  (refactor to mrvCore?)
+			  mrvLaserFadeData	  Laser fade data
+			  			  (refactor to mrvViewport)
+			  mrvOCIO		  OCIO changing and presets
+			  			  (refactor to mrvUI?)
+			  mrvPathMapping	  FLTK Path Mapping functions.
+			  mrvPreferences	  Load/Save/Init preferences
+			  			  (refactor to mrvUI)
+			  mrvSession		  Sessions saving and loading
+			  mrvStereo3DAux	  Match one layer to anoter one
+			  			  in OpenEXR files.
+						  (refactor to other layer
+						   file)
+		  	  mrvTimelinePlayer	 Main timeline player
+			 			 (where to put it?)
+			  mrvUSD		 Send USD flags
+			 			 (refactor)
+			  mrvVersioning		 Versioning functions
+			 			 (refactor to mrvUI)
+
+	mrvFlmm    	- Mathias Melcher's Flmm_ColorA_Chooser.
+			  Keep as is.
+
+	mrvFLU     	- mrv2's custom file chooser (based on origina FLU
+	             	  file chooser).  Needs refactoring and code cleanup.
+
+        mrvGL      	- OpenGL classes.
+			  Keep as is
+
+        mrvHDR		- HDR support libraries for 'hdr' utility.
+			  Keep as is.
+			  
+        mrvHDRWidgets   - Main UI of 'hdr' utility.
+			  (refactor to mrvHDR)
+			  
+	mrvIcons   	- Binary SVG icons for faster loading.
+	
+	mrvNetwork 	- Network classes.
+			  Keep as is.
+			  
+	mrvOptions 	- Options classes for mrv2's custom code.
+			  Keep as is.
+			  
+	mrvPanels  	- All of mrv2's Docking Panels/Windows.
+			  Keep as is.
+			  
+	mrvPDF     	- PDF exporting classes.  Needs updating to FLTK's new
+		          PDF classes.
+			  Keep as is.
+			  
+	mrvOS		- OS functions common to all platforms.
+
+  			  mrvEnv.*              - Windows wchar versions of Unix
+					         setenv and unsetenv.
+			  mrvFileManager.*      - Open files in default file manager.
+			  mrvI8N.h	        - Handle internationalization with
+			  		          gettext / libintl
+					         (why do Windows needs turning
+					       	  off macros?)
+			  mrvMemory.*		- Get virtual and physical memory
+			  			  total and used.
+			  mrvRoot.*             - Finds root directory from argv[0]
+			 		          and sets MRV2_ROOT environment
+					          variable to it
+			  mrvSignalHandler.h    - Installs signal handler
+			  mrvStackTrace.h       - Spit out a stack trace
+			  
+			  mrvMemory.h           - Function used to determine used
+			  		          and virtual memory on all
+					         OSes.
+			  mrvOS.h               - Common functions like execv on
+			  		          all platforms.  (Split and
+					         refactor between mrvOS/ and
+					         mrvUI/)
+			
+	mrvPy		- Python (pybind11) code.  Must remove mrv2 namespace.
+			  Keep as is.  Some files renaming perhasp.
+			  
+	mrvUI      	- Menus, Desktop and SVG loading functions.
+			  Keep as is, move a bunch of files here too.
+
+			  mrvDesktop and mrvMonitor move to mrvCore, so
+			  it can be used by mrvUI without repeating code.
+
+	mrvViewport	- Viewport functions common to all backends.
+			  Keep as is.
+
+        mrvVk      	- Vulkan classes.
+			  Keep as is
+			  
+	mrvWidgets 	- FLTK custom widgets and main fluid UI (.fl) files.
+	             	  .fl files should be refactored to mrvUI?
+			  Keep as is.
+
+src/hdr:
+	Main entry point for 'hdr' NDI utility.
 
 src/main:
-
 	main.cpp     - Main entry point and python module initialization.
+		       
+
+
+Files with horrible code:
+
+      All of mrvFLU 

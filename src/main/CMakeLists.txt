@@ -16,7 +16,8 @@ if (WIN32)
 endif()
 
 set(LIBRARIES )
-
+set(LIBRARIES_PRIVATE )
+    
 if(MRV2_PYBIND11)
     list(APPEND LIBRARIES mrvPy)
 else()
@@ -27,7 +28,8 @@ if(TLRENDER_VK AND MRV2_BACKEND STREQUAL "VK")
     list(APPEND LIBRARIES ${FLTK_vk_LIBRARY})
 endif()
 
-list(APPEND LIBRARIES ${FLTK_LIBRARIES} ${Intl_LIBRARIES})
+list(APPEND LIBRARIES ${FLTK_LIBRARIES} ${Intl_LIBRARIES} tlRender::tlIO tlRender::tlCore)
+
 
 
 if( APPLE )
@@ -109,34 +111,10 @@ if (MRV2_PYBIND11)
     endif()
 endif()
 
-if(TLRENDER_NDI)
-    # NDI libraries have two names: Advanced and normal.
-    # We use a glob to simplify and also for potential future development
-    # of NDI's SDK.
-    if (WIN32)
-	if (TLRENDER_NDI_SDK MATCHES ".*Advanced.*")
-	    # Advanced lib is ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.Advanced.x64.dll
-	    file( GLOB MRV2_LIB_DLLS ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.Advanced.x64.dll )
-	else()
-	    # Normal lib is ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.x64.dll
-	    file( GLOB MRV2_LIB_DLLS ${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.x64.dll )
-	endif()
-	install( FILES  ${MRV2_LIB_DLLS}
-	    DESTINATION bin
-	    COMPONENT applications )
-    elseif (APPLE)
-	file( GLOB MRV2_LIB_DLLS ${TLRENDER_NDI_SDK}/lib/macOS/*.dylib* )
-	install( FILES ${MRV2_LIB_DLLS}
-	    DESTINATION lib
-	    COMPONENT applications )
-    elseif(UNIX)
-	file( GLOB MRV2_LIB_DSOS ${TLRENDER_NDI_SDK}/lib/x86_64-linux-gnu/*.so* )
-	install( FILES ${MRV2_LIB_DSOS}
-	    DESTINATION lib
-	    COMPONENT applications )
-    endif()
-endif()
-
+#
+# Install NDI for the platform (on Linux tries to detect architecture)
+#
+install_ndi()
     
 if ( APPLE )
 

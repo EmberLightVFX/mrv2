@@ -9,7 +9,7 @@
 
 #include <FL/Enumerations.H>
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 
 namespace mrv
 {
@@ -88,6 +88,7 @@ namespace mrv
     extern Hotkey kOpenDirectory;
     extern Hotkey kOpenSingleImage;
     extern Hotkey kOpenImage;
+    extern Hotkey kOpenURLMovie;
     extern Hotkey kOpenSeparateAudio;
     extern Hotkey kOpenSingleImage;
     extern Hotkey kOpenStereoImage;
@@ -143,8 +144,8 @@ namespace mrv
     extern Hotkey kHDRDataFromFile;
     extern Hotkey kHDRDataFalse;
     extern Hotkey kHDRDataTrue;
-    
-    extern Hotkey kToggleHDRTonemap;
+
+    extern Hotkey kToggleHDRPeakDetection;
 
     extern Hotkey kDisplayWindow;
     extern Hotkey kDataWindow;
@@ -172,6 +173,11 @@ namespace mrv
     extern Hotkey kRotatePlus90;
     extern Hotkey kRotateMinus90;
 
+    extern Hotkey kDebandingNone;
+    extern Hotkey kDebandingLow;
+    extern Hotkey kDebandingMedium;
+    extern Hotkey kDebandingHigh;
+    
     extern Hotkey kVideoLevelsFile;
     extern Hotkey kVideoLevelsLegalRange;
     extern Hotkey kVideoLevelsFullRange;
@@ -192,7 +198,7 @@ namespace mrv
 
     extern Hotkey kFrameStepFwd;
     extern Hotkey kFrameStepFPSFwd;
-
+    
     extern Hotkey kPlayBack;
     extern Hotkey kPlayBackHalfSpeed;
 
@@ -318,6 +324,7 @@ namespace mrv
     extern Hotkey kToggleNetwork;
     extern Hotkey kToggleStereo3D;
     extern Hotkey kToggleUSD;
+    extern Hotkey kToggleWebRTC;
     
     //! Window behavior
     extern Hotkey kToggleClickThrough;
@@ -349,6 +356,7 @@ namespace mrv
     extern Hotkey kEditRemoveVideoGap;
     extern Hotkey kEditInsertAudioGap;
     extern Hotkey kEditRemoveAudioGap;
+    extern Hotkey kEditRemoveSelected;
 
     extern Hotkey kEditAddTransition;
 

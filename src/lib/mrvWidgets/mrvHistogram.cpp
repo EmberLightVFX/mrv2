@@ -10,7 +10,7 @@
 #include "mrViewer.h"
 
 #include "mrvCore/mrvColor.h"
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 
 #include <tlCore/Math.h>
 
@@ -33,9 +33,11 @@ namespace mrv
 
     void Histogram::draw()
     {
+        fl_antialias(0);
         fl_rectf(x(), y(), w(), h(), 0, 0, 0);
         if (maxLumma > 0)
             draw_pixels();
+        fl_antialias(1);
     }
 
     void Histogram::count_pixel(const uint8_t* rgb) noexcept
@@ -92,19 +94,13 @@ namespace mrv
         for (size_t i = 0; i < dataSize; ++i)
         {
             pixel = color::fromVoidPtr(ptr, info.pixelType);
-#ifdef VULKAN_BACKEND
-            rgb[0] = (uint8_t)math::clamp(pixel.r * 255.0f, 0.f, 255.f);
-            rgb[1] = (uint8_t)math::clamp(pixel.g * 255.0f, 0.f, 255.f);
-            rgb[2] = (uint8_t)math::clamp(pixel.b * 255.0f, 0.f, 255.f);
-#elif OPENGL_BACKEND
-            rgb[0] = (uint8_t)math::clamp(pixel.b * 255.0f, 0.f, 255.f);
-            rgb[1] = (uint8_t)math::clamp(pixel.g * 255.0f, 0.f, 255.f);
-            rgb[2] = (uint8_t)math::clamp(pixel.r * 255.0f, 0.f, 255.f);
-#else
-            rgb[0] = (uint8_t)math::clamp(pixel.r * 255.0f, 0.f, 255.f);
-            rgb[1] = (uint8_t)math::clamp(pixel.g * 255.0f, 0.f, 255.f);
-            rgb[2] = (uint8_t)math::clamp(pixel.b * 255.0f, 0.f, 255.f);
+#ifdef OPENGL_BACKEND
+            std::swap(pixel.r, pixel.b);
 #endif
+            rgb[0] = (uint8_t)math::clamp(pixel.r * 255.0f, 0.f, 255.f);
+            rgb[1] = (uint8_t)math::clamp(pixel.g * 255.0f, 0.f, 255.f);
+            rgb[2] = (uint8_t)math::clamp(pixel.b * 255.0f, 0.f, 255.f);
+
             count_pixel(rgb);
             ptr += channelCount * byteCount;
         }

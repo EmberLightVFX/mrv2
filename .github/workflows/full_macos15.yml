@@ -5,7 +5,7 @@ on:
     branches-ignore:
       - main
     tags-ignore:
-      - "**"
+      - '**'
   workflow_dispatch:
 
 jobs:
@@ -20,21 +20,34 @@ jobs:
     #   contents: write   # Needed to update releases
 
     steps:
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 1
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
 
+      - name: Install ccache
+        run: brew install ccache
+
+      - name: Configure ccache
+        run: |
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          echo "CCACHE_DATE=$(date +'%Y-%m')" >> $GITHUB_ENV
+          ccache --max-size=500M
+              
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-${{ runner.arch }}-OpenGL-ccache-${{ env.CCACHE_DATE }}
+          restore-keys: |
+              ${{ runner.os }}-${{ runner.arch }}-OpenGL-ccache-
+              
       - name: Get machine name
         run: |
           echo "Machine name: $RUNNER_NAME"
-
+   
       - name: Install ninja-build
         run: brew install ninja
 
@@ -42,7 +55,7 @@ jobs:
         run: brew install gettext
 
       - name: Install automake and other network utils
-        run: brew install automake curl rsync wget
+        run: brew install automake autoconf curl rsync wget
 
       - name: Install GNU sed
         run: brew install gnu-sed
@@ -72,10 +85,16 @@ jobs:
 
       - name: Decode FLTK SSH key
         run: |
+            mkdir -p ~/.ssh
+            echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+            chmod 600 ~/.ssh/id_ed25519
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Add SourceForge to known_hosts
+        shell: bash
+        run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
 
       - name: Set executable permissions
         run: |
@@ -87,7 +106,6 @@ jobs:
 
       - name: Build mrv2
         env:
-          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON
@@ -116,10 +134,6 @@ jobs:
         run: |
           ./etc/runme_nolog.sh -t package clean
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-opengl-macos-intel
-          path: |
-            paquetes/BUILD-Darwin-amd64/Release/mrv2-*.dmg
-          if-no-files-found: warn
+      - name: Upload binaries
+        run: |
+          ./bin/release/upload_sourceforge.sh

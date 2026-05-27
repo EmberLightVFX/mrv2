@@ -11,11 +11,12 @@
 
 #include "mrViewer.h"
 
+#include "mrvImage/mrvOperations.h"
+
 #include "mrvCore/mrvBackend.h"
 #include "mrvCore/mrvHome.h"
-#include "mrvCore/mrvImageOps.h"
-#include "mrvCore/mrvString.h"
-#include "mrvCore/mrvWait.h"
+#include "mrvOS/mrvString.h"
+#include "mrvFLTK/mrvWait.h"
 
 #ifdef OPENGL_BACKEND
 #    include <tlGL/Init.h>
@@ -91,7 +92,8 @@ namespace mrv
             auto item = model->observeA()->get();
             auto path = item->path;
             std::string title =
-                path.getBaseName() + path.getNumber() + path.getExtension();
+                path.getBaseName() + path.getNumber() + path.getSuffix() +
+                path.getExtension();
 
             char page_title[256];
             /* xgettext:c-format */
@@ -488,7 +490,13 @@ namespace mrv
 
                 view->wait_queue();
             
-                const void* imageData = buffer->getLatestReadPixels();
+                VkResult result = VK_NOT_READY;
+                void* imageData = nullptr;
+                while (result == VK_NOT_READY)
+                {
+                    result = buffer->getLatestReadPixels(imageData);
+                }
+                
                 if (imageData)
                 {
                     std::memcpy(bufferImage->getData(), imageData,
@@ -514,8 +522,14 @@ namespace mrv
                     overlayBuffer->submitReadback(cmd);
 
                     view->wait_queue();
-            
-                    imageData = overlayBuffer->getLatestReadPixels();
+
+                    VkResult result = VK_NOT_READY;
+                    void* imageData = nullptr;
+                    while (result == VK_NOT_READY)
+                    {
+                        result = overlayBuffer->getLatestReadPixels(imageData);
+                    }
+                    
                     if (imageData)
                     {
                         std::memcpy(annotationImage->getData(), imageData,

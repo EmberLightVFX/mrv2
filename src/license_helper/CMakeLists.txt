@@ -4,25 +4,18 @@
 
 
 set(HEADERS
-    mrvEnv.h
     mrvFile.h
     mrvHome.h
-    mrvI8N.h
+    mrvIO.h
     mrvLanguages.h
     mrvMainWindow.h
-    mrvOS.h
-    mrvRoot.h
-    mrvString.h
 )
 set(SOURCES
     main.cpp
-    mrvEnv.cpp
     mrvFile.cpp
     mrvHome.cpp
+    mrvIO.cpp
     mrvLanguages.cpp
-    mrvOS.cpp
-    mrvRoot.cpp
-    mrvString.cpp
 )
 
 lic_files_to_absolute_paths()
@@ -40,7 +33,7 @@ endif()
 # Use static FLTK
 #
 set(LIBRARIES )
-list(APPEND LIBRARIES fltk::fltk ${Intl_LIBRARIES}) # Use static FLTK, not shared one
+list(APPEND LIBRARIES ${FLTK_LIBRARIES} mrvOS ${Intl_LIBRARIES})
 
 add_executable(license_helper WIN32 ${SOURCES} ${HEADERS})
 

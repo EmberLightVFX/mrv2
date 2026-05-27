@@ -240,21 +240,24 @@ namespace tl
                 char buf[4096];
                 const std::string& directory = path.getDirectory();
                 const std::string& baseName  = path.getBaseName();
+                const std::string& suffix    = path.getSuffix();
                 const std::string& extension = path.getExtension();
                 const int padding = path.getPadding();
                 if (padding == 0)
                 {
-                    snprintf(buf, 4096, "%s%s%%d%s",
+                    snprintf(buf, 4096, "%s%s%%d%s%s",
                              directory.c_str(),
                              baseName.c_str(),
+                             suffix.c_str(),
                              extension.c_str());
                 }
                 else
                 {
-                    snprintf(buf, 4096, "%s%s%%0%dd%s",
+                    snprintf(buf, 4096, "%s%s%%0%dd%s%s",
                              directory.c_str(),
                              baseName.c_str(),
                              padding,
+                             suffix.c_str(),
                              extension.c_str());
                 }
                 formatFileName = buf;
@@ -724,9 +727,24 @@ namespace tl
                 switch (params->color_space)
                 {
                 case AVCOL_SPC_BT2020_NCL:
+                case AVCOL_SPC_BT2020_CL:
                     _info.yuvCoefficients = image::YUVCoefficients::BT2020;
                     break;
+                    // Standard Dynamic Range (SDR)
+                case AVCOL_SPC_BT709:
+                    _info.yuvCoefficients = image::YUVCoefficients::REC709;
+                    break;
+
+                    // Standard Definition (Optional, depending on your needs)
+                case AVCOL_SPC_SMPTE170M:
+                case AVCOL_SPC_BT470BG:
+                    _info.yuvCoefficients = image::YUVCoefficients::BT601;
+                    break;
+
                 default:
+                    // A safe default is usually Rec.709, though strictly speaking 
+                        // you might want to guess based on video resolution.
+                        _info.yuvCoefficients = image::YUVCoefficients::REC709; 
                     break;
                 }
 
@@ -946,17 +964,10 @@ namespace tl
                     _tags["Video Speed"] = ss.str();
                 }
 
-                bool hasHDR = toHDRData(avVideoStream, _hdr);
+                toHDRData(avVideoStream, _hdr);
                 _hdr.eotf = toEOTF(_avColorTRC);
-                if (_hdr.eotf != image::EOTF_BT709 &&
-                    _hdr.eotf != image::EOTF_BT601)
-                {
-                    hasHDR = true;
-                    setPrimariesFromAVColorPrimaries(params->color_primaries,
-                                                     _hdr);
-                }
-                if (hasHDR)
-                    _tags["hdr"] = nlohmann::json(_hdr).dump();
+                setPrimariesFromAVColorPrimaries(params->color_primaries,
+                                                 _hdr);
             }
         }
 
@@ -1406,16 +1417,13 @@ namespace tl
                         tags[tag->key] = tag->value;
                     }
                     
-                    if (_hdr.eotf != image::EOTF_BT709 &&
-                        _hdr.eotf != image::EOTF_BT601)
+                    _hdr.eotf = toEOTF(_avFrame->color_trc);
+                    setPrimariesFromAVColorPrimaries(_avFrame->color_primaries,
+                                                     _hdr);
+                    if (image::isHDR(_hdr))
                     {
-                        const auto params = _avCodecParameters[_avStream];
-                        setPrimariesFromAVColorPrimaries(_avFrame->color_primaries,
-                                                         _hdr);
-                        _hdr.eotf = toEOTF(_avFrame->color_trc);
-                        bool hasHDR = toHDRData(_avFrame, _hdr);
-                        if (hasHDR)
-                            tags["hdr"] = nlohmann::json(_hdr).dump();
+                        toHDRData(_avFrame, _hdr);
+                        image->setHDR(_hdr);
                     }
                     image->setTags(tags);
                     

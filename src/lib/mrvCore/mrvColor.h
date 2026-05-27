@@ -14,5 +14,6 @@ namespace mrv
     {
         using namespace tl;
         image::Color4f fromVoidPtr(const void* ptr, const image::PixelType pixelType);
+           
     }
 }

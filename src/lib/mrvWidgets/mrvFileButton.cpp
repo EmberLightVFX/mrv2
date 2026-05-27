@@ -4,28 +4,30 @@
 
 #include "mrViewer.h"
 
-#include <FL/Fl.H>
-#include <FL/Fl_Menu_Button.H>
 
-#include <tlCore/Vector.h>
+#include "mrvApp/mrvFilesModel.h"
+#include "mrvApp/mrvApp.h"
 
-#include "mrvCore/mrvString.h"
-#include "mrvCore/mrvI8N.h"
+#include "mrvPanels/mrvPanelsCallbacks.h"
 
-#include "mrvFl/mrvCallbacks.h"
 #include "mrvFl/mrvIO.h"
+
+#include "mrvUI/mrvDesktop.h"
+
+#include "mrvEdit/mrvEditCallbacks.h"
+
+#include "mrvFLTK/mrvCallbacks.h"
 
 #include "mrvWidgets/mrvFileButton.h"
 #include "mrvWidgets/mrvFileDragger.h"
 
-#include "mrvEdit/mrvEditCallbacks.h"
+#include "mrvOS/mrvString.h"
+#include "mrvOS/mrvI8N.h"
 
-#include "mrvUI/mrvDesktop.h"
+#include <tlCore/Vector.h>
 
-#include "mrvPanels/mrvPanelsCallbacks.h"
-
-#include "mrvApp/mrvFilesModel.h"
-#include "mrvApp/mrvApp.h"
+#include <FL/Fl.H>
+#include <FL/Fl_Menu_Button.H>
 
 
 namespace
@@ -36,6 +38,26 @@ namespace
 namespace mrv
 {
     using namespace panel;
+    
+    static void file_sort_loaded_cb(Fl_Menu_*, void*)
+    {
+        filesPanel->setSort(Sort::Loaded);
+    }
+    
+    static void file_sort_file_name_cb(Fl_Menu_*, void*)
+    {
+        filesPanel->setSort(Sort::FileName);
+    }
+    
+    static void file_sort_directory_cb(Fl_Menu_*, void*)
+    {
+        filesPanel->setSort(Sort::Directory);
+    }
+    
+    static void file_sort_user_cb(Fl_Menu_*, void*)
+    {
+        filesPanel->setSort(Sort::User);
+    }
 
     struct FileButton::Private
     {
@@ -71,11 +93,15 @@ namespace mrv
         case FL_FOCUS:
         case FL_UNFOCUS:
             return 1;
+        case FL_MOVE:
+            window()->cursor(FL_CURSOR_HAND);
+            return 1;
         case FL_ENTER:
-            take_focus();
+            //take_focus();
             return 1;
         case FL_LEAVE:
-            Fl::focus(App::ui->uiView);
+            //Fl::focus(App::ui->uiView);
+
             // If user pressed button3 while dragging, the window would freeze.
             // This should avoid that.
             if (Fl::event_button3())
@@ -118,7 +144,7 @@ namespace mrv
                 p.drag = nullptr;
                 selection_color(FL_YELLOW);
 
-                if (box.contains(pos))
+                if (math::contains(box, pos))
                 {
                     add_clip_to_timeline_cb(p.index, ui);
                     panel::redrawThumbnails();
@@ -128,7 +154,7 @@ namespace mrv
                 if (playlistPanel)
                 {
                     const math::Box2i& box = playlistPanel->global_box();
-                    if (box.contains(pos))
+                    if (math::contains(box, pos))
                     {
                         playlistPanel->add(pos, p.index, ui);
                         panel::redrawThumbnails();
@@ -149,10 +175,6 @@ namespace mrv
             }
             if (Fl::event_button1())
             {
-                const std::string text = label();
-                auto lines = string::split(text, '\n');
-                std::string filename = lines[0] + lines[1];
-
                 if (!p.drag)
                 {
                     p.drag = FileDragger::create();
@@ -188,6 +210,15 @@ namespace mrv
                 menu.add(
                     _("&File/&Refresh Cache"), 0,
                     (Fl_Callback*)refresh_file_cache_cb, 0, 0);
+                menu.add("&Order/Loaded", 0,
+                         (Fl_Callback*)file_sort_loaded_cb, 0, 0);
+                menu.add("&Order/File Name", 0,
+                         (Fl_Callback*)file_sort_file_name_cb, 0, 0);
+                menu.add("&Order/Directory", 0,
+                         (Fl_Callback*)file_sort_directory_cb, 0, 0);
+                menu.add("&Order/User", 0,
+                         (Fl_Callback*)file_sort_user_cb, 0, 0);
+
                 menu.add(
                     _("&Copy/&Filename"), 0, (Fl_Callback*)copy_filename_cb, 0,
                     0);

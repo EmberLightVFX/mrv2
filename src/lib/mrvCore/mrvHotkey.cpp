@@ -17,11 +17,12 @@ namespace
 
 namespace mrv
 {
-    // on macOS            ctrl, cmd. , alt, shift, key
-    //                     ctrl, meta , alt, shift, key
+    // on macOS           ctrl, cmd. , alt, shift, key, (text)
+    // on Linux/Windows   ctrl, meta , alt, shift, key, (text)
     Hotkey kOpenDirectory(true, false, false, true, 'o');
     Hotkey kOpenSingleImage(false, false, false, false, 0);
     Hotkey kOpenImage(true, false, false, false, 'o');
+    Hotkey kOpenURLMovie(false, false, false, false, 0);
     Hotkey kOpenSeparateAudio(false, false, false, false, 0);
     Hotkey kOpenSession(false, false, true, false, 'o');
 
@@ -79,6 +80,8 @@ namespace mrv
     Hotkey kHDRDataTrue(false, false, false, false, 0);
     
     Hotkey kToggleHDRTonemap(false, false, false, false, 0);
+
+    Hotkey kToggleHDRPeakDetection(false, false, false, false, 0);
 
     Hotkey kDisplayWindow(true, false, false, false, 'd');
     Hotkey kDataWindow(false, false, false, false, 'd');
@@ -238,6 +241,7 @@ namespace mrv
     Hotkey kToggleTimelineThumbnails(false, false, false, false, 0);
     Hotkey kToggleTimelineTransitions(false, false, false, false, 0);
     Hotkey kToggleTimelineMarkers(false, false, false, false, 0);
+    Hotkey kToggleWebRTC(false, false, false, true, 'n');
 
     // Hotkey to allow mouse click handling to pass through the FLTK window to
     // the OS windows behind it.
@@ -266,6 +270,7 @@ namespace mrv
     Hotkey kEditRemoveVideoGap(false, false, false, false, 0);
     Hotkey kEditInsertAudioGap(false, false, false, false, 0);
     Hotkey kEditRemoveAudioGap(false, false, false, false, 0);
+    Hotkey kEditRemoveSelected(false, false, false, false, 0);
 
     Hotkey kEditAddTransition(false, false, false, false, 0);
 
@@ -283,6 +288,11 @@ namespace mrv
 
     Hotkey kRotatePlus90(false, false, false, false, '+');
     Hotkey kRotateMinus90(false, false, false, false, '-');
+
+    Hotkey kDebandingNone(false, false, false, false, 0);
+    Hotkey kDebandingLow(false, false, false, false, 0);
+    Hotkey kDebandingMedium(false, false, false, false, 0);
+    Hotkey kDebandingHigh(false, false, false, false, 0);
 
     Hotkey kVideoLevelsFile(false, false, false, false, 0);
     Hotkey kVideoLevelsLegalRange(false, false, false, false, 0);
@@ -405,6 +415,7 @@ namespace mrv
 
         HotkeyEntry(_("Open Directory"), &kOpenDirectory),
         HotkeyEntry(_("Open Movie or Sequence"), &kOpenImage),
+        HotkeyEntry(_("Open URL Movie"), &kOpenURLMovie),
         HotkeyEntry(_("Open Single Image"), &kOpenSingleImage),
         HotkeyEntry(_("Open Session"), &kOpenSession),
         HotkeyEntry(_("Open New Program Instance"), &kOpenNewInstance),
@@ -452,6 +463,7 @@ namespace mrv
         HotkeyEntry(_("HDR Data Inactive"), &kHDRDataFalse),
         HotkeyEntry(_("HDR Data Active"), &kHDRDataTrue),
         HotkeyEntry(_("Toggle HDR tonemap"), &kToggleHDRTonemap),
+        HotkeyEntry(_("Toggle HDR Peak Detection"), &kToggleHDRPeakDetection),
         HotkeyEntry(_("Display Window"), &kDisplayWindow),
         HotkeyEntry(_("Data Window"), &kDataWindow),
         HotkeyEntry(_("Compare None"), &kCompareNone),
@@ -472,6 +484,11 @@ namespace mrv
 
         HotkeyEntry(_("Rotate Images +90 Degrees"), &kRotatePlus90),
         HotkeyEntry(_("Rotate Images -90 Degrees"), &kRotateMinus90),
+
+        HotkeyEntry(_("Debanding None"), &kDebandingNone),
+        HotkeyEntry(_("Debanding Small"), &kDebandingLow),
+        HotkeyEntry(_("Debanding Medium"), &kDebandingMedium),
+        HotkeyEntry(_("Debanding High"), &kDebandingHigh),
 
         HotkeyEntry(_("Video Levels from File"), &kVideoLevelsFile),
         HotkeyEntry(_("Video Levels Legal Range"), &kVideoLevelsLegalRange),
@@ -539,7 +556,8 @@ namespace mrv
         HotkeyEntry(_("Remove Video Gap"), &kEditRemoveVideoGap),
         HotkeyEntry(_("Insert Audio Gap"), &kEditInsertAudioGap),
         HotkeyEntry(_("Remove Audio Gap"), &kEditRemoveAudioGap),
-
+        HotkeyEntry(_("Remove Selected"), &kEditRemoveSelected),
+        
         HotkeyEntry(_("Edit - Add Transition"), &kEditAddTransition),
 
         HotkeyEntry(_("Edit - Fill Tool"), &kEditFill),
@@ -569,6 +587,7 @@ namespace mrv
             _("Toggle Secondary Float On Top"), &kToggleSecondaryFloatOnTop),
         HotkeyEntry(_("Toggle NDI"), &kToggleNDI),
         HotkeyEntry(_("Toggle Network"), &kToggleNetwork),
+        HotkeyEntry(_("Toggle WebRTC"), &kToggleWebRTC),
         HotkeyEntry(_("Toggle USD"), &kToggleUSD),
         HotkeyEntry(_("Toggle Stereo 3D"), &kToggleStereo3D),
         HotkeyEntry(_("Toggle Edit Mode"), &kToggleEditMode),

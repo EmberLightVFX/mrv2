@@ -13,7 +13,7 @@
 #include "mrViewer.h"
 
 #include "mrvCore/mrvHome.h"
-#include "mrvCore/mrvMemory.h"
+#include "mrvOS/mrvMemory.h"
 
 #include "mrvIcons/Settings.h"
 
@@ -25,7 +25,7 @@
 #include "mrvPanels/mrvPanelsCallbacks.h"
 #include "mrvPanels/mrvSettingsPanel.h"
 
-#include "mrvFl/mrvCallbacks.h"
+#include "mrvFLTK/mrvCallbacks.h"
 #include "mrvFl/mrvIO.h"
 
 #include "mrvApp/mrvFilesModel.h"

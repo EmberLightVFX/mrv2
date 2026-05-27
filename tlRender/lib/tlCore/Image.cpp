@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <iostream>
 
@@ -22,7 +23,7 @@ namespace tl
         {
             math::Box2i out;
             const math::Size2i boxSize = box.getSize();
-            const float boxAspect = boxSize.getAspect();
+            const float boxAspect = aspectRatio(boxSize);
             if (boxAspect > aspect)
             {
                 out = math::Box2i(
@@ -61,7 +62,7 @@ namespace tl
             "ARGB_4444_Premult");
         TLRENDER_ENUM_SERIALIZE_IMPL(PixelType);
 
-        TLRENDER_ENUM_IMPL(YUVCoefficients, "REC709", "BT2020");
+        TLRENDER_ENUM_IMPL(YUVCoefficients, "REC709", "BT2020", "BT601");
         TLRENDER_ENUM_SERIALIZE_IMPL(YUVCoefficients);
 
         math::Vector4f getYUVCoefficients(YUVCoefficients value)
@@ -91,7 +92,9 @@ namespace tl
                 math::Vector4f, static_cast<size_t>(YUVCoefficients::Count)>
                 data = {
                     math::Vector4f(1.5748, 0.468124273, 0.187324273, 1.8556),
-                    math::Vector4f(1.4746, 0.6780, 0.0593, 1.8814)};
+                    math::Vector4f(1.4746, 0.56138, 0.16455, 1.8814),
+                    math::Vector4f(1.402f,  0.714136f, 0.344136f, 1.772f),
+            };
             return data[static_cast<size_t>(value)];
         }
 
@@ -379,14 +382,34 @@ namespace tl
             return out;
         }
 
+        namespace
+        {
+            std::atomic<size_t> objectCount = 0;
+            std::atomic<size_t> totalByteCount = 0;
+        }
+        
+        size_t Image::getTotalByteCount()
+        {
+            return totalByteCount;
+        }
+        
+        size_t Image::getObjectCount()
+        {
+            return objectCount;
+        }
+        
         void Image::_init(const Info& info, const bool ownsData)
         {
             _info = info;
             _owns = ownsData;
             _dataByteCount = image::getDataByteCount(info);
+
+            totalByteCount += _dataByteCount;
+            ++objectCount;
+            
             if (ownsData)
             {
-                //! \bug Allocate a bit of extra space since FFmpeg sws_scale()
+                //! Allocate a bit of extra space since FFmpeg sws_scale()
                 //! seems to be reading past the end?
                 _data = new uint8_t[_dataByteCount + 16];
             }
@@ -400,6 +423,9 @@ namespace tl
         {
             if (_owns)
                 delete [] _data;
+            
+            totalByteCount -= _dataByteCount;
+            --objectCount;
         }
 
         std::shared_ptr<Image> Image::create(const Info& info)
@@ -453,6 +479,18 @@ namespace tl
             std::memset(_data, 0xFF, _dataByteCount);
         }
 
+        void to_json(nlohmann::json& j, const Mirror& value)
+        {
+            j["x"] = value.x;
+            j["y"] = value.y;
+        }
+
+        void from_json(const nlohmann::json& j, Mirror& value)
+        {
+            j.at("x").get_to(value.x);
+            j.at("y").get_to(value.y);
+        }
+        
         void to_json(nlohmann::json& json, const Size& value)
         {
             json = {value.w, value.h};
@@ -497,5 +535,6 @@ namespace tl
             out.h = std::stoi(split[1]);
             return is;
         }
+        
     } // namespace image
 } // namespace tl

@@ -32,6 +32,8 @@
 #include "mrvCore/mrvHome.h"
 #include "mrvCore/mrvFile.h"
 
+#include "mrvOS/mrvFile.h"
+
 #include <string>
 #include <vector>
 #include <map>
@@ -47,11 +49,13 @@ namespace mrv
     {
 
         typedef std::map< FileButton*, size_t > WidgetIndices;
-
+        
         struct FilesPanel::Private
         {
             std::weak_ptr<system::Context> context;
 
+            Sort sort = Sort::Loaded;
+            
             std::map< size_t, FileButton* > map;
             WidgetIndices indices;
 
@@ -112,9 +116,10 @@ namespace mrv
         void FilesPanel::add_controls()
         {
             TLRENDER_P();
+            MRV2_R();
 
-            _r->map.clear();
-            _r->indices.clear();
+            r.map.clear();
+            r.indices.clear();
 
             g->clear();
             g->begin();
@@ -136,8 +141,61 @@ namespace mrv
                 time = player->currentTime();
 
             file::Path lastPath;
-            
-            for (size_t i = 0; i < numFiles; ++i)
+
+            std::vector<int> ordered;
+            if (r.sort == Sort::Loaded)
+            {
+                for (size_t i = 0; i < numFiles; ++i)
+                {
+                    ordered.push_back(i);
+                } 
+            }
+            else if (r.sort == Sort::FileName ||
+                     r.sort == Sort::Directory ||
+                     r.sort == Sort::User)
+            {
+                std::map<std::string, size_t> fileNames;
+                for (size_t i = 0; i < numFiles; ++i)
+                {
+                    const auto& media = files->getItem(i);
+                    const auto& path = media->path;
+
+                    const bool listdir = false;
+                    std::string key;
+                    if (r.sort == Sort::FileName)
+                    {
+                        key = path.getFileName(listdir);
+                    }
+                    else if (r.sort == Sort::Directory)
+                    {
+                        key = path.getDirectory();
+                    }
+                    else if (r.sort == Sort::User)
+                    {
+                        const bool listdir = true;
+                        key = file::get_owner(path.getFileName(listdir));
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Unknown sort type");
+                    }
+                    while (fileNames.find(key) != fileNames.end())
+                    {
+                        key += "_1";
+                    }
+                    fileNames[key] = i;
+                }
+
+                for (auto& [_, i] : fileNames)
+                {
+                    ordered.push_back(i);
+                }
+            }
+
+            size = panel::calculateImageSize();
+
+                            
+            for (const auto i : ordered)
             {
                 const auto& media = files->getItem(i);
                 const auto& path = media->path;
@@ -156,29 +214,27 @@ namespace mrv
 
                 const std::string protocol = path.getProtocol();
                 const std::string dir = path.getDirectory();
-                const std::string base = path.getBaseName();
-                const std::string extension = path.getExtension();
-                const std::string file = base + path.getNumber() + extension;
-                const std::string fullfile = protocol + dir + file;
+                const bool listdir = false;
+                const std::string file = path.getFileName(listdir);
 
                 auto bW = new Widget<FileButton>(
                     g->x(), g->y() + 22 + i * size.h + 4, g->w(), size.h + 4);
                 FileButton* b = bW;
                 b->setIndex(i);
-                _r->indices[b] = i;
+                r.indices[b] = i;
                 b->tooltip(_("Select main A image."));
                 bW->callback(
                     [=](auto b)
                     {
-                        WidgetIndices::const_iterator it = _r->indices.find(b);
-                        if (it == _r->indices.end())
+                        WidgetIndices::const_iterator it = r.indices.find(b);
+                        if (it == r.indices.end())
                             return;
                         int index = (*it).second;
                         auto model = _p->ui->app->filesModel();
                         model->setA(index);
                     });
 
-                _r->map[i] = b;
+                r.map[i] = b;
 
                 uint16_t layerId;
                 time = media->currentTime;
@@ -197,9 +253,18 @@ namespace mrv
                     layerId = media->videoLayer;
                 }
 
-                const std::string layer = getLayerName(media, layerId);
-                std::string text = protocol + dir + "\n" + file + layer;
-                b->copy_label(text.c_str());
+                std::string label;
+                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                    kThumbnailNormal)
+                {
+                    const std::string layer = getLayerName(media, layerId);
+                    label = protocol + dir + "\n" + file + layer;
+                }
+                else
+                {
+                    label = file;
+                }
+                b->copy_label(label.c_str());
 
                 _createThumbnail(b, path, time, layerId);
             }
@@ -270,6 +335,7 @@ namespace mrv
         void FilesPanel::redraw()
         {
             TLRENDER_P();
+            MRV2_R();
 
             otio::RationalTime time = otio::RationalTime(0.0, 1.0);
 
@@ -281,22 +347,22 @@ namespace mrv
             auto Aindex = model->observeAIndex()->get();
             const auto files = model->observeFiles();
             
-            for (auto& m : _r->map)
+            for (auto& m : r.map)
             {
                 size_t i = m.first;
                 const auto& media = files->getItem(i);
                 const auto& path = media->path;
 
-                const std::string& protocol = path.getProtocol();
-                const std::string& dir = path.getDirectory();
-                const std::string file =
-                    path.getBaseName() + path.getNumber() + path.getExtension();
-                const std::string& fullfile = protocol + dir + file;
+                const std::string protocol = path.getProtocol();
+                const std::string dir = path.getDirectory();
+                const bool listdir = false;
+                const std::string file = path.getFileName(listdir);
+                
                 FileButton* b = m.second;
                 uint16_t layerId;
 
                 b->labelcolor(FL_WHITE);
-                WidgetIndices::iterator it = _r->indices.find(b);
+                WidgetIndices::iterator it = r.indices.find(b);
                 time = media->currentTime;
                 if (Aindex != i)
                 {
@@ -310,14 +376,35 @@ namespace mrv
                     layerId = p.ui->uiColorChannel->value();
                 }
 
-                const std::string layer = getLayerName(media, layerId);
-                std::string text = protocol + dir + "\n" + file + layer;
-                b->copy_label(text.c_str());
-
+                std::string label;
+                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                    kThumbnailNormal)
+                {
+                    const std::string layer = getLayerName(media, layerId);
+                    label = protocol + dir + "\n" + file + layer;
+                }
+                else
+                {
+                    label = file;
+                }
+                b->copy_label(label.c_str());
+                
                 _createThumbnail(b, path, time, layerId);
             }
         }
 
+        void FilesPanel::setSort(Sort value)
+        {
+            MRV2_R();
+            
+            if (r.sort == value)
+                return;
+
+            r.sort = value;
+            
+            refresh();
+        }
+        
         void FilesPanel::setFilesPanelOptions(const FilesPanelOptions& value)
         {
             refresh();

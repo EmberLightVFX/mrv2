@@ -36,7 +36,7 @@ dir=${dir%/*}
 # Add mrv2's lib directory first to LD_LIBRARY_PATH (Linux)
 # or DYLD_FALLBACK_LIBRARY_PATH (macOS)
 #
-export LD_LIBRARY_PATH="${dir}/lib64:${dir}/lib:${LD_LIBRARY_PATH}:/usr/lib64:/usr/lib"
+export LD_LIBRARY_PATH="${dir}/lib64:${dir}/lib:${dir}/lib/aarch64-linux-gnu:${dir}/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}:/usr/lib64:/usr/lib"
 export DYLD_LIBRARY_PATH="${dir}/lib:${DYLD_LIBRARY_PATH}:/usr/local/lib:/usr/ib"
 if [[ "@BUILD_PYTHON@" == "ON" ]]; then
     export PYTHONHOME="${dir}/"
@@ -44,13 +44,17 @@ if [[ "@BUILD_PYTHON@" == "ON" ]]; then
 fi
 
 if [[ "@MRV2_BACKEND@" == "GL" ]]; then
-    export FLTK_BACKEND=x11
-fi
+    # Note: This makes mrv2 run under XWayland.  Since mrv2 uses Xrandr
+    #       functions that XWayland does not translate you might get errors.
+    #export FLTK_BACKEND=x11
 
-#
-# Use old NVidia implicit sync (GNOME48 and earlier)
-#
-#export __NV_DISABLE_EXPLICIT_SYNC=1
+    #
+    # This variable is an NVidia only variable that can improve performance of
+    # OpenGL.
+    #
+    export __GL_SYNC_TO_VBLANK=0
+    true
+fi
 
 #
 # Debug libraries loaded on macOS

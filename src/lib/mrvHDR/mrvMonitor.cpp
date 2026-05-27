@@ -7,18 +7,18 @@
 #include <sstream>
 #include <string>
 
-#include "mrvMonitor.h"
+#include "mrvHDR/mrvMonitor.h"
 
 #ifdef _WIN32
-#    include "mrvMonitor_win32.cpp"
+#    include "mrvHDR/mrvMonitor_win32.cpp"
 #endif
 
 #ifdef __linux__
-#    include "mrvMonitor_linux.cpp"
+#    include "mrvHDR/mrvMonitor_linux.cpp"
 #endif
 
 #ifdef __APPLE__
-#    include "mrvMonitor_macOS.cpp"
+#    include "mrvHDR/mrvMonitor_macOS.cpp"
 #endif
 
 #ifdef __linux__
@@ -27,21 +27,15 @@ extern "C" {
 }
 #endif
 
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <cstdint>
-#include <cmath>
+#include "mrvOS/mrvI8N.h"
 
-namespace
-{
-    const char* kModule = "monitor";
-}
 
 namespace mrv
 {
     namespace monitor
     {
+        using tl::monitor::Capabilities;
+        
         std::string getManufacturerName(const char* edidCode)
         {
             if (strcmp(edidCode, "AAA") == 0)
@@ -152,19 +146,9 @@ namespace mrv
             return std::string(edidCode);
         }
 
-#ifdef _WIN32
-        // \@note: on Windows we don't parse EDID, we use Windows API
-        HDRCapabilities parseEDIDLuminance(const uint8_t* edid, size_t length) {
-            HDRCapabilities out;
-            return out;
-        }
-#endif
-
 #ifdef __linux__
-        
-        HDRCapabilities parseEDIDLuminance(const uint8_t* raw, size_t size)
-        {
-            HDRCapabilities out;
+        Capabilities parseEDIDLuminance(const uint8_t* raw, size_t size) {
+            Capabilities out;
             struct di_info *info;
             
             info = di_info_parse_edid(raw, size);
@@ -174,26 +158,44 @@ namespace mrv
             }
             
             // Get HDR static metadata
-            const struct di_hdr_static_metadata *hdr = di_info_get_hdr_static_metadata(info);
+            const struct di_hdr_static_metadata* hdr = di_info_get_hdr_static_metadata(info);
 
             // Check for HDR presence (supported if any HDR-related EOTF is true)
             bool has_hdr = hdr->traditional_hdr || hdr->pq || hdr->hlg || hdr->type1;
 
-            out.supported = has_hdr;
+            out.hdr_supported = has_hdr;
+            out.hdr_enabled = out.hdr_supported;
             
             // Retrieve min and max nits (0.0 if unset)
             out.min_nits = hdr->desired_content_min_luminance;
             out.max_nits = hdr->desired_content_max_luminance;
-            //out.max_frame_avg_nits = hdr->desired_content_max_frame_avg_luminance;  // Optional: frame-average max
 
+            const struct di_color_primaries* p = di_info_get_default_color_primaries(info);
+            if (p->has_primaries)
+            {
+                out.red.x = p->primary[0].x;
+                out.red.y = p->primary[0].y;
+                out.green.x = p->primary[1].x;
+                out.green.y = p->primary[1].y;
+                out.blue.x = p->primary[2].x;
+                out.blue.y = p->primary[2].y;
+            }
+
+            if (p->has_default_white_point)
+            {
+                out.white.x = p->default_white.x;
+                out.white.y = p->default_white.y;
+            }
+            
+            //float max_frame_avg_nits = hdr->desired_content_max_frame_avg_luminance;  // Optional: frame-average max
             di_info_destroy(info);
             return out;
         }
 #endif
 
 #ifdef __APPLE__
-        HDRCapabilities parseEDIDLuminance(const uint8_t* edid, size_t length) {
-            HDRCapabilities out;
+        Capabilities parseEDIDLuminance(const uint8_t* edid, size_t length) {
+            Capabilities out;
             
             if (length < 128) return out;
 
@@ -202,7 +204,6 @@ namespace mrv
 
             for (int i = 0; i < numExtensions && (ext + 128 <= edid + length); ++i) {
                 if (ext[0] == 0x02 && ext[1] == 0x03) { // CTA-861 Extension Block
-                    std::cerr << "Got CTA-861" << std::endl;
                     uint8_t dtdStart = ext[2];
 
                     // dtdStart should not exceed the block size (usually 128)
@@ -220,8 +221,6 @@ namespace mrv
                 
                         // Tag 7 + Extended Tag 6 = HDR Static Metadata Block
                         if (tag == 0x07 && len >= 3 && ext[j + 1] == 0x06) {
-
-                            std::cerr << "Got HDR" << std::endl;
                     
                             uint8_t eotf = ext[j + 2];
                             if ((eotf & 0x0E) == 0) { // No HDR bits set
@@ -231,16 +230,18 @@ namespace mrv
                             // Byte j+3: Static Metadata Descriptor Type
                             // We only know how to parse Type 1 (0x01).
 
-                            // ChatGPT tells me to compare type agains 0
-                            // Gemini tells me to compare against byte 0x01
+                            // ChatGPT tells me to compare type agains 0, which
+                            // is obviously wrong.  Gemini and Grok do know.x
                             uint8_t type = ext[j + 3];
                             if (type & 0x01 || (eotf & 0x0E))
                             {
-                                out.supported = true;
+                                out.hdr_supported = true;
                             }
 
                             // Now, try to get the real min/max nits.
-                            if (out.supported) {
+                            if (out.hdr_supported) {
+
+                                out.hdr_enabled = true;
                                 
                                 // Byte j+4: Desired Content Max Luminance
                                 if (len >= 4) {
@@ -273,10 +274,10 @@ namespace mrv
 #endif
 
 #ifndef  __linux__
-        HDRCapabilities get_hdr_capabilities_by_name(
+        Capabilities get_hdr_capabilities_by_name(
             const std::string& target_connector)
         {
-            HDRCapabilities out;
+            Capabilities out;
             return out;
         }
 #endif

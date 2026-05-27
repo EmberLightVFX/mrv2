@@ -573,6 +573,40 @@ namespace tl
             {
                 p.textureCache = std::make_shared<TextureCache>();
             }
+            if (!p.statsSystem)
+            {
+                p.statsSystem = context->getSystem<system::StatsSystem>();
+                p.statsSystem->addSampler("GL Memory/Buffers: ",
+                                          [] {
+                                              return gl::OffscreenBuffer::getTotalByteCount();
+                                          });
+                p.statsSystem->addSampler("GL Memory/Meshes: ",
+                                          [] {
+                                              return gl::VBO::getTotalByteCount();
+                                          });
+                p.statsSystem->addSampler("GL Memory/Textures: ",
+                                          [] {
+                                              return gl::Texture::getTotalByteCount();
+                                          });
+
+                
+                p.statsSystem->addSampler("GL Objects/Buffers: ",
+                                          [] {
+                                              return gl::OffscreenBuffer::getObjectCount();
+                                          });
+                p.statsSystem->addSampler("GL Objects/Meshes: ",
+                                          [] {
+                                              return gl::VBO::getObjectCount();
+                                          });
+                p.statsSystem->addSampler("GL Objects/Shaders: ",
+                                          [] {
+                                              return gl::Shader::getObjectCount();
+                                          });
+                p.statsSystem->addSampler("GL Objects/Textures: ",
+                                          [] {
+                                              return gl::Texture::getObjectCount();
+                                          });
+            }
 
             p.glyphTextureAtlas = gl::TextureAtlas::create(
                 1, 4096, image::PixelType::L_U8, timeline::ImageFilter::Linear);
@@ -661,6 +695,16 @@ namespace tl
                 p.shaders["difference"] = gl::Shader::create(
                     vertexSource(), differenceFragmentSource());
             }
+            if (!p.shaders["add"])
+            {
+                p.shaders["add"] = gl::Shader::create(
+                    vertexSource(), addFragmentSource());
+            }
+            if (!p.shaders["multiply"])
+            {
+                p.shaders["multiply"] = gl::Shader::create(
+                    vertexSource(), multiplyFragmentSource());
+            }
             if (!p.shaders["dissolve"])
             {
                 p.shaders["dissolve"] =
@@ -700,92 +744,6 @@ namespace tl
         void Render::end()
         {
             TLRENDER_P();
-
-            //! \bug Should these be reset periodically?
-            // p.glyphIDs.clear();
-            // p.vbos["mesh"].reset();
-            // p.vaos["mesh"].reset();
-            // p.vbos["text"].reset();
-            // p.vaos["text"].reset();
-
-            const auto now = std::chrono::steady_clock::now();
-            const auto diff =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - p.timer);
-            p.currentStats.time = diff.count();
-            p.stats.push_back(p.currentStats);
-            p.currentStats = Private::Stats();
-            while (p.stats.size() > 60)
-            {
-                p.stats.pop_front();
-            }
-
-            const std::chrono::duration<float> logDiff = now - p.logTimer;
-            if (logDiff.count() > 10.F)
-            {
-                p.logTimer = now;
-                if (auto context = _context.lock())
-                {
-                    Private::Stats average;
-                    const size_t size = p.stats.size();
-                    if (size > 0)
-                    {
-                        for (const auto& i : p.stats)
-                        {
-                            average.time += i.time;
-                            average.rects += i.rects;
-                            average.meshes += i.meshes;
-                            average.meshTriangles += i.meshTriangles;
-                            average.text += i.text;
-                            average.textTriangles += i.textTriangles;
-                            average.textures += i.textures;
-                            average.images += i.images;
-                        }
-                        average.time /= p.stats.size();
-                        average.rects /= p.stats.size();
-                        average.meshes /= p.stats.size();
-                        average.meshTriangles /= p.stats.size();
-                        average.text /= p.stats.size();
-                        average.textTriangles /= p.stats.size();
-                        average.textures /= p.stats.size();
-                        average.images /= p.stats.size();
-                    }
-
-                    context->log(
-                        string::Format("tl::timeline::GLRender {0}").arg(this),
-                        string::Format("\n"
-                                       "    Average render time: {0}ms\n"
-                                       "    Average rectangle count: {1}\n"
-                                       "    Average mesh count: {2}\n"
-                                       "    Average mesh triangles: {3}\n"
-                                       "    Average text count: {4}\n"
-                                       "    Average text triangles: {5}\n"
-                                       "    Average texture count: {6}\n"
-                                       "    Average image count: {7}\n"
-                                       "    Glyph texture atlas: {8}%\n"
-                                       "    Glyph IDs: {9}")
-                            .arg(average.time)
-                            .arg(average.rects)
-                            .arg(average.meshes)
-                            .arg(average.meshTriangles)
-                            .arg(average.text)
-                            .arg(average.textTriangles)
-                            .arg(average.textures)
-                            .arg(average.images)
-                            .arg(p.glyphTextureAtlas->getPercentageUsed())
-                            .arg(p.glyphIDs.size()));
-                }
-            }
-        }
-        
-        void Render::setMonitorMinNits(float value)
-        {
-            _p->monitorMinNits = value;
-        }
-        
-        void Render::setMonitorMaxNits(float value)
-        {
-            _p->monitorMaxNits = value;
         }
 
         math::Size2i Render::getRenderSize() const
@@ -1520,10 +1478,10 @@ namespace tl
                     }
                     p.ocioData->lvp->setDisplayViewTransform(
                         p.ocioData->transform);
-                    p.ocioData->lvp->setLooksOverrideEnabled(true);
+                    const bool hasLooks = !p.ocioOptions.look.empty();
+                    p.ocioData->lvp->setLooksOverrideEnabled(hasLooks);
                     p.ocioData->lvp->setLooksOverride(
                         p.ocioOptions.look.c_str());
-
                     p.ocioData->processor = p.ocioData->lvp->getProcessor(
                         p.ocioData->config,
                         p.ocioData->config->getCurrentContext());
@@ -1725,32 +1683,47 @@ namespace tl
 
                     pl_color_space src_colorspace;
                     memset(&src_colorspace, 0, sizeof(pl_color_space));
-                    src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
-                    src_colorspace.transfer = PL_COLOR_TRC_PQ;
+                    
+                    bool isHDRVideo = false;
+                    
+                    src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
+                    src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
 
-                    bool hasHDR = false;
                     switch (data.eotf)
                     {
-                    case image::EOTFType::EOTF_BT2100_PQ: // PQ (HDR10)
-                    case image::EOTFType::EOTF_BT2020:    // PQ (HDR10)
+                    case image::EOTFType::EOTF_BT2100_PQ: 
+                    case image::EOTFType::EOTF_BT2020:    
+                        src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
                         src_colorspace.transfer = PL_COLOR_TRC_PQ;
-                        hasHDR = true;
+                        isHDRVideo = true;
                         break;
-                    case image::EOTFType::EOTF_BT2100_HLG: // HLG
+
+                    case image::EOTFType::EOTF_BT2100_HLG:
+                        src_colorspace.primaries = PL_COLOR_PRIM_BT_2020;
                         src_colorspace.transfer = PL_COLOR_TRC_HLG;
-                        hasHDR = true;
+                        isHDRVideo = true;
                         break;
+
                     case image::EOTFType::EOTF_BT709:
+                        src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
                         src_colorspace.transfer = PL_COLOR_TRC_BT_1886;
                         break;
+
                     case image::EOTFType::EOTF_BT601:
+                        src_colorspace.primaries = PL_COLOR_PRIM_BT_601_525;
+                        src_colorspace.transfer = PL_COLOR_TRC_BT_1886; 
+                        break;
+
+                    case image::EOTFType::EOTF_SRGB: 
                     default:
+                        src_colorspace.primaries = PL_COLOR_PRIM_BT_709;
                         src_colorspace.transfer = PL_COLOR_TRC_SRGB;
                         break;
                     }
+                
 
 
-                    if (hasHDR)
+                    if (isHDRVideo)
                     {
                         // defaults, generates LUTs if state is set.
                         switch (p.hdrOptions.gamutMapping)
@@ -1852,7 +1825,7 @@ namespace tl
                         hdr.ootf.num_anchors = data.ootf.numAnchors;
                         for (int i = 0; i < hdr.ootf.num_anchors; i++)
                             hdr.ootf.anchors[i] = data.ootf.anchors[i];
-                    } // hasHDR
+                    } // isHDRVideo
                     else
                     {
                         cmap.gamut_mapping = nullptr;

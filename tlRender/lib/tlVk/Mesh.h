@@ -32,7 +32,9 @@ namespace tl
             Pos3_F32,
             Pos3_F32_UV_U16,
             Pos3_F32_UV_U16_Normal_U10,
+            Pos3_F32_UV_U16_Color_U8,
             Pos3_F32_UV_U16_Normal_U10_Color_U8,
+            Pos3_F32_UV_F32,
             Pos3_F32_UV_F32_Normal_F32,
             Pos3_F32_UV_F32_Normal_F32_Color_F32,
             Pos3_F32_Color_U8,
@@ -101,6 +103,12 @@ namespace tl
 
             ///@}
 
+            //! Get the number of objects currenty instantiated.
+            static size_t getObjectCount();
+
+            //! Get the total number of bytes currently used.
+            static size_t getTotalByteCount();
+            
         private:
             TLRENDER_PRIVATE();
         };
@@ -120,16 +128,22 @@ namespace tl
 
             //! Create a new object.
             static std::shared_ptr<VAO> create(Fl_Vk_Context& ctx);
-
+            
             //! Bind the vertex array object.
             void bind(uint32_t frameIndex);
 
+            //! Set memory for VAO assets in bytes.
+            void setMemorySize(const std::size_t);
+            
             //! Get Mesh buffer.
             VkBuffer getBuffer() const;
 
             //! Get device memory.
             VkDeviceMemory getDeviceMemory() const;
 
+            //! Return true if @p dataSize bytes fit in the current frame region.
+            bool canFit(std::size_t dataSize) const;
+            
             //! Upload mesh data and return offset.
             std::size_t upload(const std::vector<uint8_t>& data);
 

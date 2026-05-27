@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2021-2024 Darby Johnston
 // All rights reserved.
+// Copyright Contributors to the feather-tk project.
 
 #pragma once
 
@@ -50,11 +51,11 @@ namespace tl
 
         //! Create a translation matrix.
         template <typename T>
-        constexpr Matrix3x3<T> translate(const Vector2<T>&);
+        constexpr Matrix3x3<T> translate(const Vector<2, T>&);
 
         //! Create a translation matrix.
         template <typename T>
-        constexpr Matrix4x4<T> translate(const Vector3<T>&);
+        constexpr Matrix4x4<T> translate(const Vector<3, T>&);
 
         //! Create a X rotation matrix.
         template <typename T> Matrix4x4<T> rotateX(T);
@@ -66,7 +67,7 @@ namespace tl
         template <typename T> Matrix4x4<T> rotateZ(T);
 
         //! Create a scale matrix.
-        template <typename T> constexpr Matrix4x4<T> scale(const Vector3<T>&);
+        template <typename T> constexpr Matrix4x4<T> scale(const Vector<3, T>&);
 
         //! Create an orthographic matrix.
         template <typename T>
@@ -87,17 +88,20 @@ namespace tl
         Matrix3x3<T> operator*(const Matrix3x3<T>&, const Matrix3x3<T>&);
 
         template <typename T>
-        Vector2<T> operator*(const Matrix3x3<T>&, const Vector2<T>&);
+        Vector<2, T> operator*(const Matrix3x3<T>&, const Vector<2,T>&);
 
         template <typename T>
         Matrix4x4<T> operator*(const Matrix4x4<T>&, const Matrix4x4<T>&);
 
         template <typename T>
-        Vector3<T> operator*(const Matrix4x4<T>&, const Vector3<T>&);
+        Vector<3, T> operator*(const Matrix4x4<T>&, const Vector<3,T>&);
 
         template <typename T>
-        Vector4<T> operator*(const Matrix4x4<T>&, const Vector4<T>&);
+        Vector<4, T> operator*(const Matrix4x4<T>&, const Vector<4,T>&);
 
+        template<typename T>
+        Matrix3x3<T> transpose(const Matrix4x4<T>&);
+        
         ///@}
 
         //! \name Serialize

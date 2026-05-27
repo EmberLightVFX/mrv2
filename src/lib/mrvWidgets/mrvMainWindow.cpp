@@ -4,33 +4,27 @@
 
 // #define DEBUG_CLICK_THROUGH 1
 
-#include <cstring>
 
-#include <tlCore/StringFormat.h>
+#include "mrvPreferencesUI.h"
+#include "mrViewer.h"
 
-#include "mrvCore/mrvHotkey.h"
-#include "mrvCore/mrvString.h"
-
-#include "mrvWidgets/mrvPanelWindow.h"
-
+#include "mrvFl/mrvIO.h"
 #include "mrvFl/mrvSession.h"
+
+#include "mrvWidgets/mrvMainWindow.h"
+#include "mrvWidgets/mrvPanelWindow.h"
 
 #include "mrvUI/mrvAsk.h"
 #include "mrvUI/mrvDesktop.h"
 
-#include "mrvMainWindow.h"
-#include "mrvPreferencesUI.h"
+#include "mrvCore/mrvHotkey.h"
+#include "mrvOS/mrvString.h"
 
-#ifdef FLTK_USE_WAYLAND
-#  include <cairo/cairo.h>
-#  include <wayland-client.h>
-#  include <regex>
-#endif
+#include "mrvOS/mrvOS.h"
 
-#include "mrvFl/mrvIO.h"
 
-#include "mrViewer.h"
-#include "mrvCore/mrvOS.h"
+
+#include <tlCore/StringFormat.h>
 
 #include <FL/platform.H>
 #include <FL/fl_utf8.h>
@@ -45,6 +39,15 @@
 #    include <X11/extensions/scrnsaver.h>
 #    include <X11/extensions/shape.h>
 #endif
+
+#ifdef FLTK_USE_WAYLAND
+#  include <cairo/cairo.h>
+#  include <wayland-client.h>
+#  include <regex>
+#endif
+
+
+#include <cstring>
 
 namespace
 {
@@ -958,11 +961,14 @@ namespace mrv
         }
         else if (event == FL_HIDE)
         {
-            TimelineClass* t = App::ui->uiTimeWindow;
-            p.hidden = true;
-            p.mute = t->uiAudioTracks->value();
-            t->uiAudioTracks->value(1);
-            t->uiAudioTracks->do_callback();
+            if (this == App::ui->uiMain)
+            {
+                TimelineClass* t = App::ui->uiTimeWindow;
+                p.hidden = true;
+                p.mute = t->uiAudioTracks->value();
+                t->uiAudioTracks->value(1);
+                t->uiAudioTracks->do_callback();
+            }
         }
         else if (event == FL_SHOW)
         {

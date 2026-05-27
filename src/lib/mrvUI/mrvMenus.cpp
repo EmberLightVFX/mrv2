@@ -16,7 +16,7 @@
 #include "mrvApp/mrvFilesModel.h"
 #include "mrvApp/mrvApp.h"
 
-#include "mrvFl/mrvCallbacks.h"
+#include "mrvFLTK/mrvCallbacks.h"
 #include "mrvFl/mrvOCIO.h"
 #include "mrvFl/mrvVersioning.h"
 
@@ -29,11 +29,11 @@
 
 #include "mrvNetwork/mrvDummyClient.h"
 
-#include "mrvCore/mrvFile.h"
-#include "mrvCore/mrvI8N.h"
 #include "mrvCore/mrvHotkey.h"
 #include "mrvCore/mrvMath.h"
-#include "mrvCore/mrvString.h"
+
+#include "mrvOS/mrvI8N.h"
+#include "mrvOS/mrvString.h"
 
 #include <tlCore/StringFormat.h>
 
@@ -97,6 +97,10 @@ namespace mrv
         menu->add(
             _("File/Open/Movie or Sequence"), kOpenImage.hotkey(),
             (Fl_Callback*)open_cb, ui);
+        
+        menu->add(
+            _("File/Open/URL Movie"), kOpenURLMovie.hotkey(),
+            (Fl_Callback*)open_url_movie_cb, ui);
 
         menu->add(
             _("File/Open/With Separate Audio"), kOpenSeparateAudio.hotkey(),
@@ -124,68 +128,73 @@ namespace mrv
 
         auto player = ui->uiView->getTimelinePlayer();
 
-        if (app::soporta_saving)
+        menu->add(
+            _("File/Save/Movie or Sequence"), kSaveSequence.hotkey(),
+            (Fl_Callback*)save_movie_cb, ui, mode);
+        menu->add(
+            _("File/Save/Audio"), kSaveAudio.hotkey(),
+            (Fl_Callback*)save_audio_cb, ui, mode);
+        menu->add(
+            _("File/Save/Single Frame"), kSaveImage.hotkey(),
+            (Fl_Callback*)save_single_frame_cb, ui, mode | FL_MENU_DIVIDER);
+        menu->add(
+            _("File/Save/Frames to Folder"), kSaveImageToFolder.hotkey(),
+            (Fl_Callback*)save_single_frame_to_folder_cb, ui,
+            mode | FL_MENU_DIVIDER);
+
+        if (!app::soporta_editing)
         {
-            menu->add(
-                _("File/Save/Movie or Sequence"), kSaveSequence.hotkey(),
-                (Fl_Callback*)save_movie_cb, ui, mode);
-            menu->add(
-                _("File/Save/Audio"), kSaveAudio.hotkey(),
-                (Fl_Callback*)save_audio_cb, ui, mode);
-            menu->add(
-                _("File/Save/Single Frame"), kSaveImage.hotkey(),
-                (Fl_Callback*)save_single_frame_cb, ui, mode | FL_MENU_DIVIDER);
-            menu->add(
-                _("File/Save/Frames to Folder"), kSaveImageToFolder.hotkey(),
-                (Fl_Callback*)save_single_frame_to_folder_cb, ui,
-                mode | FL_MENU_DIVIDER);
-
-            if (app::soporta_editing)
-            {
-                menu->add(
-                    _("File/Save/OTIO EDL Timeline"), kSaveOTIOEDL.hotkey(),
-                    (Fl_Callback*)save_timeline_to_disk_cb, ui,
-                    mode | FL_MENU_DIVIDER);
-            }
-            
-            mode = 0;
-            if (!player || !player->hasAnnotations())
-                mode = FL_MENU_INACTIVE;
-
-            menu->add(
-                _("File/Save/Annotations Only"), kSaveAnnotationsOnly.hotkey(),
-                (Fl_Callback*)save_annotations_only_cb, ui, mode);
-
-            menu->add(
-                _("File/Save/Annotations as JSON"), kSaveAnnotationsAsJson.hotkey(),
-                (Fl_Callback*)save_annotations_as_json_cb, ui,
-                mode | FL_MENU_DIVIDER);
-
-            mode = 0;
-            if (numFiles == 0)
-                mode = FL_MENU_INACTIVE;
-            menu->add(
-                _("File/Save/PDF Document"), kSavePDF.hotkey(),
-                (Fl_Callback*)save_pdf_cb, ui, FL_MENU_DIVIDER | mode);
-            menu->add(
-                _("File/Save/Session"), kSaveSession.hotkey(),
-                (Fl_Callback*)save_session_cb, ui);
-            menu->add(
-                _("File/Save/Session As"), kSaveSessionAs.hotkey(),
-                (Fl_Callback*)save_session_as_cb, ui);
-
-            menu->add(
-                _("File/Close Current"), kCloseCurrent.hotkey(),
-                (Fl_Callback*)close_current_cb, ui, mode);
-
-            menu->add(
-                _("File/Close All"), kCloseAll.hotkey(), (Fl_Callback*)close_all_cb,
-                ui, mode);
-
-            menu->add(_("File/Save and Reload Session"), kReloadSession.hotkey(),
-                      (Fl_Callback*)reload_session_cb, ui, mode);
+            mode |= FL_MENU_INACTIVE;
         }
-        
+            
+        menu->add(
+            _("File/Save/OTIO EDL Timeline"), kSaveOTIOEDL.hotkey(),
+            (Fl_Callback*)save_timeline_to_disk_cb, ui,
+            mode | FL_MENU_DIVIDER);
+            
+            
+        mode = 0;
+        if (!player || !player->hasAnnotations())
+            mode = FL_MENU_INACTIVE;
+
+        if (!app::soporta_annotations)
+        {
+            mode |= FL_MENU_INACTIVE;
+        }
+            
+        menu->add(
+            _("File/Save/Annotations Only"), kSaveAnnotationsOnly.hotkey(),
+            (Fl_Callback*)save_annotations_only_cb, ui, mode);
+
+        menu->add(
+            _("File/Save/Annotations as JSON"), kSaveAnnotationsAsJson.hotkey(),
+            (Fl_Callback*)save_annotations_as_json_cb, ui,
+            mode | FL_MENU_DIVIDER);
+
+        mode = 0;
+        if (numFiles == 0)
+            mode = FL_MENU_INACTIVE;
+        menu->add(
+            _("File/Save/PDF Document"), kSavePDF.hotkey(),
+            (Fl_Callback*)save_pdf_cb, ui, FL_MENU_DIVIDER | mode);
+        menu->add(
+            _("File/Save/Session"), kSaveSession.hotkey(),
+            (Fl_Callback*)save_session_cb, ui);
+        menu->add(
+            _("File/Save/Session As"), kSaveSessionAs.hotkey(),
+            (Fl_Callback*)save_session_as_cb, ui);
+
+        menu->add(
+            _("File/Close Current"), kCloseCurrent.hotkey(),
+            (Fl_Callback*)close_current_cb, ui, mode);
+
+        menu->add(
+            _("File/Close All"), kCloseAll.hotkey(),
+            (Fl_Callback*)close_all_cb, ui, mode);
+
+        menu->add(_("File/Save and Reload Session"), kReloadSession.hotkey(),
+                  (Fl_Callback*)reload_session_cb, ui, mode);
+         
         // std_any value;
         SettingsObject* settings = ui->app->settings();
         const std::vector< std::string >& recentFiles = settings->recentFiles();
@@ -437,8 +446,12 @@ namespace mrv
                 hotkey = kToggleNDI.hotkey();
             else if (tmp == "Network")
                 hotkey = kToggleNetwork.hotkey();
+            else if (tmp == "WebRTC")
+                hotkey = kToggleWebRTC.hotkey();
             else if (tmp == "USD")
                 hotkey = kToggleUSD.hotkey();
+            else if (tmp == "Statistics")
+                hotkey = 0; //kToggleStats.hotkey();
             else if (tmp == "Stereo 3D")
                 hotkey = kToggleStereo3D.hotkey();
             else if (tmp == "Background")
@@ -505,6 +518,13 @@ namespace mrv
             else if (tmp == _("Vectorscope"))
             {
                 if (vectorscopePanel)
+                    item->set();
+                else
+                    item->clear();
+            }
+            else if (tmp == _("Waveform"))
+            {
+                if (waveformPanel)
                     item->set();
                 else
                     item->clear();
@@ -594,6 +614,13 @@ namespace mrv
                 else
                     item->clear();
             }
+            else if (tmp == _("Stats"))
+            {
+                if (statsPanel)
+                    item->set();
+                else
+                    item->clear();
+            }
             else if (tmp == _("Media Information"))
             {
                 if (imageInfoPanel)
@@ -614,6 +641,22 @@ namespace mrv
                     item->set();
                 else
                     item->clear();
+            }
+            else if (tmp == _("Statistics"))
+            {
+                if (statsPanel)
+                    item->set();
+                else
+                    item->clear();
+            }
+            else if (tmp == _("WebRTC"))
+            {
+#ifdef MRV2_NETWORK
+                if (webrtcPanel)
+                    item->set();
+                else
+                    item->clear();
+#endif
             }
             else if (
                 tmp == _("Hotkeys") || tmp == _("Preferences") ||
@@ -743,6 +786,17 @@ namespace mrv
                 timeline::InputVideoLevels::LegalRange)
                 item->set();
 
+#ifdef VULKAN_BACKEND
+            // idx = menu->add(
+            //     _("Render/Video Levels/Legal Range HDR"),
+            //     kVideoLevelsLegalRangeHDR.hotkey(),
+            //     (Fl_Callback*)video_levels_legal_range_hdr_cb, ui, mode);
+            // item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            // if (displayOptions.videoLevels ==
+            //     image::VideoLevels::LegalRangeHDR)
+            //     item->set();
+#endif
+            
             idx = menu->add(
                 _("Render/Video Levels/Full Range"),
                 kVideoLevelsFullRange.hotkey(),
@@ -777,34 +831,27 @@ namespace mrv
             if (imageOptions.alphaBlend == timeline::AlphaBlend::Premultiplied)
                 item->set();
 
-            mode = FL_MENU_RADIO;
-            if (numFiles == 0)
-                mode |= FL_MENU_INACTIVE;
-            
-            idx = menu->add(
-                _("Render/HDR Data/From File"), kHDRDataFromFile.hotkey(),
-                (Fl_Callback*)hdr_data_from_file_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (displayOptions.hdrInfo == timeline::HDRInformation::FromFile)
-                item->set();
-            
-            idx = menu->add(
-                _("Render/HDR Data/Inactive"), kHDRDataFalse.hotkey(),
-                (Fl_Callback*)hdr_data_inactive_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (displayOptions.hdrInfo == timeline::HDRInformation::Inactive)
-                item->set();
-            
-            idx = menu->add(
-                _("Render/HDR Data/Active"), kHDRDataTrue.hotkey(),
-                (Fl_Callback*)hdr_data_active_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (displayOptions.hdrInfo == timeline::HDRInformation::Active)
-                item->set();
             
 
             const timeline::HDROptions& hdrOptions = uiView->getHDROptions();
             int selected = static_cast<int>(hdrOptions.algorithm);
+
+#ifdef VULKAN_BACKEND
+            
+            mode = FL_MENU_TOGGLE;
+            if (numFiles == 0)
+                mode |= FL_MENU_INACTIVE;
+            
+            idx = menu->add(_("Render/HDR/Enable Peak Detection"),
+                            kToggleHDRPeakDetection.hotkey(),
+                            (Fl_Callback*) toggle_hdr_peak_detection_cb, ui,
+                            mode);
+            if (hdrOptions.peak_detection)
+            {
+                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+                item->set();
+            }
+#endif
             
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
@@ -846,6 +893,31 @@ namespace mrv
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
+            
+            idx = menu->add(
+                _("Render/HDR Data/From File"), kHDRDataFromFile.hotkey(),
+                (Fl_Callback*)hdr_data_from_file_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (displayOptions.hdrInfo == timeline::HDRInformation::FromFile)
+                item->set();
+            
+            idx = menu->add(
+                _("Render/HDR Data/Inactive"), kHDRDataFalse.hotkey(),
+                (Fl_Callback*)hdr_data_inactive_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (displayOptions.hdrInfo == timeline::HDRInformation::Inactive)
+                item->set();
+            
+            idx = menu->add(
+                _("Render/HDR Data/Active"), kHDRDataTrue.hotkey(),
+                (Fl_Callback*)hdr_data_active_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (displayOptions.hdrInfo == timeline::HDRInformation::Active)
+                item->set();
+            
+            mode = FL_MENU_RADIO;
+            if (numFiles == 0)
+                mode |= FL_MENU_INACTIVE;
 
             unsigned filtering_linear = 0;
             unsigned filtering_nearest = 0;
@@ -854,6 +926,44 @@ namespace mrv
                 filtering_linear = kMinifyTextureFiltering.hotkey();
             else
                 filtering_nearest = kMinifyTextureFiltering.hotkey();
+
+#ifdef VULKAN_BACKEND
+            const timeline::ShaderOptions& shaderOptions =
+                uiView->getShaderOptions();
+            
+            mode = FL_MENU_RADIO;
+            if (numFiles == 0)
+                mode |= FL_MENU_INACTIVE;
+            
+            idx = menu->add(
+                _("Render/Debanding/None"), kDebandingNone.hotkey(),
+                (Fl_Callback*)debanding_none_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (shaderOptions.debanding == timeline::Debanding::kNone)
+                item->set();
+
+            idx = menu->add(
+                _("Render/Debanding/Small"), kDebandingLow.hotkey(),
+                (Fl_Callback*)debanding_low_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (shaderOptions.debanding == timeline::Debanding::Low)
+                item->set();
+            
+            idx = menu->add(
+                _("Render/Debanding/Medium"), kDebandingMedium.hotkey(),
+                (Fl_Callback*)debanding_medium_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (shaderOptions.debanding == timeline::Debanding::Medium)
+                item->set();
+
+            idx = menu->add(
+                _("Render/Debanding/High"), kDebandingHigh.hotkey(),
+                (Fl_Callback*)debanding_high_cb, ui, mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (shaderOptions.debanding == timeline::Debanding::High)
+                item->set();
+#endif
+            
 
             idx = menu->add(
                 _("Render/Minify Filter/Nearest"), filtering_nearest,
@@ -1037,7 +1147,16 @@ namespace mrv
         menu->add(
             _("Playback/Go to/Next Frame"), kFrameStepFwd.hotkey(),
             (Fl_Callback*)next_frame_cb, ui, FL_MENU_DIVIDER | mode);
+        
+        menu->add(
+            _("Playback/Go to/Previous 10 seconds"), kFrameStepFPSBack.hotkey(),
+            (Fl_Callback*)previous_second_cb, ui, mode);
+        menu->add(
+            _("Playback/Go to/Next 10 seconds"), kFrameStepFPSFwd.hotkey(),
+            (Fl_Callback*)next_second_cb, ui, FL_MENU_DIVIDER | mode);
 
+        
+        
         if (player)
         {
             mode = 0;
@@ -1175,28 +1294,19 @@ namespace mrv
         const auto& itemOptions = ui->uiTimeline->getItemOptions();
         const auto& displayOptions = ui->uiTimeline->getDisplayOptions();
 
-        if (app::soporta_editing)
-        {
-            idx = menu->add(
-                _("Timeline/Editable"), kToggleTimelineEditable.hotkey(),
-                (Fl_Callback*)toggle_timeline_editable_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            bool editable = ui->uiTimeline->isEditable();
-            if (editable)
-                item->set();
-
-            idx = menu->add(
-                _("Timeline/Edit Associated Clips"),
-                kToggleEditAssociatedClips.hotkey(),
-                (Fl_Callback*)toggle_timeline_edit_associated_clips_cb, ui, mode);
-            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
-            if (itemOptions.editAssociatedClips)
-                item->set();
-        }
-        else
+        if (!app::soporta_editing)
         {
             ui->uiTimeline->setEditable(false);
+            mode |= FL_MENU_INACTIVE;
         }
+        
+        idx = menu->add(
+            _("Timeline/Editable"), kToggleTimelineEditable.hotkey(),
+            (Fl_Callback*)toggle_timeline_editable_cb, ui, mode);
+        item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+        bool editable = ui->uiTimeline->isEditable();
+        if (editable)
+            item->set();
 
         mode = 0;
         if (numFiles == 0)
@@ -1329,7 +1439,7 @@ namespace mrv
                 }
             }
 
-            fileName = mrv::file::normalizePath(fileName);
+            fileName = mrv::string::normalizePath(fileName);
 
             const std::regex& regex = version_regex(ui, false);
             bool has_version = regex_match(fileName, regex);
@@ -1386,6 +1496,7 @@ namespace mrv
                 if (o.mode == timeline::CompareMode::B)
                     item->set();
 
+                mode = FL_MENU_RADIO;
                 idx = menu->add(
                     _("Image/Compare Mode/Wipe"), 0,
                     (Fl_Callback*)compare_wipe_cb, ui, mode);
@@ -1405,6 +1516,20 @@ namespace mrv
                     (Fl_Callback*)compare_difference_cb, ui, mode);
                 item = (Fl_Menu_Item*)&(menu->menu()[idx]);
                 if (o.mode == timeline::CompareMode::Difference)
+                    item->set();
+
+                idx = menu->add(
+                    _("Image/Compare Mode/Add"), 0,
+                    (Fl_Callback*)compare_add_cb, ui, mode);
+                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+                if (o.mode == timeline::CompareMode::Add)
+                    item->set();
+                
+                idx = menu->add(
+                    _("Image/Compare Mode/Multiply"), 0,
+                    (Fl_Callback*)compare_multiply_cb, ui, mode);
+                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+                if (o.mode == timeline::CompareMode::Multiply)
                     item->set();
 
                 idx = menu->add(
@@ -1437,7 +1562,8 @@ namespace mrv
 
                     const auto& path = files[i]->path;
                     fileName = path.getBaseName() + path.getNumber() +
-                               path.getExtension();
+                               path.getSuffix() + path.getExtension() +
+                               path.getRequest();
                     snprintf(buf, 256, _("Image/Go to/%s"), fileName.c_str());
                     std::uintptr_t ptr = i;
                     idx = menu->add(
@@ -1447,7 +1573,12 @@ namespace mrv
                         item->set();
                     else
                         item->clear();
-
+                    
+                    idx = menu->add(
+                        _("Image/Compare/Toggle A and B"), 0,
+                        (Fl_Callback*)toggle_compare_a_and_b_cb,
+                        ui, 0);
+                
                     snprintf(buf, 256, _("Image/Compare/%s"), fileName.c_str());
                     idx = menu->add(
                         buf, 0, (Fl_Callback*)select_Bfile_cb, (void*)ptr,
@@ -1464,65 +1595,94 @@ namespace mrv
                 }
             }
 
-            if (app::soporta_editing)
+            mode = FL_MENU_TOGGLE;
+            if (!app::soporta_editing)
             {
-                menu->add(
-                    _("Edit/Frame/Cut"), kEditCutFrame.hotkey(),
-                    (Fl_Callback*)edit_cut_frame_cb, ui);
-                menu->add(
-                    _("Edit/Frame/Copy"), kEditCopyFrame.hotkey(),
-                    (Fl_Callback*)edit_copy_frame_cb, ui);
-                menu->add(
-                    _("Edit/Frame/Paste"), kEditPasteFrame.hotkey(),
-                    (Fl_Callback*)edit_paste_frame_cb, ui);
-                menu->add(
-                    _("Edit/Frame/Insert"), kEditInsertFrame.hotkey(),
-                    (Fl_Callback*)edit_insert_frame_cb, ui);
-
-                menu->add(
-                    _("Edit/Audio Clip/Insert"), kEditInsertAudioClip.hotkey(),
-                    (Fl_Callback*)insert_audio_clip_cb, ui);
-                menu->add(
-                    _("Edit/Audio Clip/Remove"), kEditRemoveAudioClip.hotkey(),
-                    (Fl_Callback*)edit_remove_audio_clip_cb, ui);
-                menu->add(
-                    _("Edit/Video Gap/Insert"), kEditInsertVideoGap.hotkey(),
-                    (Fl_Callback*)edit_insert_video_gap_cb, ui);
-                menu->add(
-                    _("Edit/Video Gap/Remove"), kEditRemoveVideoGap.hotkey(),
-                    (Fl_Callback*)edit_remove_video_gap_cb, ui);
-                menu->add(
-                    _("Edit/Audio Gap/Insert"), kEditInsertAudioGap.hotkey(),
-                    (Fl_Callback*)edit_insert_audio_gap_cb, ui);
-                menu->add(
-                    _("Edit/Audio Gap/Remove"), kEditRemoveAudioGap.hotkey(),
-                    (Fl_Callback*)edit_remove_audio_gap_cb, ui);
-
-                menu->add(_("Edit/Add Transition"), kEditAddTransition.hotkey(),
-                          (Fl_Callback*)edit_add_transition_cb, ui);
-                
-                menu->add(
-                    _("Edit/Slice"), kEditSliceClip.hotkey(),
-                    (Fl_Callback*)edit_slice_clip_cb, ui);
-                menu->add(
-                    _("Edit/Remove"), kEditRemoveClip.hotkey(),
-                    (Fl_Callback*)edit_remove_clip_cb, ui);
-
-                menu->add(
-                    _("Edit/Undo"), kEditUndo.hotkey(),
-                    (Fl_Callback*)edit_undo_cb,
-                    ui);
-                menu->add(
-                    _("Edit/Redo"), kEditRedo.hotkey(),
-                    (Fl_Callback*)edit_redo_cb,
-                    ui);
+                mode |= FL_MENU_INACTIVE;
             }
+            
+            idx = menu->add(
+                _("Edit/Associated Clips"),
+                kToggleEditAssociatedClips.hotkey(),
+                (Fl_Callback*)toggle_timeline_edit_associated_clips_cb, ui,
+                mode);
+            item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+            if (itemOptions.editAssociatedClips)
+                item->set();
+
+            mode = 0;
+            if (!app::soporta_editing)
+            {
+                mode |= FL_MENU_INACTIVE;
+            }
+            menu->add(
+                _("Edit/Frame/Cut"), kEditCutFrame.hotkey(),
+                (Fl_Callback*)edit_cut_frame_cb, ui, mode);
+            menu->add(
+                _("Edit/Frame/Copy"), kEditCopyFrame.hotkey(),
+                (Fl_Callback*)edit_copy_frame_cb, ui, mode);
+            menu->add(
+                _("Edit/Frame/Paste"), kEditPasteFrame.hotkey(),
+                (Fl_Callback*)edit_paste_frame_cb, ui, mode);
+            menu->add(
+                _("Edit/Frame/Insert"), kEditInsertFrame.hotkey(),
+                (Fl_Callback*)edit_insert_frame_cb, ui, mode);
+
+            menu->add(
+                _("Edit/Time/Audio Clip/Insert"),
+                kEditInsertAudioClip.hotkey(),
+                (Fl_Callback*)insert_audio_clip_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Audio Clip/Remove"),
+                kEditRemoveAudioClip.hotkey(),
+                (Fl_Callback*)edit_remove_audio_clip_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Video Gap/Insert"),
+                kEditInsertVideoGap.hotkey(),
+                (Fl_Callback*)edit_insert_video_gap_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Video Gap/Remove"),
+                kEditRemoveVideoGap.hotkey(),
+                (Fl_Callback*)edit_remove_video_gap_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Audio Gap/Insert"),
+                kEditInsertAudioGap.hotkey(),
+                (Fl_Callback*)edit_insert_audio_gap_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Audio Gap/Remove"),
+                kEditRemoveAudioGap.hotkey(),
+                (Fl_Callback*)edit_remove_audio_gap_cb, ui, mode);
+
+                
+            menu->add(_("Edit/Selected/Add Transition"),
+                      kEditAddTransition.hotkey(),
+                      (Fl_Callback*)edit_add_transition_cb, ui, mode);
+            menu->add(
+                _("Edit/Selected/Remove Items"),
+                kEditRemoveSelected.hotkey(),
+                (Fl_Callback*)edit_remove_selected_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Remove Clips"), kEditRemoveClip.hotkey(),
+                (Fl_Callback*)edit_remove_clip_cb, ui, mode);
+            menu->add(
+                _("Edit/Time/Slice"), kEditSliceClip.hotkey(),
+                (Fl_Callback*)edit_slice_clip_cb, ui, mode);
+
+
+            menu->add(
+                _("Edit/Undo"), kEditUndo.hotkey(),
+                (Fl_Callback*)edit_undo_cb,
+                ui, mode);
+            menu->add(
+                _("Edit/Redo"), kEditRedo.hotkey(),
+                (Fl_Callback*)edit_redo_cb,
+                ui, mode);
         }
 
-        // if ( num > 0 )
-        // {
-        //     idx = menu->add( _("Subtitle/No Subtitle"), 0,
-        //                      (Fl_Callback*)change_subtitle_cb, ui,
+    // if ( num > 0 )
+    // {
+    //     idx = menu->add( _("Subtitle/No Subtitle"), 0,
+    //                      (Fl_Callback*)change_subtitle_cb, ui,
         //                      FL_MENU_TOGGLE  );
         //     Fl_Menu_Item* item = (Fl_Menu_Item*) &(menu->menu()[idx]);
         //     if ( image->subtitle_stream() == -1 )
@@ -1836,7 +1996,8 @@ namespace mrv
         }
 #endif
 
-        if (dynamic_cast< DummyClient* >(tcp) == nullptr)
+        if (dynamic_cast< DummyClient* >(tcp) == nullptr ||
+            panel::networkPanel || panel::webrtcPanel)
         {
             mode = FL_MENU_TOGGLE;
 
@@ -1849,8 +2010,6 @@ namespace mrv
             else
                 item->clear();
 
-            if (numFiles == 0)
-                mode |= FL_MENU_INACTIVE;
             idx = menu->add(
                 _("Sync/Send/UI"), 0, (Fl_Callback*)toggle_sync_send_cb, ui,
                 mode);

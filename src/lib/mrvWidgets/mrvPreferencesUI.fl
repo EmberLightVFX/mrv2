@@ -29,13 +29,13 @@ decl {\#endif} {private local
 decl {\#include <tlCore/Time.h>} {public global
 }
 
-decl {\#include "mrvCore/mrvEnv.h"} {public global
+decl {\#include "mrvOS/mrvEnv.h"} {public global
 }
 
 decl {\#include "mrvCore/mrvFonts.h"} {public global
 }
 
-decl {\#include "mrvCore/mrvI8N.h"} {public global
+decl {\#include "mrvOS/mrvI8N.h"} {public global
 }
 
 decl {\#include "mrViewer.h"} {public global
@@ -53,7 +53,7 @@ decl {\#include "mrvWidgets/mrvPreferencesTree.h"} {public global
 decl {\#include "mrvFl/mrvOCIO.h"} {private global
 }
 
-decl {\#include "mrvFl/mrvFileRequester.h"} {public global
+decl {\#include "mrvFLTK/mrvFileRequester.h"} {public global
 }
 
 decl {\#include "mrvWidgets/mrvOCIOBrowser.h"} {public global
@@ -93,18 +93,18 @@ class PreferencesUI {open
       label Preferences
       user_data this user_data_type {PreferencesUI*}
       callback {o->hide();} open
-      xywh {879 434 853 466} type Double resizable
-      code0 {main = m;} visible
+      xywh {0 0 847 449} type Double hide resizable
+      code0 {main = m;} non_modal size_range {847 449 0 0}
     } {
       Fl_Group {} {open
-        xywh {0 0 853 466} box FLAT_BOX
+        xywh {0 0 847 449} box FLAT_BOX
       } {
         Fl_Group {} {open
-          xywh {283 28 570 428}
+          xywh {280 28 566 420}
         } {
           Fl_Wizard uiWizard {
             label Settings open
-            xywh {283 28 570 380} box PLASTIC_UP_BOX labelcolor 32
+            xywh {280 28 565 380} box PLASTIC_UP_BOX labelcolor 32
           } {
             Fl_Group {} {
               label {User Interface}
@@ -312,7 +312,7 @@ If you try to open several mrv2s with different images, all these images will be
               }
               Fl_Group uiPrefsHud {
                 label HUD
-                user_data this user_data_type {PreferencesUI*}
+                user_data this user_data_type {PreferencesUI*} open
                 tooltip {This area specifies which elements should be shown as a HUD overlay on the view screen.} xywh {303 249 524 126} box UP_BOX
               } {
                 Fl_Check_Button uiPrefsHudFilename {
@@ -369,6 +369,10 @@ If you try to open several mrv2s with different images, all these images will be
                   label Attributes
                   user_data this user_data_type {PreferencesUI*}
                   xywh {653 259 20 20} box UP_BOX down_box DOWN_BOX align 8
+                }
+                Fl_Value_Input uiPrefsHudFontSize {
+                  label {Font Size}
+                  xywh {633 343 40 24} align 8 minimum 12 maximum 48 step 1 value 12 textcolor 56
                 }
               }
             }
@@ -427,163 +431,8 @@ If you try to open several mrv2s with different images, all these images will be
               }
             }
             Fl_Group {} {
-              label HDR
-              xywh {298 28 555 369} box EMBOSSED_BOX align 5 hide
-            } {
-              Fl_Group {} {
-                label HDR
-                xywh {310 80 530 304} box ROUNDED_BOX
-              } {
-                Fl_Choice uiPrefsVulkanUseRGB {
-                  label {Prefer RGB (Vulkan)} open
-                  tooltip {When this setting is on, Vulkan will try to use RGB_F16 and RGB_F32 as is and convert them with a compute shader.  When is off, Vulkan will decode RGBA_F16 and RGBA_F32 frames.} xywh {524 116 135 25} down_box BORDER_BOX
-                } {
-                  MenuItem {} {
-                    label {Use RGBA}
-                    xywh {40 40 100 20}
-                  }
-                  MenuItem {} {
-                    label {Use RGB}
-                    xywh {50 50 100 20}
-                  }
-                }
-                Fl_Choice uiPrefsChromaticities {
-                  label Chromaticities
-                  xywh {526 181 135 25} down_box BORDER_BOX
-                } {
-                  MenuItem {} {
-                    label Ignore
-                    xywh {30 30 100 20}
-                  }
-                  MenuItem {} {
-                    label Apply
-                    xywh {40 40 100 20}
-                  }
-                }
-                Fl_Choice uiPrefsHDRInfo {
-                  label {HDR Data}
-                  xywh {526 220 135 25} down_box BORDER_BOX
-                } {
-                  MenuItem {} {
-                    label {From File}
-                    xywh {50 50 100 20}
-                  }
-                  MenuItem {} {
-                    label Inactive
-                    xywh {40 40 100 20}
-                  }
-                  MenuItem {} {
-                    label Active
-                    xywh {50 50 100 20}
-                  }
-                }
-                Fl_Choice uiPrefsTonemapAlgorithm {
-                  label {Tonemap Algorithm}
-                  xywh {526 259 135 25} down_box BORDER_BOX
-                } {
-                  MenuItem {} {
-                    label ST2094_40
-                    xywh {50 50 100 20}
-                  }
-                  MenuItem {} {
-                    label ST2094_10
-                    xywh {60 60 100 20}
-                  }
-                  MenuItem {} {
-                    label Clip
-                    xywh {70 70 100 20}
-                  }
-                  MenuItem {} {
-                    label BT2390
-                    xywh {80 80 100 20}
-                  }
-                  MenuItem {} {
-                    label BT2446A
-                    xywh {90 90 100 20}
-                  }
-                  MenuItem {} {
-                    label Spline
-                    xywh {100 100 100 20}
-                  }
-                  MenuItem {} {
-                    label Reinhard
-                    xywh {110 110 100 20}
-                  }
-                  MenuItem {} {
-                    label Mobius
-                    xywh {120 120 100 20}
-                  }
-                  MenuItem {} {
-                    label Hable
-                    xywh {130 130 100 20}
-                  }
-                  MenuItem {} {
-                    label Gamma
-                    xywh {130 130 100 20}
-                  }
-                  MenuItem {} {
-                    label Linear
-                    xywh {140 140 100 20}
-                  }
-                  MenuItem {} {
-                    label {Linear Light}
-                    xywh {150 150 100 20}
-                  }
-                  MenuItem {} {
-                    label None
-                    xywh {160 160 100 20}
-                  }
-                }
-                Fl_Choice uiPrefsGamutMapping {
-                  label {Gamut Mapping}
-                  xywh {526 298 135 25} down_box BORDER_BOX
-                } {
-                  MenuItem {} {
-                    label Auto
-                    xywh {0 0 100 20}
-                  }
-                  MenuItem {} {
-                    label Clip
-                    xywh {10 10 100 20}
-                  }
-                  MenuItem {} {
-                    label Perceptual
-                    xywh {20 20 100 20}
-                  }
-                  MenuItem {} {
-                    label Relative
-                    xywh {30 30 100 20}
-                  }
-                  MenuItem {} {
-                    label Saturation
-                    xywh {40 40 100 20}
-                  }
-                  MenuItem {} {
-                    label Absolute
-                    xywh {50 50 100 20}
-                  }
-                  MenuItem {} {
-                    label Desaturate
-                    xywh {60 60 100 20}
-                  }
-                  MenuItem {} {
-                    label Darken
-                    xywh {70 70 100 20}
-                  }
-                  MenuItem {} {
-                    label Highlight
-                    xywh {80 80 100 20}
-                  }
-                  MenuItem {} {
-                    label Linear
-                    xywh {90 90 100 20}
-                  }
-                }
-              }
-            }
-            Fl_Group {} {
-              label {Language and Colors} open
-              xywh {288 37 555 360} box EMBOSSED_BOX align 5
+              label {Language and Colors}
+              xywh {288 37 555 360} box EMBOSSED_BOX align 5 hide
             } {
               Fl_Group {} {
                 label UI open
@@ -695,7 +544,7 @@ o->redraw();}
 Fl::get_color(o->color(),r,g,b);
 if (!fl_color_chooser(_("Pick HUD Color"), r,g,b)) return;
 o->color( fl_rgb_color( r, g, b ) );
-o->redraw();} selected
+o->redraw();}
                   tooltip {Selects the color of HUD overlays.} xywh {654 338 21 20} box EMBOSSED_BOX align 4
                 }
               }
@@ -837,7 +686,7 @@ o->redraw();} selected
                       xywh {675 139 60 25} textcolor 56
                     }
                   }
-                  Fl_Group {} {open
+                  Fl_Group {} {
                     xywh {339 226 451 43} box ROUNDED_BOX
                   } {
                     Fl_Check_Button uiWindowFixedSize {
@@ -859,35 +708,61 @@ o->redraw();} selected
                     callback {v->uiWindowXPosition->value( v->main->uiMain->x() );
 v->uiWindowYPosition->value( v->main->uiMain->y() );
 v->uiWindowXSize->value( v->main->uiMain->w() );
-v->uiWindowYSize->value( v->main->uiMain->h() );}
+v->uiWindowYSize->value( v->main->uiMain->h() );
+v->uiWindowScreen->value( v->main->uiMain->screen_num() );}
                     tooltip {Fills the Fixed Position and and Fixed Size values with the current values of the viewer.  Remember to also check the boxes for Fixed Position and/or Fixed Size depending what you want to save.} xywh {345 324 445 40} align 128
+                  }
+                  Fl_Value_Input uiWindowScreen {
+                    label {Screen:}
+                    xywh {544 285 60 25} maximum 10 step 1 textcolor 56
                   }
                 }
               }
             }
             Fl_Group {} {
-              label Render open
+              label Render
               xywh {288 35 555 369} box EMBOSSED_BOX align 5 hide
             } {
               Fl_Group {} {
                 label Render open
                 xywh {298 68 535 320} box ROUNDED_BOX
               } {
-                Fl_Choice uiPrefsVideoLevels {
-                  label {Video Levels}
-                  xywh {514 157 135 25} down_box BORDER_BOX
+                Fl_Choice uiPrefsDebanding {
+                  label {Debanding (Vulkan)} open
+                  tooltip {Makes gradients smoother on video files.} xywh {514 99 135 25} down_box BORDER_BOX
                 } {
                   MenuItem {} {
-                    label {From File}
+                    label None
+                    xywh {0 0 100 20}
+                  }
+                  MenuItem {} {
+                    label Small
+                    xywh {10 10 100 20}
+                  }
+                  MenuItem {} {
+                    label Medium
                     xywh {20 20 100 20}
                   }
                   MenuItem {} {
+                    label High
+                    xywh {30 30 100 20}
+                  }
+                }
+                Fl_Choice uiPrefsVideoLevels {
+                  label {Video Levels}
+                  xywh {514 155 135 24} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label {From File}
+                    xywh {30 30 100 20}
+                  }
+                  MenuItem {} {
                     label {Full Range}
-                    xywh {40 40 100 20}
+                    xywh {50 50 100 20}
                   }
                   MenuItem {} {
                     label {Legal Range}
-                    xywh {30 30 100 20}
+                    xywh {40 40 100 20}
                   }
                 }
                 Fl_Choice uiPrefsAlphaBlend {
@@ -936,13 +811,31 @@ v->uiWindowYSize->value( v->main->uiMain->h() );}
               }
             }
             Fl_Group {} {
-              label Thumbnails
-              xywh {288 37 555 360} box EMBOSSED_BOX align 5 hide
+              label Thumbnails open
+              xywh {288 37 555 360} box EMBOSSED_BOX align 5
             } {
               Fl_Group {} {
                 label Thumbnails open
                 xywh {325 63 480 316} box ROUNDED_BOX
               } {
+                Fl_Choice uiPrefsPanelThumbnails {
+                  label Panels open selected
+                  tooltip {How to display timeline thumbnails in panels.} xywh {398 97 175 28} box THIN_DOWN_BOX down_box BORDER_BOX align 8
+                  code0 {o->value(2);}
+                } {
+                  MenuItem {} {
+                    label None
+                    xywh {45 45 100 20}
+                  }
+                  MenuItem {} {
+                    label Small
+                    xywh {45 45 100 20}
+                  }
+                  MenuItem {} {
+                    label Normal
+                    xywh {45 45 100 20}
+                  }
+                }
                 Fl_Choice uiPrefsEditThumbnails {
                   label {Edit Viewport} open
                   tooltip {How to display timeline thumbnails by default.} xywh {398 140 175 28} box THIN_DOWN_BOX down_box BORDER_BOX align 8
@@ -972,10 +865,6 @@ v->uiWindowYSize->value( v->main->uiMain->h() );}
                 Fl_Check_Button uiPrefsManualPanelThumbnails {
                   label {Refresh Thumbnails on Panels Manuallly}
                   tooltip {When this option is on, thumbnails in panels won't be refreshed automatically.  You will have to use RMB->Update Thumbnail on the Thumbnail.} xywh {398 228 370 20} down_box DOWN_BOX
-                }
-                Fl_Check_Button uiPrefsPanelThumbnails {
-                  label {Preview Thumbnails on Panels}
-                  tooltip {Preview Thumbnails in Panels} xywh {398 267 370 20} down_box DOWN_BOX value 1
                 }
               }
             }
@@ -1020,6 +909,200 @@ v->uiWindowYSize->value( v->main->uiMain->h() );}
                 Fl_Value_Input uiStartTimeOffset {
                   label {Video Start Frame}
                   tooltip {Start value in the timeline where video starts.} xywh {525 302 78 29} color 20 minimum -32400 maximum 324000 step 1 textcolor 56
+                }
+              }
+            }
+            Fl_Group {} {
+              label HDR
+              xywh {280 28 560 369} box EMBOSSED_BOX align 5 hide
+            } {
+              Fl_Group {} {
+                label HDR open
+                xywh {302 52 526 324} box ROUNDED_BOX
+              } {
+                Fl_Choice uiPrefsVulkanUseRGB {
+                  label {Prefer RGB (Vulkan)}
+                  tooltip {When this setting is on, Vulkan will try to use RGB_F16 and RGB_F32 as is and convert them with a compute shader.  When is off, Vulkan will decode RGBA_F16 and RGBA_F32 frames.} xywh {557 78 135 25} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label {Use RGBA}
+                    xywh {40 40 100 20}
+                  }
+                  MenuItem {} {
+                    label {Use RGB}
+                    xywh {50 50 100 20}
+                  }
+                }
+                Fl_Choice uiPrefsChromaticities {
+                  label Chromaticities
+                  xywh {557 208 135 25} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label Ignore
+                    xywh {30 30 100 20}
+                  }
+                  MenuItem {} {
+                    label Apply
+                    xywh {40 40 100 20}
+                  }
+                }
+                Fl_Choice uiPrefsHDRInfo {
+                  label {HDR Data}
+                  xywh {557 247 135 25} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label {From File}
+                    xywh {50 50 100 20}
+                  }
+                  MenuItem {} {
+                    label Inactive
+                    xywh {40 40 100 20}
+                  }
+                  MenuItem {} {
+                    label Active
+                    xywh {50 50 100 20}
+                  }
+                }
+                Fl_Choice uiPrefsTonemapAlgorithm {
+                  label {Tonemap Algorithm}
+                  xywh {557 286 135 25} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label ST2094_40
+                    xywh {50 50 100 20}
+                  }
+                  MenuItem {} {
+                    label ST2094_10
+                    xywh {60 60 100 20}
+                  }
+                  MenuItem {} {
+                    label Clip
+                    xywh {70 70 100 20}
+                  }
+                  MenuItem {} {
+                    label BT2390
+                    xywh {80 80 100 20}
+                  }
+                  MenuItem {} {
+                    label BT2446A
+                    xywh {90 90 100 20}
+                  }
+                  MenuItem {} {
+                    label Spline
+                    xywh {100 100 100 20}
+                  }
+                  MenuItem {} {
+                    label Reinhard
+                    xywh {110 110 100 20}
+                  }
+                  MenuItem {} {
+                    label Mobius
+                    xywh {120 120 100 20}
+                  }
+                  MenuItem {} {
+                    label Hable
+                    xywh {130 130 100 20}
+                  }
+                  MenuItem {} {
+                    label Gamma
+                    xywh {130 130 100 20}
+                  }
+                  MenuItem {} {
+                    label Linear
+                    xywh {140 140 100 20}
+                  }
+                  MenuItem {} {
+                    label {Linear Light}
+                    xywh {150 150 100 20}
+                  }
+                  MenuItem {} {
+                    label None
+                    xywh {160 160 100 20}
+                  }
+                }
+                Fl_Choice uiPrefsGamutMapping {
+                  label {Gamut Mapping}
+                  xywh {557 325 135 25} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label Auto
+                    xywh {0 0 100 20}
+                  }
+                  MenuItem {} {
+                    label Clip
+                    xywh {10 10 100 20}
+                  }
+                  MenuItem {} {
+                    label Perceptual
+                    xywh {20 20 100 20}
+                  }
+                  MenuItem {} {
+                    label Relative
+                    xywh {30 30 100 20}
+                  }
+                  MenuItem {} {
+                    label Saturation
+                    xywh {40 40 100 20}
+                  }
+                  MenuItem {} {
+                    label Absolute
+                    xywh {50 50 100 20}
+                  }
+                  MenuItem {} {
+                    label Desaturate
+                    xywh {60 60 100 20}
+                  }
+                  MenuItem {} {
+                    label Darken
+                    xywh {70 70 100 20}
+                  }
+                  MenuItem {} {
+                    label Highlight
+                    xywh {80 80 100 20}
+                  }
+                  MenuItem {} {
+                    label Linear
+                    xywh {90 90 100 20}
+                  }
+                }
+              }
+            }
+            Fl_Group {} {
+              label {HDR Peak Detection}
+              xywh {280 38 565 369} box EMBOSSED_BOX align 5 hide
+            } {
+              Fl_Group {} {
+                label {HDR Peak Detection}
+                xywh {303 82 530 304} box ROUNDED_BOX
+              } {
+                Fl_Choice uiPrefsHDRPeakDetection {
+                  label {HDR Peak Detection}
+                  tooltip {When the video clip is not HDR10+ or Dolby Vision, allows dynamic thresholds per frame.} xywh {561 109 135 25} down_box BORDER_BOX
+                } {
+                  MenuItem {} {
+                    label Inactive
+                    xywh {50 50 100 20}
+                  }
+                  MenuItem {} {
+                    label Active
+                    xywh {60 60 100 20}
+                  }
+                }
+                Fl_Value_Input uiPrefsHDRPeakPercentile {
+                  label {HDR Percentile}
+                  tooltip {When less than 100, helps find the peak brightness ignoring the top 1 percent outliers.} xywh {629 162 64 28} minimum 0.1 maximum 100 step 0.1 value 100 textcolor 56
+                }
+                Fl_Value_Input uiPrefsHDRPeakSmoothingPeriod {
+                  label {Smoothing Period}
+                  tooltip {How long it takes for brightness detection to "catch up" to a new scene.} xywh {627 203 64 28} minimum 0.1 maximum 100 step 0.1 value 20 textcolor 56
+                }
+                Fl_Value_Input uiPrefsHDRPeakLowLimit {
+                  label {Low Peak Detection}
+                  tooltip {Low Limit to smooth out frames in the same scene.} xywh {627 264 64 28} minimum 0.1 maximum 100 step 0.1 value 1 textcolor 56
+                }
+                Fl_Value_Input uiPrefsHDRPeakHighLimit {
+                  label {High Peak Detection Limit}
+                  tooltip {High Limit to determine scene change.} xywh {627 309 64 28} minimum 0.1 maximum 100 step 0.1 value 3 textcolor 56
                 }
               }
             }
@@ -1294,20 +1377,24 @@ uiPrefs->uiPrefsOCIOConfig->value( r.c_str() );}
                 }
                 Fl_Light_Button uiOCIOUseDefaultDisplayView {
                   label {Use Default Display and View}
-                  tooltip {When this option is on, and your config.ocio has a default display and view, it will be used to be set as default.} xywh {421 236 288 24}
+                  tooltip {When this option is on, and your config.ocio has a default display and view, it will be used to be set as default.} xywh {404 236 350 30}
+                }
+                Fl_Light_Button uiOCIONotOnVideos {
+                  label {No OCIO on Videos or sRGB/BT709 data}
+                  tooltip {If playing a video or showing an SDR image, OCIO will be turned off automatically.} xywh {403 314 350 30}
                 }
                 Fl_Light_Button uiOCIOUseActiveViews {
                   label {Use Active Views and Active Displays}
-                  tooltip {When this option is off, OCIO files with active_views: and active_displays: are not taken into account.} xywh {421 276 288 24}
+                  tooltip {When this option is off, OCIO files with active_views: and active_displays: are not taken into account.} xywh {404 274 350 30}
                 }
               }
             }
             Fl_Group {} {
-              label {OCIO Defaults}
+              label {OCIO Defaults} open
               xywh {288 37 555 367} align 5 hide
             } {
               Fl_Group {} {
-                label {OCIO Defaults}
+                label {OCIO Defaults} open
                 xywh {305 54 520 340} box ROUNDED_BOX
               } {
                 Fl_Group uiOCIO_ICS {
@@ -1442,6 +1529,7 @@ v->uiOCIO_Look->do_callback();}
 }
 catch(const std::exception& e)
 {
+  std::cerr << e.what() << std::endl;
   o->value("");
 }}
                     tooltip {Default Display / View} xywh {396 346 283 25} box THIN_DOWN_BOX color 20 labelsize 11 align 132 textcolor 56
@@ -1810,7 +1898,7 @@ v->uiOCIO_Display_View->do_callback();}
             }
             Fl_Group {} {
               label {Voice Annotations}
-              tooltip {Voice Annotation Preferences.} xywh {298 47 555 361} box EMBOSSED_BOX align 5 hide
+              tooltip {Voice Annotation Preferences.} xywh {298 47 545 361} box EMBOSSED_BOX align 5 hide
             } {
               Fl_Group {} {
                 label {Voice Annotations} open
@@ -1865,7 +1953,7 @@ uiPrefs->uiPrefsVoiceOverPath->value( r.c_str() );}
             }
             Fl_Group {} {
               label ComfyUI
-              tooltip {Here are the current settings to interact with ComfyUI.  It requires installation of mrv2's comfyUI nodes.} xywh {298 47 555 360} box EMBOSSED_BOX align 5 hide
+              tooltip {Here are the current settings to interact with ComfyUI.  It requires installation of mrv2's comfyUI nodes.} xywh {298 47 545 360} box EMBOSSED_BOX align 5 hide
             } {
               Fl_Group {} {open
                 xywh {352 70 446 313}
@@ -1970,8 +2058,8 @@ uiPrefs->uiPrefsVoiceOverPath->value( r.c_str() );}
               }
             }
           }
-          Fl_Group {} {
-            xywh {320 412 470 44}
+          Fl_Group {} {open
+            xywh {324 408 470 40}
           } {
             Fl_Button {} {
               label Default
@@ -1987,21 +2075,21 @@ if (ok)
 // reset and reload preferences
 mrv::Preferences::reset();
 mrv::Preferences::load(false, false);}
-              tooltip {Reset settings to the default.} xywh {333 418 132 31}
+              tooltip {Reset settings to the default.} xywh {337 411 132 31}
             }
             Fl_Button {} {
               label Revert
               user_data this user_data_type {PreferencesUI*}
               callback {// reload preferences
 mrv::Preferences::load(false, false);}
-              tooltip {Revert settings to last saved preferences.} xywh {489 418 132 31}
+              tooltip {Revert settings to last saved preferences.} xywh {493 411 132 31}
             }
             Fl_Button {} {
               label OK
               user_data m user_data_type {ViewerUI*}
               callback {v->uiPrefs->uiMain->hide();
 mrv::Preferences::run();}
-              tooltip {Accept settings but don't save.  They will get saved when exiting the program.} xywh {648 418 132 31}
+              tooltip {Accept settings but don't save.  They will get saved when exiting the program.} xywh {652 411 132 31}
             }
           }
         }
@@ -2036,25 +2124,26 @@ for (Fl_Tree_Item* item = tree->first(); item; item = tree->next(item), ++idx)
       }
     }
   }
-  Function {PreferencesUI(ViewerUI* m)} {} {
+  Function {PreferencesUI(ViewerUI* m)} {open
+  } {
     code {make_window(m);} {}
   }
   Function {~PreferencesUI()} {} {
     code {delete uiMain; uiMain = NULL;} {}
   }
-  Function {fill_tree(mrv::PreferencesTree* o)} {open
-  } {
+  Function {fill_tree(mrv::PreferencesTree* o)} {} {
     code {Fl_Tree_Item* item = o->add( _("User Interface") );
 o->add( _("User Interface/View Window") );
 o->add( _("User Interface/File Requester") );
 o->add( _("User Interface/Fonts") );
-o->add( _("User Interface/HDR") );
 o->add( _("User Interface/Language and Colors") );
 o->add( _("User Interface/Pixel Toolbar") );
 o->add( _("User Interface/Positioning") );
 o->add( _("User Interface/Render") );;
 o->add( _("User Interface/Thumbnails") );
 o->add( _("User Interface/Timeline") );
+o->add( _("HDR") );
+o->add( _("HDR Peak Detection") );
 o->add( _("Playback") );
 o->add( _("Edit") );
 o->add( _("OCIO") );

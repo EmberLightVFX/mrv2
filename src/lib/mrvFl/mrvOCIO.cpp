@@ -9,20 +9,21 @@
 #include "mrvFl/mrvOCIO.h"
 #include "mrvFl/mrvIO.h"
 
-#include "mrvOptions/mrvLUTOptions.h"
-
-#include "mrvCore/mrvI8N.h"
 #include "mrvCore/mrvFile.h"
-#include "mrvCore/mrvString.h"
+
+#include "mrvOS/mrvI8N.h"
+#include "mrvOS/mrvString.h"
 
 #include "mrViewer.h"
+
+#include <regex>
 
 namespace
 {
     const char* kModule = "ocio";
 
     static std::string kInactive = _("None");
-
+    
 } // namespace
 
 namespace mrv
@@ -643,6 +644,12 @@ namespace mrv
                 return;
             }
 
+            std::string display;
+            std::string view;
+            splitView(name, display, view);
+
+            std::string parenthesized = view + " (" + display + ")";
+            
             int value = -1;
             for (int i = 0; i < uiOCIOView->children(); ++i)
             {
@@ -658,8 +665,8 @@ namespace mrv
                 std::string path = pathname;
                 if (path[0] == '/')
                     path = path.substr(1, path.size());
-
-                if (name == path)
+                
+                if (name == path || parenthesized == path)
                 {
                     value = i;
                     break;
@@ -672,7 +679,8 @@ namespace mrv
                     const Fl_Menu_Item* item = uiOCIOView->child(i);
                     if (!item || !item->label() || (item->flags & FL_SUBMENU))
                         continue;
-                    if (name == item->label())
+
+                    if (name == item->label() || parenthesized == item->label())
                     {
                         value = i;
                         break;

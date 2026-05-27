@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.25)
 
 project(mrv2)
 
+set(CMAKE_CXX_STANDARD 20)
+
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0114 NEW)
 if(POLICY CMP0135)
@@ -30,12 +32,90 @@ if(TLRENDER_NDI)
     if(NOT EXISTS "${TLRENDER_NDI_SDK}")
 	message(FATAL_ERROR "TLRENDER_NDI is ON but TLRENDER_NDI_SDK does not exist!\n${TLRENDER_NDI_SDK}") 
     endif()
+    
+    # ---------------------------------------------------------------------------
+    # NDI SDK architecture detection (Linux only)
+    # For embedded/cross-compiled targets (HiSilicon, Rockchip, Sigma Star, etc.)
+    # set NDI_SDK_ARCH manually in your toolchain file or on the cmake command line.
+    # Desktop architectures are auto-detected from CMAKE_SYSTEM_PROCESSOR.
+    # ---------------------------------------------------------------------------
+    if(UNIX AND NOT APPLE AND NOT DEFINED NDI_SDK_ARCH)
+	if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+            set(NDI_SDK_ARCH "x86_64-linux-gnu")
+
+	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+            # Distinguish Raspberry Pi 4 (64-bit) from generic aarch64 desktop
+            # (e.g. aarch64-newtek-linux-gnu covers Jetson, Apple M1 Linux, etc.)
+            if(EXISTS "/proc/device-tree/model")
+		file(READ "/proc/device-tree/model" _NDI_BOARD_MODEL)
+		if(_NDI_BOARD_MODEL MATCHES "Raspberry Pi 4")
+                    set(NDI_SDK_ARCH "aarch64-rpi4-linux-gnueabi")
+		elseif(_NDI_BOARD_MODEL MATCHES "Rockchip")
+                    set(NDI_SDK_ARCH "aarch64-rockchip-linux-gnu")
+		else()
+                    set(NDI_SDK_ARCH "aarch64-newtek-linux-gnu")
+		endif()
+		unset(_NDI_BOARD_MODEL)
+            else()
+		set(NDI_SDK_ARCH "aarch64-newtek-linux-gnu")
+            endif()
+
+	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7l|armv7|armhf|arm)$")
+            # Distinguish common 32-bit ARM desktop/SBC variants
+            if(EXISTS "/proc/device-tree/model")
+		file(READ "/proc/device-tree/model" _NDI_BOARD_MODEL)
+		if(_NDI_BOARD_MODEL MATCHES "Raspberry Pi 4")
+                    set(NDI_SDK_ARCH "arm-rpi4-linux-gnueabihf")
+		elseif(_NDI_BOARD_MODEL MATCHES "Raspberry Pi 3")
+                    set(NDI_SDK_ARCH "arm-rpi3-linux-gnueabihf")
+		elseif(_NDI_BOARD_MODEL MATCHES "Raspberry Pi 2")
+                    set(NDI_SDK_ARCH "arm-rpi2-linux-gnueabihf")
+		elseif(_NDI_BOARD_MODEL MATCHES "Raspberry Pi")
+                    set(NDI_SDK_ARCH "arm-rpi1-linux-gnueabihf")
+		elseif(_NDI_BOARD_MODEL MATCHES "Rockchip")
+                    set(NDI_SDK_ARCH "arm-rockchip-linux-gnueabihf")
+		else()
+                    set(NDI_SDK_ARCH "arm-newtek-linux-gnueabihf")
+		endif()
+		unset(_NDI_BOARD_MODEL)
+            else()
+		set(NDI_SDK_ARCH "arm-newtek-linux-gnueabihf")
+            endif()
+
+	else()
+            message(WARNING
+		"NDI: Unrecognised architecture '${CMAKE_SYSTEM_PROCESSOR}'. "
+		"Falling back to x86_64-linux-gnu. "
+		"For embedded targets (HiSilicon himix/hisiv, Sigma Star, etc.) "
+		"set -DNDI_SDK_ARCH=<dir> on the cmake command line.")
+            set(NDI_SDK_ARCH "x86_64-linux-gnu")
+	endif()
+
+	message(STATUS "NDI SDK arch directory: ${NDI_SDK_ARCH}")
+    endif()
 endif()
 
 include(cmake/version.cmake )
 include(cmake/options.cmake )
 include(cmake/functions.cmake )
 
+# Use ccache if available to speed up rebuilds
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+
+    if(MSVC)
+	# Replace /Zi or /ZI with /Z7 for ccache compatibility
+	string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG
+	    "${CMAKE_CXX_FLAGS_DEBUG}")
+	string(REPLACE "/ZI" "/Z7" CMAKE_CXX_FLAGS_DEBUG
+	    "${CMAKE_CXX_FLAGS_DEBUG}")
+	string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_DEBUG
+	    "${CMAKE_C_FLAGS_DEBUG}")
+    endif()
+endif()
 
 # Determine a repository root based on the current source directory.
 get_filename_component(REPO_ROOT "${PROJECT_SOURCE_DIR}/tlRender" ABSOLUTE)
@@ -76,6 +156,8 @@ string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" SYSTEM_PROCESSOR_LC)
 set(vcpkg_ARCH x64)
 if(SYSTEM_PROCESSOR_LC MATCHES "^(aarch64|arm64)$")
     set(vcpkg_ARCH arm64)
+elseif(SYSTEM_PROCESSOR_LC MATCHES ".*(amd64|x86_64).*")
+    set(SYSTEM_PROCESSOR_LC amd64)
 endif()
     
 set(vcpkg_BUILD_TYPE debug)
@@ -260,6 +342,7 @@ endif()
 set(POCO_DEP )
 if(MRV2_NETWORK)
     include(cmake/Modules/BuildPoco.cmake)
+    include(cmake/Modules/Buildlibdatachannel.cmake)
 endif()
 
 if(BUILD_MRV2)

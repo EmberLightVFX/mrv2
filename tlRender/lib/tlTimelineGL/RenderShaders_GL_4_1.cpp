@@ -275,8 +275,6 @@ vec4 sampleTexture(
               c.b = (c.b - (16.0 / 255.0)) * (255.0 / (240.0 - 16.0));
           }
               
-             // This was needed in OpenGL, but not for Vulkan
-             // Swizzle for the image channels.
           if (1 == imageChannels)
           {
               c.g = c.b = c.r;
@@ -354,7 +352,9 @@ vec4 sampleTexture(
             const std::string& ocioDef, const std::string& ocio,
             const std::string& lutDef, const std::string& lut,
             timeline::LUTOrder lutOrder, const std::string& toneMapDef,
-            const std::string& toneMap)
+            const std::string& toneMap,
+            const std::string& debandingDef,
+            const std::string& debanding)
         {
             std::vector<std::string> args;
             args.push_back(videoLevels); // 0
@@ -676,5 +676,48 @@ vec4 sampleTexture(
                    "    outColor.a = max(c.a, cB.a);\n"
                    "}\n";
         }
+        
+        std::string multiplyFragmentSource()
+        {
+            return R"(#version 410
+                 
+layout(location = 0) in vec2 fTexture;
+layout(location = 0) out vec4 outColor;
+                 
+uniform sampler2D textureSampler;
+uniform sampler2D textureSamplerB;
+                 
+void main()
+{
+    vec4 c = texture(textureSampler, fTexture);
+    vec4 cB = texture(textureSamplerB, fTexture);
+    outColor.r = c.r * cB.r;
+    outColor.g = c.g * cB.g;
+    outColor.b = c.b * cB.b;
+    outColor.a = max(c.a, cB.a);
+})";
+        }
+
+        std::string addFragmentSource()
+        {
+            return R"(#version 410
+                 
+layout(location = 0) in vec2 fTexture;
+layout(location = 0) out vec4 outColor;
+                 
+uniform sampler2D textureSampler;
+uniform sampler2D textureSamplerB;
+                 
+void main()
+{
+    vec4 c = texture(textureSampler, fTexture);
+    vec4 cB = texture(textureSamplerB, fTexture);
+    outColor.r = c.r + cB.r;
+    outColor.g = c.g + cB.g;
+    outColor.b = c.b + cB.b;
+    outColor.a = max(c.a, cB.a);
+})";
+        }
+        
     } // namespace timeline_gl
 } // namespace tl

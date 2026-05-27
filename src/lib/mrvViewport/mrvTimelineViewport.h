@@ -22,11 +22,12 @@
 
 #include "mrvCore/mrvActionMode.h"
 #include "mrvCore/mrvColorAreaInfo.h"
-#include "mrvCore/mrvString.h"
+#include "mrvOS/mrvString.h"
 
 #include <tlTimeline/BackgroundOptions.h>
 #include <tlTimeline/IRender.h>
 #include <tlTimeline/PlayerOptions.h>
+#include <tlTimeline/ShaderOptions.h>
 
 #include <tlDraw/Shape.h>
 
@@ -107,10 +108,17 @@ namespace mrv
             //! Return the current video image in BGRA order after drawing it.
             const image::Color4f* image() const;
 
+            //! Get the shader options.
+            const timeline::ShaderOptions&
+            getShaderOptions() const noexcept;
+
+            //! Set the shader options.
+            void setShaderOptions(const timeline::ShaderOptions& value) noexcept;
+            
             //! Get the background options.
             const timeline::BackgroundOptions&
             getBackgroundOptions() const noexcept;
-
+            
             //! Observe the background options.
             std::shared_ptr<observer::IValue<timeline::BackgroundOptions> >
             observeBackgroundOptions() const;
@@ -406,7 +414,7 @@ namespace mrv
 
             //! Get current frame/video tags
             image::Tags getTags() const noexcept;
-
+            
             //! Record the mouse position callback.
             void recordMousePosition();
 
@@ -434,6 +442,8 @@ namespace mrv
             void _updateDevices() const noexcept;
 
             virtual void _readPixel(image::Color4f& rgba) = 0;
+            virtual image::Color4f _pq_to_nits(const image::Color4f& rgba) const { return rgba; }
+            virtual image::Color4f _pq_to_linear(const image::Color4f& rgba) const { return rgba; }
             math::Vector2i _getViewportCenter() const noexcept;
 
             math::Vector2i _getFocus(int X, int Y) const noexcept;
@@ -465,9 +475,9 @@ namespace mrv
             //! panning and zooming.
             math::Matrix4x4f _pixelMatrixWithTransforms() const noexcept;
 
-            //! Clip the selection area position taking into account
+            //! Clamp the selection area position taking into account
             //! rotation.
-            void _clipSelectionArea(math::Vector2i& pos) const noexcept;
+            void _clampSelectionArea(math::Vector2i& pos) const noexcept;
 
             //! Call redraw and a flush to force a redraw.
             void _refresh() noexcept;
@@ -492,7 +502,7 @@ namespace mrv
             void _togglePixelBar() const noexcept;
 
             void _updatePixelBar() noexcept;
-            void _updatePixelBar(image::Color4f& rgba) const noexcept;
+            void _updatePixelBar(const image::Color4f& rgba) const noexcept;
             bool _shouldUpdatePixelBar() const noexcept;
             bool _isPlaybackStopped() const noexcept;
             bool _isSingleFrame() const noexcept;
@@ -549,6 +559,7 @@ namespace mrv
             float _getZoomSpeedValue() const noexcept;
 
             void _getTags() noexcept;
+            void _getHDR() noexcept;
 
             void _startVoiceRecording(const std::shared_ptr<voice::VoiceOver> voice);
             void _startVoicePlaying(const std::shared_ptr<voice::VoiceOver> voice);

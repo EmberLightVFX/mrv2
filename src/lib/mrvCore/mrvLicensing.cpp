@@ -10,8 +10,9 @@
 
 #include "mrvCore/mrvFile.h"
 #include "mrvCore/mrvHome.h"
-#include "mrvCore/mrvI8N.h"
-#include "mrvCore/mrvOS.h"
+#include "mrvOS/mrvI8N.h"
+
+#include "mrvOS/mrvOS.h"
 
 #ifdef MRV2_NETWORK
 #    include <Poco/Net/HTTPSClientSession.h>

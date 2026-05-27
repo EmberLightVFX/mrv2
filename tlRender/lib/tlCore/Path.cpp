@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <filesystem>
 #include <list>
 #include <sstream>
 
@@ -15,6 +16,16 @@ namespace tl
 {
     namespace file
     {
+
+        namespace
+        {
+            std::string toUtf8(const std::filesystem::path& p)
+            {
+                auto u8 = p.u8string();
+                return std::string(u8.begin(), u8.end());
+            }
+        }
+        
         std::vector<std::string> split(std::filesystem::path path)
         {
             std::list<std::string> out;
@@ -23,13 +34,13 @@ namespace tl
             {
                 if (!path.filename().empty())
                 {
-                    out.push_front(path.filename().u8string());
+                    out.push_front(toUtf8(path.filename()));
                 }
                 path = path.parent_path();
             }
             if (!path.empty())
             {
-                out.push_front(path.u8string());
+                out.push_front(toUtf8(path));
             }
             return std::vector<std::string>(out.begin(), out.end());
         }
@@ -123,7 +134,7 @@ namespace tl
 
         void Path::setProtocol(const std::string& value)
         {
-            _path = value + getDirectory() + getBaseName() + getNumber() + getExtension() + getRequest();
+            _path = value + getDirectory() + getBaseName() + getNumber() + getSuffix() + getExtension() + getRequest();
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
@@ -131,7 +142,7 @@ namespace tl
 
         void Path::setDirectory(const std::string& value)
         {
-            _path = getProtocol() + value + getBaseName() + getNumber() + getExtension() + getRequest();
+            _path = getProtocol() + value + getBaseName() + getNumber() + getSuffix() + getExtension() + getRequest();
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
@@ -139,15 +150,23 @@ namespace tl
 
         void Path::setBaseName(const std::string& value)
         {
-            _path = getProtocol() + getDirectory() + value + getNumber() + getExtension() + getRequest();
+            _path = getProtocol() + getDirectory() + value + getNumber() + getSuffix() + getExtension() + getRequest();
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
         }
 
+        void Path::setSuffix(const std::string& value)
+        {
+            _path = getProtocol() + getDirectory() + getBaseName() + getNumber() + value + getExtension() + getRequest();
+            const std::optional<math::Int64Range> tmp = _frames;
+            _parse(_options);
+            _frames = tmp;
+        }
+        
         void Path::setNumber(const std::string& value)
         {
-            _path = getProtocol() + getDirectory() + getBaseName() + value + getExtension() + getRequest();
+            _path = getProtocol() + getDirectory() + getBaseName() + value + getSuffix() + getExtension() + getRequest();
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
@@ -161,7 +180,7 @@ namespace tl
             {
                 num = toString(std::atoi(num.c_str()), _pad);
             }
-            _path = getProtocol() + getDirectory() + getBaseName() + num + getExtension() + getRequest();
+            _path = getProtocol() + getDirectory() + getBaseName() + num + getSuffix() + getExtension() + getRequest();
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
@@ -169,7 +188,7 @@ namespace tl
 
         void Path::setExtension(const std::string& value)
         {
-            _path = getProtocol() + getDirectory() + getBaseName() + getNumber() + value + getRequest();
+            _path = getProtocol() + getDirectory() + getBaseName() + getNumber() + getSuffix() + value + getRequest();
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
@@ -177,7 +196,7 @@ namespace tl
 
         void Path::setRequest(const std::string& value)
         {
-            _path = getProtocol() + getDirectory() + getBaseName() + getNumber() + getExtension() + value;
+            _path = getProtocol() + getDirectory() + getBaseName() + getNumber() + getSuffix() + getExtension() + value;
             const std::optional<math::Int64Range> tmp = _frames;
             _parse(_options);
             _frames = tmp;
@@ -324,7 +343,7 @@ namespace tl
                 _dir = std::pair<size_t, size_t>(protocolSize, dirSize);
             }
             const size_t protocolDirSize = protocolSize + dirSize;
-
+            
             // Find the extension.
             size_t extPos = std::string::npos;
             if (size > 0)
@@ -347,6 +366,30 @@ namespace tl
                 size -= sizeTmp;
             }
 
+            // Find the suffix (optional non-digit text between the frame number and extension).
+            // Scan backwards past non-digit characters; those become the suffix.
+            // The number detection that follows then operates on the shortened stem.
+            //
+            // Examples:
+            //   render_0001_stable  →  suffix="_stable",  number = "0001"
+            //   render_v003_0001    →  suffix="",         number = "0001"
+            //   render_v003_cap2_0001 → suffix="",        number = "0001"
+            if (size > protocolDirSize)
+            {
+                int i = static_cast<int>(size) - 1;
+                while (i >= static_cast<int>(protocolDirSize) &&
+                       numbers.find(_path[i]) == std::string::npos)
+                {
+                    --i;
+                }
+                const size_t sufPos = static_cast<size_t>(i) + 1;
+                if (sufPos < size)
+                {
+                    _suf = std::pair<size_t, size_t>(sufPos, size - sufPos);
+                    size = sufPos;   // strip suffix so number detection sees a clean stem
+                }
+            }
+            
             // Find the number.
             size_t numPos = std::string::npos;
             if (size > 0)
@@ -506,8 +549,8 @@ namespace tl
             {
                 for (const auto& i : std::filesystem::directory_iterator(path))
                 {
-                    const Path path(i.path().u8string(), pathOptions);
-                    const std::string fileName = i.path().filename().u8string();
+                    const Path path(toUtf8(i.path()), pathOptions);
+                    const std::string fileName = toUtf8(i.path().filename());
 
                     // Apply filters.
                     bool keep = true;
@@ -634,10 +677,18 @@ namespace tl
             {
                 // Find matching sequence files.
                 bool init = true;
-                const std::filesystem::path stdpath = std::filesystem::u8path(out.get());
+                std::string fileName(out.get());
+                
+#if defined(__cpp_lib_char8_t)
+                // C++20: u8path is deprecated. We cast the string data to char8_t.
+                const std::filesystem::path stdpath{reinterpret_cast<const char8_t*>(fileName.data())};
+#else
+                // C++17: u8path is the standard way to handle UTF-8 strings.
+                const std::filesystem::path stdpath = std::filesystem::u8path(fileName);
+#endif
                 for (const auto& i : std::filesystem::directory_iterator(stdpath.parent_path()))
                 {
-                    const Path entry(i.path().u8string(), pathOptions);
+                    const Path entry(toUtf8(i.path()), pathOptions);
                     const bool isDir = std::filesystem::is_directory(i.path());
                     if (init && !isDir)
                     {

@@ -6,6 +6,29 @@ namespace tl
 {
     namespace timeline_vlk
     {
+        
+        struct PBRTransform
+        {
+            alignas(16) math::Matrix4x4f model;
+            alignas(16) math::Matrix4x4f mvp;
+            alignas(16) math::Matrix3x3f normalMatrix;
+        };
+                
+        struct PBRMaterial
+        {
+            alignas(16) math::Vector4f diffuseColor;
+            alignas(4)  float metallic;
+            alignas(4)  float roughtness;
+            alignas(4)  float aoStrength;
+        };
+        
+        struct PBRScene
+        {
+            alignas(16) math::Vector3f camPos;
+            alignas(16) math::Vector3f lightPos;
+            alignas(16) math::Vector3f lightColor;
+        };
+
         // Texture sampling options
         struct UBOTexture
         {
@@ -45,12 +68,19 @@ namespace tl
             alignas(16) math::Vector4f minimum = math::Vector4f(0.F, 0.F, 0.F, 0.F);
             alignas(16) math::Vector4f maximum = math::Vector4f(1.F, 1.F, 1.F, 1.F);
         };
+
+        // Dithering
+        struct UBODither
+        {
+            alignas(4) uint32_t enabled = 0;
+        };
         
         struct UBOOptions
         {
             alignas(4) int   channels;
             alignas(4) int   mirrorX;
             alignas(4) int   mirrorY;
+            alignas(4) int   dither;
             alignas(4) float softClip;
             alignas(4) int   videoLevels;
             alignas(4) int   invalidValues;

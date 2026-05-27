@@ -4,40 +4,41 @@
 
 #include "mrViewer.h"
 
-#include <fstream>
-
-#include <tlCore/StringFormat.h>
-
-#include "mrvCore/mrvFile.h"
-#include "mrvCore/mrvString.h"
-
-#include "mrvOptions/mrvEnvironmentMapOptions.h"
-#include "mrvOptions/mrvStereo3DOptions.h"
-
-#include "mrvNetwork/mrvMessage.h"
-#include "mrvNetwork/mrvCypher.h"
-#include "mrvNetwork/mrvFilesModelItem.h"
-
-#include "mrvOptions/mrvCompareOptions.h"
-#include "mrvOptions/mrvDisplayOptions.h"
-#include "mrvOptions/mrvImageOptions.h"
-#include "mrvOptions/mrvTimelineItemOptions.h"
-
-#include "mrvFl/mrvCallbacks.h"
-#include "mrvPanels/mrvPanelsCallbacks.h"
-
-#include "mrvEdit/mrvEditCallbacks.h"
-#include "mrvEdit/mrvEditUtil.h"
 
 #include "mrvApp/mrvFilesModel.h"
 #include "mrvApp/mrvSettingsObject.h"
 #include "mrvApp/mrvApp.h"
 
+#include "mrvNetwork/mrvMessage.h"
+#include "mrvNetwork/mrvCypher.h"
+#include "mrvNetwork/mrvFilesModelItem.h"
+
+#include "mrvPanels/mrvPanelsCallbacks.h"
+
 #include "mrvFl/mrvIO.h"
-
-#include "mrvSession.h"
-
 #include "mrvFl/mrvOCIO.h"
+#include "mrvFl/mrvSession.h"
+
+#include "mrvFLTK/mrvCallbacks.h"
+
+#include "mrvEdit/mrvEditCallbacks.h"
+#include "mrvEdit/mrvEditUtil.h"
+
+#include "mrvCore/mrvFile.h"
+
+#include "mrvOS/mrvString.h"
+
+#include "mrvOptions/mrvEnvironmentMapOptions.h"
+#include "mrvOptions/mrvStereo3DOptions.h"
+#include "mrvOptions/mrvCompareOptions.h"
+
+
+#include <tlTimelineUI/IItem.h>
+
+#include <tlCore/StringFormat.h>
+
+#include <fstream>
+
 
 namespace
 {
@@ -180,6 +181,7 @@ namespace mrv
 #endif
                 {"Histogram", (histogramPanel != nullptr)},
                 {"Vectorscope", (vectorscopePanel != nullptr)},
+                {"Waveform", (waveformPanel != nullptr)},
                 {"Stereo 3D", (stereo3DPanel != nullptr)},
 #ifdef TLRENDER_USD
                 {"USD", (usdPanel != nullptr)},
@@ -225,6 +227,8 @@ namespace mrv
                 histogramPanel->save();
             if (vectorscopePanel)
                 vectorscopePanel->save();
+            if (waveformPanel)
+                waveformPanel->save();
             if (logsPanel)
                 logsPanel->save();
 
@@ -478,9 +482,67 @@ namespace mrv
                         audioPath = item.audioPath.get();
 
                     replace_path(path);
+                    while (!file::isReadable(path))
+                    {
+                        std::string msg;
+                        if (file::isMovie(item.path))
+                        {
+                            msg = string::Format(_("Movie File '{0}' is not readable.\n\nDo you want to replace it with another?")).arg(path);
+                        }
+                        else
+                        {
+                            msg = string::Format(_("Sequence '{0}' is not readable.\n\nDo you want to replace it with another?")).arg(path);
+                        }
+                        int ok = fl_choice(msg.c_str(), _("No"), _("Yes"), NULL, NULL);
+                        if (ok)
+                        {
+                            char buf[2048];
+                            fl_getcwd(buf, 2048);
+                            auto files = open_image_file(buf, true);
+                            if (!files.empty())
+                            {
+                                path = files[0];
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    
                     if (!audioPath.empty())
+                    {
                         replace_path(audioPath);
-
+                        
+                        while (!file::isReadable(audioPath))
+                        {
+                            const std::string msg = string::Format(_("Audio File '{0}' is not readable.\n\nDo you want to replace it with another?")).arg(audioPath);
+                            int ok = fl_choice(msg.c_str(), _("No"), _("Yes"), NULL, NULL);
+                            if (ok)
+                            {
+                                char buf[2048];
+                                fl_getcwd(buf, 2048);
+                                auto files = open_image_file(audioPath.c_str(), true);
+                                if (!files.empty())
+                                {
+                                    audioPath = files[0];
+                                }
+                                else
+                                {
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    
                     app->open(path, audioPath);
 
                     // Copy annotations to both item and player

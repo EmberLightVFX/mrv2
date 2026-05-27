@@ -10,6 +10,7 @@ set(HEADERS
     mrvDesktop.h
     mrvMenus.h
     mrvMonitor.h
+    mrvOpenSeparateAudioDialog.h
     mrvUtil.h
 )
 
@@ -18,6 +19,7 @@ set(SOURCES
     mrvDesktop.cpp
     mrvMenus.cpp
     mrvMonitor.cpp
+    mrvOpenSeparateAudioDialog.cpp
     mrvUtil.cpp
 )
 
@@ -29,7 +31,7 @@ endif()
 add_library(mrvUI ${SOURCES} ${HEADERS})
 files_to_absolute_paths()
 
-set(LIBRARIES mrvWidgets)
+set(LIBRARIES mrvFl mrvWidgets mrvFLTK)
 set(LIBRARIES_PRIVATE )
 
 if(TLRENDER_X11)
@@ -47,10 +49,15 @@ if(TLRENDER_WAYLAND)
 endif()
 
 if (UNIX AND NOT APPLE)
-    find_library(DISPLAY_INFO
+    find_library(DISPLAY_INFO_LIBRARY
 	NAMES
 	display-info)
-    list(APPEND LIBRARIES_PRIVATE ${DISPLAY_INFO})
+    list(APPEND LIBRARIES_PRIVATE ${DISPLAY_INFO_LIBRARY})
+    
+    find_library(DRM_LIBRARY
+	NAMES
+	drm)
+    list(APPEND LIBRARIES_PRIVATE ${DRM_LIBRARY})
 endif()
 
 if (WIN32)
@@ -59,6 +66,9 @@ endif()
 
 target_link_libraries(mrvUI PUBLIC ${LIBRARIES} PRIVATE ${LIBRARIES_PRIVATE} )
 set_target_properties(mrvUI PROPERTIES FOLDER lib)
+if (UNIX AND NOT APPLE)
+    target_include_directories(mrvUI PRIVATE /usr/include/libdrm)
+endif()
 
 install(TARGETS mrvUI
     ARCHIVE DESTINATION lib

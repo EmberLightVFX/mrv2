@@ -49,11 +49,6 @@ namespace tl
                                          timeline::RenderOptions()) override;
             void end() override;
 
-            //! Tone-map functions
-            void setMonitorHDRSupported(bool);
-            void setMonitorMinNits(float);
-            void setMonitorMaxNits(float);
-
             math::Size2i getRenderSize() const override;
             void setRenderSize(const math::Size2i&) override;
             math::Box2i getViewport() const override;
@@ -100,6 +95,10 @@ namespace tl
                 const timeline::CompareOptions& = timeline::CompareOptions(),
                 const timeline::BackgroundOptions& =
                     timeline::BackgroundOptions()) override;
+            void beginRenderPass() override {};
+            void beginLoadRenderPass() override {};
+            void endRenderPass() override {};
+            void setupViewportAndScissor() override {};
 
         private:
             void _displayShader();
@@ -132,6 +131,18 @@ namespace tl
                 const std::vector<timeline::DisplayOptions>&,
                 const timeline::CompareOptions&);
             void _drawVideoDifference(
+                const std::vector<timeline::VideoData>&,
+                const std::vector<math::Box2i>&,
+                const std::vector<timeline::ImageOptions>&,
+                const std::vector<timeline::DisplayOptions>&,
+                const timeline::CompareOptions&);
+            void _drawVideoAdd(
+                const std::vector<timeline::VideoData>&,
+                const std::vector<math::Box2i>&,
+                const std::vector<timeline::ImageOptions>&,
+                const std::vector<timeline::DisplayOptions>&,
+                const timeline::CompareOptions&);
+            void _drawVideoMultiply(
                 const std::vector<timeline::VideoData>&,
                 const std::vector<math::Box2i>&,
                 const std::vector<timeline::ImageOptions>&,

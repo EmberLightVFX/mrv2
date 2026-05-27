@@ -3,6 +3,7 @@
 // All rights reserved.
 
 #include <tlCore/HDR.h>
+#include <tlCore/Monitor.h>
 
 namespace tl
 {
@@ -47,9 +48,18 @@ namespace tl
 
         //! Tonemap options.
         struct HDROptions
-        {
-            bool passthru = false;
+        {            
+            //! Use libplacebo tonemapping (used for videos mainly)
             bool tonemap = false;
+
+            //! Peak detection variables.
+            bool peak_detection = false;
+            float peak_percentile = 100.F;
+            float peak_smoothing_period = 20.F;
+            float peak_scene_low_limit = 1.F;
+            float peak_scene_high_limit = 3.F;
+
+            //! Tone mapping data for libplacebo.
             HDRGamutMapping     gamutMapping = HDRGamutMapping::Auto;
             HDRTonemapAlgorithm algorithm = HDRTonemapAlgorithm::Hable;
             image::HDRData hdrData;

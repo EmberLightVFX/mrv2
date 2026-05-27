@@ -10,8 +10,8 @@ ProcessorCount(NPROCS)
 
 set( Python_REPOSITORY https://github.com/python/cpython)
 
-set( Python_VERSION 3.12 ) 
-set( Python_TINY    12 )
+set( Python_VERSION 3.14 )  # was 3.12.12 
+set( Python_TINY    5 )
 
 set( Python_GIT_TAG v${Python_VERSION}.${Python_TINY})
 
@@ -24,19 +24,23 @@ else()
 endif()
 
     
-set( Python_PATCH )
-set( Python_ENV )
-set( Python_PATH $ENV{PATH} )
+set(Python_PATCH )
+set(Python_ENV )
+set(Python_PATH $ENV{PATH} )
+set(Python_OPTIMIZATIONS --enable-optimizations)
 
 if(APPLE)
 
     set(Python_DYLD_LIBRARY_PATH $ENV{DYLD_LIBRARY_PATH})
+    set(Python_C_COMPILER ${NATIVE_C_COMPILER})
     set(Python_C_FLAGS "${CMAKE_C_FLAGS}" )
-    set(Python_CXX_FLAGS "${CMAKE_CXX_FLAGS}" )
-    set(Python_LD_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}" )
+    set(Python_CXX_COMPILER ${NATIVE_CXX_COMPILER})
+    set(Python_CXX_FLAGS ${Python_C_FLAGS} )
+    set(Python_LD_FLAGS "-Wl,-rpath,${CMAKE_INSTALL_PREFIX}/lib -framework Security -framework CoreFoundation ${CMAKE_SHARED_LINKER_FLAGS}" )
     
     if(CMAKE_OSX_DEPLOYMENT_TARGET)
-	set( Python_C_FLAGS "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET} ${CMAKE_C_FLAGS}")
+	set( Python_C_FLAGS "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET} ${Python_C_FLAGS}")
+	set( Python_CXX_FLAGS "-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET} ${Python_CXX_FLAGS}")
     endif()
 
     if(TLRENDER_NET)
@@ -61,10 +65,26 @@ if(APPLE)
 	"${PROJECT_SOURCE_DIR}/cmake/patches/Python-patch/configure"
 	"${CMAKE_BINARY_DIR}/deps/Python/src/Python/"
 	COMMAND chmod 0755 "${CMAKE_BINARY_DIR}/deps/Python/src/Python/configure"
+	COMMAND
+	${CMAKE_COMMAND} -E copy_if_different
+	"${PROJECT_SOURCE_DIR}/cmake/patches/Python-patch/Modules/_scproxy.c"
+	"${CMAKE_BINARY_DIR}/deps/Python/src/Python/Modules/_scproxy.c"
     )
     
     set( Python_ENV ${CMAKE_COMMAND} -E env "DYLD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${Python_DYLD_LIBRARY_PATH}" -- )
-    set( Python_CONFIGURE ${CMAKE_COMMAND} -E env "CFLAGS=${Python_C_FLAGS}" "CPPFLAGS=${Python_C_FLAGS}" "CXXFLAGS=${Python_CXX_FLAGS}" "LDFLAGS=${Python_LD_FLAGS}" "CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}" -- ./configure --enable-optimizations --enable-shared --with-openssl=${_openssl_LOC} --prefix=${CMAKE_INSTALL_PREFIX}
+    set( Python_CONFIGURE ${CMAKE_COMMAND} -E env
+	"CC=${Python_C_COMPILER}"
+	"CXX=${Python_CXX_COMPILER}"
+	"CFLAGS=${Python_C_FLAGS}"
+	"CPPFLAGS=${Python_C_FLAGS}"
+	"CXXFLAGS=${Python_CXX_FLAGS}"
+	"LDFLAGS=${Python_LD_FLAGS}"
+	"CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}" --
+	./configure
+	${Python_OPTIMIZATIONS}
+	--enable-shared
+	--with-openssl=${_openssl_LOC}
+	--prefix=${CMAKE_INSTALL_PREFIX}
     )
     set( Python_BUILD make -j ${NPROCS} )
 
@@ -88,7 +108,7 @@ elseif(UNIX)
     set( Python_ENV ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${Python_LD_LIBRARY_PATH}" "PYTHONPATH=${Python_SOURCE_LIB_DIR}" "CFLAGS=${Python_C_FLAGS}" "CPPFLAGS=${Python_C_FLAGS}" "CXXFLAGS=${Python_CXX_FLAGS}" "LDFLAGS=${Python_LD_FLAGS}" -- )
 
     set( Python_CONFIGURE ${Python_ENV} ./configure
-	--enable-optimizations
+	${Python_OPTIMIZATIONS}
 	--enable-shared
         --prefix=${CMAKE_INSTALL_PREFIX}
 	--without-ensurepip

@@ -24,6 +24,8 @@
 #include "mrvIcons/CompareA.h"
 #include "mrvIcons/CompareB.h"
 #include "mrvIcons/CompareDifference.h"
+#include "mrvIcons/CompareAdd.h"
+#include "mrvIcons/CompareMultiply.h"
 #include "mrvIcons/CompareHorizontal.h"
 #include "mrvIcons/CompareTile.h"
 #include "mrvIcons/CompareVertical.h"
@@ -141,8 +143,8 @@ namespace mrv
             if (player)
                 time = player->currentTime();
 
-            const image::Size size(128, 64);
-
+            size = panel::calculateImageSize();
+            
             file::Path lastPath;
             int Y = g->y();
 
@@ -159,13 +161,12 @@ namespace mrv
                     continue;
                 lastPath = path;
 
-                const std::string& protocol = path.getProtocol();
-                const std::string& dir = path.getDirectory();
-                const std::string& base = path.getBaseName();
-                const std::string& extension = path.getExtension();
-                const std::string file = base + path.getNumber() + extension;
-                const std::string fullfile = protocol + dir + file;
 
+                const std::string protocol = path.getProtocol();
+                const std::string dir = path.getDirectory();
+                const bool listdir = false;
+                const std::string file = path.getFileName(listdir);
+                
                 auto bW = new Widget<ClipButton>(
                     g->x(), g->y() + 20 + i * size.h + 4, g->w(), size.h + 4);
                 ClipButton* b = bW;
@@ -205,10 +206,19 @@ namespace mrv
 
                 _r->map[i] = b;
 
-                const std::string& layer = getLayerName(media, layerId);
-                std::string text = protocol + dir + "\n" + file + layer;
-                b->copy_label(text.c_str());
-
+                std::string label;
+                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                    kThumbnailNormal)
+                {
+                    const std::string layer = getLayerName(media, layerId);
+                    label = protocol + dir + "\n" + file + layer;
+                }
+                else
+                {
+                    label = file;
+                }
+                b->copy_label(label.c_str());
+                
                 _createThumbnail(b, path, time, layerId);
 
                 Y += size.h;
@@ -339,7 +349,28 @@ namespace mrv
                     compare_tile_cb(nullptr, p.ui);
                 });
 
+            bW = new Widget< Button >(X + 210, Y, 30, 30);
+            b = bW;
+            b->bind_image(MRV2_LOAD_SVG(CompareAdd));
+            b->tooltip(_("Add the A and B files"));
+            bW->callback(
+                [=](auto w)
+                {
+                    compare_add_cb(nullptr, p.ui);
+                });
+            
             bW = new Widget< Button >(X + 240, Y, 30, 30);
+            b = bW;
+            b->bind_image(MRV2_LOAD_SVG(CompareMultiply));
+            b->tooltip(_("Multiply the A and B files"));
+
+            bW->callback(
+                [=](auto w)
+                {
+                    compare_multiply_cb(nullptr, p.ui);
+                });
+            
+            bW = new Widget< Button >(X + 270, Y, 30, 30);
             b = bW;
             b->bind_image(MRV2_LOAD_SVG(Prev));
             b->tooltip(_("Previous filename"));
@@ -350,7 +381,7 @@ namespace mrv
                         p.ui->app->filesModel()->prevB();
                 });
 
-            bW = new Widget< Button >(X + 270, Y, 30, 30);
+            bW = new Widget< Button >(X + 300, Y, 30, 30);
             b = bW;
             b->bind_image(MRV2_LOAD_SVG(Next));
             b->tooltip(_("Next filename"));
@@ -530,8 +561,6 @@ namespace mrv
                 return;
             otio::RationalTime time;
 
-            const image::Size size(128, 64);
-
             const auto& model = p.ui->app->filesModel();
             const auto& files = model->observeFiles();
             size_t numFiles = files->getSize();
@@ -545,11 +574,10 @@ namespace mrv
                 const auto& media = files->getItem(i);
                 const auto& path = media->path;
                 
-                const std::string& protocol = path.getProtocol();
-                const std::string& dir = path.getDirectory();
-                const std::string file =
-                    path.getBaseName() + path.getNumber() + path.getExtension();
-                const std::string fullfile = protocol + dir + file;
+                const std::string protocol = path.getProtocol();
+                const std::string dir = path.getDirectory();
+                const bool listdir = false;
+                const std::string file = path.getFileName(listdir);
 
                 auto m = _r->map.find(i);
                 ClipButton* b = (*m).second;
@@ -583,9 +611,18 @@ namespace mrv
                 }
                 b->redraw();
 
-                const std::string& layer = getLayerName(media, layerId);
-                std::string text = protocol + dir + "\n" + file + layer;
-                b->copy_label(text.c_str());
+                std::string label;
+                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
+                    kThumbnailNormal)
+                {
+                    const std::string layer = getLayerName(media, layerId);
+                    label = protocol + dir + "\n" + file + layer;
+                }
+                else
+                {
+                    label = file;
+                }
+                b->copy_label(label.c_str());
 
                 _createThumbnail(b, path, time, layerId);
             }

@@ -48,8 +48,8 @@ namespace mrv
         }
         else
         {
-            snprintf(buf, 24, " %7.4f", x);
-            return buf + strlen(buf) - 8;
+            snprintf(buf, 24, " %9.4f", x);
+            return buf + strlen(buf) - 10;
         }
     }
 
@@ -107,6 +107,7 @@ namespace mrv
         const auto& name = path.getBaseName();
         int64_t frame = time.to_frames();
         const auto& num = path.getNumber();
+        const auto& suffix = path.getSuffix();
         const auto& extension = path.getExtension();
         if (mrv::file::isMovie(extension))
             frame = atoi(num.c_str());
@@ -119,7 +120,7 @@ namespace mrv
             snprintf(buf, 256, "%0*" PRId64, padding, frame);
         }
 
-        return name + buf + extension;
+        return name + buf + suffix + extension;
     }
 
     //! Parse a directory and return all movies, sequences and audios found
@@ -127,5 +128,23 @@ namespace mrv
     void parse_directory(
         const std::string& directory, std::vector<std::string>& movies,
         std::vector<std::string>& sequences, std::vector<std::string>& audios);
+
+    /** 
+     * Generate random numbers as a string
+     * 
+     * @param length number of digits to generate
+     * 
+     * @return string
+     */
+    std::string generateRandomNumbers(int length = 6);
+    
+    /** 
+     * Generate random letters as a string
+     * 
+     * @param length number of letters to generate
+     * 
+     * @return string
+     */
+    std::string generateRandomLetters(int length = 6);
 
 } // namespace mrv

@@ -421,7 +421,7 @@ namespace tl
             std::string error;
             file::Path path = inputPath;
             file::Path audioPath = inputAudioPath;
-
+            
             try
             {
                 auto ioSystem = context->getSystem<io::System>();
@@ -483,7 +483,8 @@ namespace tl
                             auto mediaReference =
                                 new otio::ImageSequenceReference(
                                     "",  // \@bug: not path.getDirectory()?
-                                    path.getBaseName(), path.getExtension(),
+                                    path.getBaseName(),
+                                    path.getSuffix() + path.getExtension(),
                                     info.videoTime.start_time().value(), 1,
                                     info.videoTime.duration().rate(),
                                     path.getPadding());
@@ -499,6 +500,7 @@ namespace tl
                             }
                             videoClip->set_media_reference(
                                 new otio::ExternalReference(
+                                    path.hasProtocol() ? path.get() :
                                     path.getFileName(),
                                     info.videoTime));
                         }
@@ -558,6 +560,7 @@ namespace tl
                         audioClip->set_source_range(info.audioTime);
                         audioClip->set_media_reference(
                             new otio::ExternalReference(
+                                path.hasProtocol() ? path.get() :
                                 path.getFileName(),
                                 info.audioTime));
 

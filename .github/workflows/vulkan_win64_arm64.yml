@@ -33,6 +33,12 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: arm64
+          
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy,rustfmt
 
       - name: Install Visual C++ Redistributable 2022 (ARM64)
         run: |
@@ -40,12 +46,6 @@ jobs:
           Invoke-WebRequest -Uri $vc_redist_url_2022_arm64 -OutFile vc_redist_2022.arm64.exe
           Start-Process vc_redist_2022.arm64.exe -ArgumentList "/install", "/quiet", "/norestart" -Wait
         shell: powershell
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-
 
       # - name: Install specific MSVC toolset (in case build breaks)
       #   shell: powershell
@@ -66,6 +66,62 @@ jobs:
       # with:
       #   path: 'C:\VS2022Custom'
 
+      - name: Install ccache
+        shell: pwsh
+        run: |
+          # Detect architecture
+          if ("${{ runner.arch }}" -eq "ARM64") {
+            $arch = "aarch64"
+          } else {
+            $arch = "x86_64"
+          }
+
+          $version = "4.13.6"  
+          $url = "https://github.com/ccache/ccache/releases/download/v$version/ccache-$version-windows-$arch.zip"
+
+          Invoke-WebRequest -Uri $url -OutFile ccache.zip
+          Expand-Archive -Path ccache.zip -DestinationPath . -Force
+
+          # Move the binary to a location in PATH
+          $ccache_bin_dir = "$env:USERPROFILE\.local\bin"
+          New-Item -ItemType Directory -Force -Path $ccache_bin_dir | Out-Null
+          Move-Item -Path "ccache-$version-windows-$arch/ccache.exe" -Destination "$ccache_bin_dir\ccache.exe" -Force
+
+          # Add to PATH for subsequent steps
+          echo "$ccache_bin_dir" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+          # Verify (using absolute path because PATH isn't updated for current step)
+          & "$ccache_bin_dir\ccache.exe" --version
+
+      - name: Set ccache Environment Variables
+        shell: pwsh
+        run: |
+          # 1. Use runner.temp for a guaranteed, shared absolute path across Windows/Node/MSYS2
+          $ccache_dir = "$env:RUNNER_TEMP\.ccache"
+          echo "CCACHE_DIR=$ccache_dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          
+          # 2. Normalize Workspace path for MSYS2 compatibility
+          $workspace = "${{ github.workspace }}".Replace('\', '/')
+          echo "CCACHE_BASEDIR=$workspace" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          
+          echo "CCACHE_COMPILERCHECK=content" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - uses: actions/cache@v4
+        with:
+          # Match the exact absolute path defined in the previous step
+          path: ${{ runner.temp }}/.ccache
+          key: ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-${{ github.sha }}
+          restore-keys: |
+              ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-
+          
+      - name: Synchronize clock
+        shell: cmd
+        run: |
+          w32tm /config /manualpeerlist:time.windows.com /syncfromflags:manual /reliable:YES /update
+          net stop w32time
+          net start w32time
+          w32tm /resync /rediscover
+
       - name: Setup MSYS
         uses: msys2/setup-msys2@v2
         with:
@@ -74,6 +130,36 @@ jobs:
           msystem: CLANGARM64
           install: >-
             base-devel
+            
+      - name: Configure and Reset ccache
+        run: |
+          ccache --max-size=500M
+          ccache -z
+
+      - name: Fix linker shadowing
+        run: mv /usr/bin/link.exe /usr/bin/link_msys.exe
+        
+      - name: Verify
+        run: |
+          rustc -Vv
+          cargo -V
+        
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Install cargo-c if needed
+        run: |
+          if ! command -v cargo-cinstall >/dev/null 2>&1; then
+              cargo install cargo-c --locked
+          fi
 
       - name: Create msys_cmd.bat wrapper
         run: |
@@ -87,18 +173,10 @@ jobs:
         run: |
           echo "Machine name: $RUNNER_NAME"
 
-      - name: Cache Vulkan SDK
-        id: cache-vulkan-sdk
-        uses: actions/cache@v4
-        with:
-          path: VulkanSDK-*
-          key: ${{ runner.os }}-win-arm64-vulkan-${{ hashFiles('**/install_vulkan.sh') }}
-
       # Install Vulkan SDK
       - name: Install Vulkan SDK
-        if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         env:
-          BUILD_VULKAN: OFF
+          BUILD_VULKAN: OFF  # optional
         run: |
           . ./etc/windows/install_vulkan.sh
 
@@ -123,10 +201,10 @@ jobs:
           if [ -d "$VULKAN_DIR" ]; then
             # Convert to absolute path
             VULKAN_DIR=$(cd "$VULKAN_DIR" && pwd)
-            
+
             # Convert to Windows path for WINDOWS_VULKAN_SDK
             WINDOWS_PATH=$(cygpath -w "$VULKAN_DIR")
-            
+
             echo "VULKAN_SDK=$VULKAN_DIR" >> $GITHUB_ENV
             echo "WINDOWS_VULKAN_SDK=$WINDOWS_PATH" >> $GITHUB_ENV
             echo "$VULKAN_DIR/bin" >> $GITHUB_PATH
@@ -139,7 +217,6 @@ jobs:
           fi
 
       - name: Install and Copy Vulkan Runtime
-        if: steps.cache-vulkan-sdk.outputs.cache-hit != 'true'
         shell: powershell
         run: |
           # 1. Run the Runtime Installer silently (/S)
@@ -153,7 +230,7 @@ jobs:
           $systemDll = "C:\Windows\System32\vulkan-1.dll"
           if (Test-Path $systemDll) {
               Write-Host "SUCCESS: vulkan-1.dll found in System32."
-              
+
               # 3. (Optional) Copy to your local Bin folder if your build expects it there
               Copy-Item -Path $systemDll -Destination ".\Bin\" -Force
               Write-Host "Copied vulkan-1.dll to local Bin folder."
@@ -184,6 +261,12 @@ jobs:
         run: |
           icacls "ssh\id_rsa" /inheritance:r /grant:r "%USERNAME%:R"
 
+      - name: Add SourceForge to known_hosts
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
+
       - name: Set executable permissions
         run: |
           chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
@@ -194,7 +277,6 @@ jobs:
 
       - name: Build vmrv2
         env:
-          GITHUB_OWNER: ""
           BUILD_PYTHON: ON
           BUILD_VULKAN: OFF
           MRV2_PYFLTK: ON
@@ -215,7 +297,7 @@ jobs:
           TLRENDER_RAW: ON
           TLRENDER_SGI: ON
           TLRENDER_STB: ON
-          TLRENDER_SVTAV1: OFF # does not compile on Windows ARM64
+          TLRENDER_SVTAV1: OFF  # does not work - tries to compile a NEON file 
           TLRENDER_TIFF: ON
           TLRENDER_USD: OFF
           TLRENDER_VPX: ON
@@ -224,11 +306,6 @@ jobs:
         run: |
           ./etc/runme_nolog.sh -v -t package -vk clean
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrv2-vulkan-win64-arm64
-          path: |
-            paquetes/Windows-vulkan-arm64/Release/vmrv2-*.exe
-            paquetes/Windows-vulkan-arm64/Release/vmrv2-*.zip
-          if-no-files-found: warn
+      - name: Upload binaries
+        run: |
+          ./bin/release/upload_sourceforge.sh -vk

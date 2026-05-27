@@ -250,7 +250,9 @@ namespace mrv
             p.layers->setAlways(_getLayers());
         }
     }
-
+    
+    // value == true → “make sure this index is included in B”
+    // value == false → “make sure this index is NOT included in B”
     void FilesModel::setB(int index, bool value)
     {
         TLRENDER_P();
@@ -270,6 +272,8 @@ namespace mrv
                 case timeline::CompareMode::Wipe:
                 case timeline::CompareMode::Overlay:
                 case timeline::CompareMode::Difference:
+                case timeline::CompareMode::Add:
+                case timeline::CompareMode::Multiply:
                 case timeline::CompareMode::Horizontal:
                 case timeline::CompareMode::Vertical:
                     if (b.size() > 1)
@@ -562,6 +566,8 @@ namespace mrv
             case timeline::CompareMode::Wipe:
             case timeline::CompareMode::Overlay:
             case timeline::CompareMode::Difference:
+            case timeline::CompareMode::Add:
+            case timeline::CompareMode::Multiply:
             case timeline::CompareMode::Horizontal:
             case timeline::CompareMode::Vertical:
             {
@@ -663,6 +669,8 @@ namespace mrv
         case timeline::CompareMode::Wipe:
         case timeline::CompareMode::Overlay:
         case timeline::CompareMode::Difference:
+        case timeline::CompareMode::Add:
+        case timeline::CompareMode::Multiply:
         case timeline::CompareMode::Horizontal:
         case timeline::CompareMode::Vertical:
         case timeline::CompareMode::Tile:

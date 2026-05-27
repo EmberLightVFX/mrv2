@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "mrvCore/mrvString.h"
+#include "mrvOS/mrvString.h"
 
 #include <tlTimeline/BackgroundOptions.h>
 #include <tlTimeline/Player.h>
@@ -28,16 +28,22 @@ namespace mrv
             static float rotation;
             static bool resizeWindow;
 
-            static std::string hdr;
             static float pixelAspectRatio;
 
             //! Ghosting options
             static short ghostPrevious;
             static short ghostNext;
+
+            bool hdrMonitorFound = false;
+            
+            //! Boolean to turn off ocio when playing a video or showing
+            //! BT709 or sRGB images.
+            bool ocio_disabled = false;
         
             timeline::OCIOOptions ocioOptions;
             timeline::LUTOptions lutOptions;
-            timeline::HDROptions hdrOptions;
+            static timeline::HDROptions hdrOptions;
+            static timeline::ShaderOptions shaderOptions;
 
             std::vector<tl::timeline::ImageOptions> imageOptions;
             std::vector<tl::timeline::DisplayOptions> displayOptions;

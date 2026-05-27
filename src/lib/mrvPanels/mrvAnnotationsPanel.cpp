@@ -27,6 +27,11 @@
 
 #include "mrvApp/mrvSettingsObject.h"
 
+namespace
+{
+    const char* kModule = "fonts";
+}
+
 namespace mrv
 {
     namespace panel
@@ -99,7 +104,7 @@ namespace mrv
 
             cg->begin();
 
-            Fl_Group* bg = new Fl_Group(g->x(), Y + 20, g->w(), 40);
+            Fl_Group* bg = new Fl_Group(g->x(), Y + 20, g->w(), 50);
             bg->begin();
 
             bg = new Fl_Group(g->x(), Y + 20, g->w(), 40);
@@ -121,10 +126,14 @@ namespace mrv
 
 #ifdef VULKAN_BACKEND
             const std::vector<fs::path>& fontList = image::discoverSystemFonts();
-            for (const auto& path : fontList)
+            for (const auto& font : fontList)
             {
-                file::Path filePath(path.filename().u8string());
-                c->add(filePath.getBaseName().c_str());
+                auto u8 = font.filename().u8string();
+                std::string fileName = std::string(u8.begin(), u8.end());
+                file::Path path(fileName);
+                std::string fontName = path.getBaseName() + path.getNumber() +
+                                       path.getSuffix();
+                c->add(fontName.c_str());
             }
 #endif
 
@@ -160,26 +169,40 @@ namespace mrv
                     if (!w)
                         return;
                     const Fl_Menu_Item* item = c->mvalue();
-                    std::string fontName = item->label();
+                    std::string selectedFontName = item->label();
                     
                     const std::vector<fs::path>& fontList = image::discoverSystemFonts();
+                    if (fontList.empty())
+                    {
+                        LOG_ERROR("No fonts installed on this system.");
+                        return;
+                    }
+                    
                     fs::path out = fontList[0];
+            
                     for (const auto& path : fontList)
                     {
-                        file::Path filePath(path.filename().u8string());
-                        if (fontName == filePath.getBaseName())
+                        auto u8 = path.filename().u8string();
+                        std::string fileName = std::string(u8.begin(), u8.end());
+                        file::Path filePath(fileName);
+                        std::string fontName = filePath.getBaseName() +
+                                               filePath.getNumber() +
+                                               filePath.getSuffix();
+                        if (selectedFontName == fontName)
                         {
                             out = path;
                             break;
                         }
                     }
-                    w->fontPath = out.u8string();
+                    
+                    auto u8 = out.u8string();
+                    w->fontPath = std::string(u8.begin(), u8.end());
 #endif
                     view->redrawWindows();
                 });
 
             auto sV =
-                new Widget< HorSlider >(X, Y + 40, g->w(), 20, _("Size:"));
+                new Widget< HorSlider >(X, Y + 50, g->w(), 20, _("Size:"));
             s = sV;
             s->range(12, 100);
             s->step(1);
@@ -494,6 +517,7 @@ namespace mrv
             notes->textfont(FL_HELVETICA);
             notes->textsize(16);
             notes->textcolor(FL_BLACK);
+            notes->wrap(true);
             notes->when(FL_WHEN_CHANGED);
             nV->callback(
                 [=](auto o)

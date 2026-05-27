@@ -159,6 +159,9 @@ if [[ -e /usr/bin/hdr-v@mrv2_VERSION@ ]]; then
     cp -f "${appshortcut}" /usr/share/applications
 fi
 
+#
+# Copy unversioned shortcut for Wayland to applications
+#
 shortcut="@mrv2_NAME@.desktop"
 appshortcut="${appdir}/${shortcut}"
 cp -f "${appshortcut}" /usr/share/applications/@mrv2_NAME@.desktop
@@ -177,7 +180,7 @@ xdg-mime default "${shortcut}" image/x-cin image/x-dpx image/jpeg image/png imag
 echo "Updating desktop database..."
 update-desktop-database
 
-echo "Updating mime database..."
+echo "Updating MIME database..."
 update-mime-database /usr/share/mime
 
 #

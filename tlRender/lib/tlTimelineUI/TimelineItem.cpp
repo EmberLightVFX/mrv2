@@ -597,9 +597,11 @@ namespace tl
             TLRENDER_P();
             bool saveUndo = false;
             bool doSelection = false;
+            bool selectionMode = false;
             if (p.editMode == timeline::EditMode::Select)
             {
                 doSelection = true;
+                selectionMode = true;
                 if (0 == event.button)
                 {
                     if (0 == event.modifiers)
@@ -638,7 +640,8 @@ namespace tl
                             for (int j = 0; j < items.size(); ++j)
                             {
                                 const auto& item = items[j];
-                                if (item->getGeometry().contains(event.pos))
+                                if (math::contains(item->getGeometry(),
+                                                   event.pos))
                                 {
                                     p.mouse.mode = Private::MouseMode::Item;
                                     p.mouse.items.push_back(
@@ -664,14 +667,14 @@ namespace tl
                                 }
                             }
                         }
-                        if (!p.mouse.items.empty())
+                        if (!selectionMode && !p.mouse.items.empty())
                         {
                             break;
                         }
                     }
                 }
 
-                if (p.mouse.items.empty())
+                if (selectionMode || p.mouse.items.empty())
                 {
                     for (int i = 0; i < p.tracks.size(); ++i)
                     {
@@ -681,7 +684,8 @@ namespace tl
                             for (int j = 0; j < transitions.size(); ++j)
                             {
                                 const auto& item = transitions[j];
-                                if (item->getGeometry().contains(event.pos))
+                                if (math::contains(item->getGeometry(),
+                                                   event.pos))
                                 {
                                     p.mouse.mode = Private::MouseMode::Transition;
                                     p.mouse.items.push_back(
@@ -693,7 +697,7 @@ namespace tl
                                 }
                             }
                         }
-                        if (!p.mouse.items.empty())
+                        if (!selectionMode && !p.mouse.items.empty())
                         {
                             break;
                         }
@@ -1000,7 +1004,7 @@ namespace tl
                             p.size.scrollPos.y + g.min.y + p.size.margin +
                                 p.size.fontMetrics.lineHeight,
                             p.size.border, p.size.margin + p.size.border * 4);
-                        if (box.intersects(drawRect))
+                        if (math::intersects(box, drawRect))
                         {
                             mesh.v.push_back(
                                 math::Vector2f(box.min.x, box.min.y));
@@ -1037,7 +1041,7 @@ namespace tl
                             p.size.scrollPos.y + g.min.y, p.size.border,
                             p.size.margin + p.size.fontMetrics.lineHeight +
                                 p.size.margin + p.size.border * 4);
-                        if (box.intersects(drawRect))
+                        if (math::intersects(box, drawRect))
                         {
                             mesh.v.push_back(
                                 math::Vector2f(box.min.x, box.min.y));
@@ -1076,7 +1080,7 @@ namespace tl
                     p.size.scrollPos.y + g.min.y, p.size.border * 2,
                     p.size.margin + p.size.fontMetrics.lineHeight +
                         p.size.margin + p.size.border * 4);
-                if (g2.intersects(drawRect))
+                if (math::intersects(g2, drawRect))
                 {
                     event.render->drawRect(
                         g2,
@@ -1115,7 +1119,7 @@ namespace tl
                                 p.size.margin,
                                 p.size.scrollPos.y + g.min.y + p.size.margin,
                                 labelMaxSize.w, p.size.fontMetrics.lineHeight);
-                            if (time != p.currentTime && box.intersects(drawRect))
+                            if (time != p.currentTime && math::intersects(box, drawRect))
                             {
                                 const std::string label =
                                     _data->timeUnitsModel->getLabel(time);
@@ -1163,7 +1167,7 @@ namespace tl
                         p.size.scrollPos.y + g.min.y + p.size.margin +
                             p.size.fontMetrics.lineHeight + p.size.margin,
                         x1 - x0 + 1, h);
-                    if (box.intersects(drawRect))
+                    if (math::intersects(box, drawRect))
                     {
                         mesh.v.push_back(math::Vector2f(box.min.x, box.min.y));
                         mesh.v.push_back(
@@ -1200,7 +1204,7 @@ namespace tl
                             p.size.fontMetrics.lineHeight + p.size.margin +
                             p.size.border * 2,
                         x1 - x0 + 1, p.size.border * 2);
-                    if (box.intersects(drawRect))
+                    if (math::intersects(box, drawRect))
                     {
                         mesh.v.push_back(math::Vector2f(box.min.x, box.min.y));
                         mesh.v.push_back(
@@ -1242,13 +1246,30 @@ namespace tl
 
                 const std::string label =
                     _data->timeUnitsModel->getLabel(p.currentTime);
+                
+                math::Vector2i labelPos(
+                    pos.x + p.size.border * 2 + p.size.margin,
+                    pos.y + p.size.margin + p.size.fontMetrics.ascender);
+
+                // Re-position time label to the left it its size would go out of
+                // the window.
+                const math::Size2i labelSize = event.fontSystem->getSize(label, p.size.fontInfo);
+                if (labelPos.x + labelSize.w > g.max.x)
+                {
+                    const math::Vector2i labelPos2(
+                        pos.x - p.size.border * 2 - p.size.margin - labelSize.w,
+                        pos.y + p.size.margin + p.size.fontMetrics.ascender);
+                    if (labelPos2.x > g.min.x)
+                    {
+                        labelPos = labelPos2;
+                    }
+                }
+                
                 std::vector<timeline::TextInfo> textInfos;
                 event.render->appendText(textInfos,
                                          event.fontSystem->getGlyphs(
                                              label, p.size.fontInfo),
-                                         math::Vector2i(
-                                             pos.x + p.size.border * 2 + p.size.margin,
-                                             pos.y + p.size.margin + p.size.fontMetrics.ascender));
+                                         labelPos);
                             
                 for (const auto& textInfo : textInfos)
                 {
@@ -1318,7 +1339,8 @@ namespace tl
             return out;
         }
 
-        std::vector<const otio::Item*> TimelineItem::getSelectedItems() const
+        std::vector<const otio::Item*>
+        TimelineItem::getSelectedItems() const
         {
             TLRENDER_P();
             
@@ -1327,6 +1349,20 @@ namespace tl
             {
                 if (auto clip = dynamic_cast<const IBasicItem*>(item->p.get()))
                     out.push_back(clip->getOtioItem());
+            }
+            return out;
+        }
+        
+        std::vector<const otio::Transition*>
+        TimelineItem::getSelectedTransitions() const
+        {
+            TLRENDER_P();
+            
+            std::vector<const otio::Transition*> out;
+            for (const auto& item : p.mouse.items)
+            {
+                if (auto transition = dynamic_cast<const TransitionItem*>(item->p.get()))
+                    out.push_back(transition->getOtioItem());
             }
             return out;
         }

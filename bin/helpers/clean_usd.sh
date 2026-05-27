@@ -17,6 +17,8 @@
 echo "This script will clear OpenUSD at $BUILD_DIR"
 ask_to_continue
 
+echo "Removing..."
+
 export INSTALL=$BUILD_DIR/install
 
 rm -rf $INSTALL/build
@@ -29,6 +31,7 @@ rm -rf $INSTALL/include/serial*
 rm -rf $INSTALL/include/tbb*
 rm -rf $INSTALL/include/oneapi*
 
+rm -rf $INSTALL/bin/usd
 rm -rf $INSTALL/bin/Material*.dll
 rm -rf $INSTALL/bin/tbb*.dll
 rm -rf $INSTALL/bin/usd*.dll

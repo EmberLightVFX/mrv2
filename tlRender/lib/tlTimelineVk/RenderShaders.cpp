@@ -11,12 +11,144 @@ namespace tl
 {
     namespace timeline_vlk
     {
-        std::string vertexSource()
+        std::string vertexDummy()
         {
             return R"(#version 450
 layout(location = 0) in vec3 vPos;
+layout(location = 1) in vec3 vNormal;
+layout(location = 0) out vec3 fPosition;
+layout(location = 1) out vec3 fNormal;
+
+layout(set = 0, binding = 0, std140) uniform Transform {
+     mat4 mvp;
+} transform;
+
+void main()
+{
+    fNormal = vNormal;
+    fPosition = vPos;
+    gl_Position = transform.mvp * vec4(vPos, 1.0);   
+})";
+        }
+
+        std::string fragmentDummy()
+        {
+            return R"(#version 450
+layout(location = 0) in vec3 fPos;
+layout(location = 0) out vec4 outColor;
+                  
+layout(push_constant) uniform PushConstants {
+    vec4 color;
+} pc;       
+                 
+void main()
+{
+    vec3 dx = dFdx(fPos);
+    vec3 dy = dFdy(fPos);
+    vec3 N = normalize(cross(dx, dy));
+
+    // Simple light direction
+    vec3 L = normalize(vec3(0.0, 0.0, -1.0));
+
+    // Diffuse (Lambert)
+    float diff = max(dot(N, L), 0.0);
+
+    // Add a bit of ambient so it's not fully black
+    float ambient = 0.2;
+
+    vec3 finalColor = pc.color.rgb * (ambient + diff);
+
+    outColor = vec4(finalColor, pc.color.a);
+})";
+        }
+        
+        std::string vertexPBR()
+        {
+            return R"(#version 450
+// ─────────────────────────────────────────────
+//  Per-vertex attributes
+// ─────────────────────────────────────────────
+// layout(location = 0) in vec3 a_Position;
+// layout(location = 1) in vec3 a_Normal;
+// layout(location = 2) in vec2 a_TexCoord;
+// layout(location = 3) in vec4 a_Tangent;   // xyz = tangent, w = bitangent sign
+
+layout(location = 0) in vec3  a_Position;       // GL_HALF_FLOAT  → 6 bytes
+layout(location = 1) in int   a_NormalPacked;   // GL_INT_2_10_10_10_REV → 4 bytes
+layout(location = 2) in vec2  a_TexCoord;       // GL_HALF_FLOAT  → 4 bytes
+layout(location = 3) in int   a_TangentPacked;  // GL_INT_2_10_10_10_REV → 4 bytes
+
+// ─────────────────────────────────────────────
+//  Uniforms
+// ─────────────────────────────────────────────
+layout(std140, binding = 2) uniform Transform {
+    mat4 model;         // object → world
+    mat4 view;          // world  → camera
+    mat4 projection;    // camera → clip
+    mat3 normalMatrix;  // transpose(inverse(model)), for correct normal transform
+} u_Transform;
+
+// ─────────────────────────────────────────────
+//  Outputs to the fragment shader
+// ─────────────────────────────────────────────
+out VertexData {
+    vec3 FragPos;   // world-space position
+    vec3 Normal;    // world-space normal
+    vec2 TexCoord;  // UV (passed through unchanged)
+    mat3 TBN;       // tangent-space → world-space rotation matrix
+} vs_out;
+
+// ─────────────────────────────────────────────
+//  Main
+// ─────────────────────────────────────────────
+void main() {
+
+    // ── World-space position ──────────────────
+    vec4 worldPos   = u_Transform.model * vec4(a_Position, 1.0);
+    vs_out.FragPos  = worldPos.xyz;
+
+    // ── World-space normal ────────────────────
+    // Use the normal matrix to handle non-uniform scaling correctly.
+    vs_out.Normal   = normalize(u_Transform.normalMatrix * a_Normal);
+
+    // ── UV passthrough ────────────────────────
+    vs_out.TexCoord = a_TexCoord;
+
+    // ── TBN matrix ───────────────────────────
+    // Re-orthogonalise T against N (Gram-Schmidt) so that any slight
+    // imprecision in the mesh data or normal-matrix transform doesn't
+    // cause the basis to become non-orthogonal.
+    vec3 N = vs_out.Normal;
+    vec3 T = normalize(u_Transform.normalMatrix * a_Tangent.xyz);
+    T = normalize(T - dot(T, N) * N);       // make T perpendicular to N
+
+    // a_Tangent.w encodes the handedness of the bitangent (±1).
+    // Using cross(N, T) instead of cross(T, N) keeps a right-handed basis.
+    vec3 B = cross(N, T) * a_Tangent.w;
+
+    // Columns of TBN transform a vector from tangent space to world space,
+    // which is exactly what the fragment shader needs to unpack the normal map.
+    vs_out.TBN = mat3(T, B, N);
+
+    // ── Clip-space position ───────────────────
+    gl_Position = u_Transform.projection
+                * u_Transform.view
+                * worldPos;
+}
+
+)";
+        }
+        
+        std::string vertexUSD()
+        {
+            return R"(#version 450
+
+layout(location = 0) in vec3 vPos;
 layout(location = 1) in vec2 vTexture;
-layout(location = 0) out vec2 fTexture;
+
+layout(location = 0) out vec3 fPos;
+layout(location = 1) out vec2 fTexture;
+
 layout(set = 0, binding = 0, std140) uniform Transform {
      mat4 mvp;
 } transform;
@@ -25,6 +157,230 @@ void main()
 {
     gl_Position = transform.mvp * vec4(vPos, 1.0);
     fTexture = vTexture;
+    fPos = vPos;
+})";
+        }
+        
+        std::string fragmentUSD()
+        {
+            return R"(#version 450
+layout(location = 0) in vec3 fPos;
+layout(location = 1) in vec2 fTexture;
+
+layout(binding = 1) uniform sampler2D u_DiffuseMap;
+layout(binding = 2) uniform sampler2D u_MetallicMap;
+layout(binding = 3) uniform sampler2D u_RoughnessMap;
+layout(binding = 4) uniform sampler2D u_NormalMap;
+layout(binding = 5) uniform sampler2D u_AOMap;
+layout(binding = 6) uniform sampler2D u_OpacityMap;
+
+layout(location = 0) out vec4 outColor;
+                  
+layout(push_constant) uniform PushConstants {
+    vec4 color;
+} pc;       
+                 
+// ─────────────────────────────────────────────
+//  Constants
+// ─────────────────────────────────────────────
+const float PI      = 3.14159265359;
+const float EPSILON = 0.0001;
+
+// ═════════════════════════════════════════════
+//  PBR helper functions
+// ═════════════════════════════════════════════
+
+// Normal Distribution Function – GGX / Trowbridge-Reitz
+float NDF_GGX(float NdotH, float roughness) {
+    float a  = roughness * roughness;
+    float a2 = a * a;
+    float d  = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d + EPSILON);
+}
+
+// Geometry function – Smith's method with Schlick-GGX
+float G_SchlickGGX(float NdotV, float roughness) {
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness) {
+    return G_SchlickGGX(NdotV, roughness)
+         * G_SchlickGGX(NdotL, roughness);
+}
+
+// Fresnel – Schlick approximation
+vec3 Fresnel_Schlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+void main()
+{
+    vec2 uv = fTexture;
+
+    // User's material parameters (\todo: pass as UBO)
+    vec4  u_Material_diffuseColor = vec4(1,1,1,1); //pc.color;
+    float u_Material_metallic = 1;
+    float u_Material_roughness = 1;
+    float u_Material_aoStrength = 1.0;
+
+    // Scene parameters (\todo: pass as UBO? Not needed for a single light from
+    //                          camera)
+    vec3 u_Scene_camPos    = vec3(0, 0, 0);
+    vec3 u_Scene_lightPos  = vec3(0, 0, 0);
+    vec3 u_Scene_lightColor = vec3(1, 1, 1);
+
+
+    // ── Sample textures ───────────────────────
+    vec3  albedo    = texture(u_DiffuseMap,   uv).rgb * u_Material_diffuseColor.rgb;
+    float metallic  = texture(u_MetallicMap,  uv).r * u_Material_metallic;
+    float roughness = texture(u_RoughnessMap, uv).r * u_Material_roughness;
+    float opacity   = texture(u_OpacityMap, uv).a;
+    float ao        = mix(1.0, texture(u_AOMap, uv).r, u_Material_aoStrength);
+
+    // Clamp to physically plausible range
+    roughness = clamp(roughness, 0.05, 1.0);
+    metallic  = clamp(metallic,  0.0,  1.0);
+
+    // ── Normal from normal map ────────────────
+    vec3 Nt  = texture(u_NormalMap, uv).rgb * 2.0 - 1.0; // [0,1] → [-1,1]
+    // vec3 N   = normalize(fs_in.TBN * Nt);                 // tangent → world space
+
+    // \@todo: -faceted- normal (see above for correct calculation)
+    vec3 dx = dFdx(fPos);
+    vec3 dy = dFdy(fPos);
+    vec3 N = normalize(cross(dx, dy));
+
+    // Normal mapping cannot be done in local space.
+    // vec3 N = normalize(cross(dx, dy) + Nt);
+
+    // ── Lighting vectors ──────────────────────
+    //vec3 V = normalize(fPos - u_Scene_camPos);  // correct
+
+    vec3 V = vec3(0, 0, -1);  // correct
+    // vec3 L = normalize(u_Scene_lightPos - fPos); // incorrect
+    vec3 L = normalize(vec3(0, 0, -1)); // correct
+    vec3 H = normalize(V + L);
+
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotH = max(dot(N, H), 0.0);
+    float HdotV = max(dot(H, V), 0.0);
+
+    // ── Base reflectance (F0) ─────────────────
+    // Dialectrics use 0.04; metals use their albedo colour.
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
+
+    // ── Cook-Torrance specular BRDF ───────────
+    float NDF = NDF_GGX(NdotH, roughness);
+    float G   = G_Smith(NdotV, NdotL, roughness);
+    vec3  F   = Fresnel_Schlick(HdotV, F0);
+
+    vec3 numerator   = NDF * G * F;
+    float denominator = 4.0 * NdotV * NdotL + EPSILON;
+    vec3 specular     = numerator / denominator;
+
+    // ── Diffuse (Lambertian) ──────────────────
+    // Energy conservation: metals have no diffuse.
+    vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
+    vec3 diffuse = kD * albedo / PI;
+
+    // ── Radiance & final colour ───────────────
+    float dist     = length(u_Scene_lightPos - fPos);
+    float atten    = 1.0 / (dist * dist);          // inverse-square falloff
+    vec3  radiance = u_Scene_lightColor; // * atten;
+ 
+    vec3 Lo = (diffuse + specular) * radiance * NdotL;
+
+    // Simple ambient term, attenuated by AO ( was 0.03)
+    vec3 ambient = vec3(0.1) * albedo * ao;
+
+    vec3 color = ambient + diffuse + specular;
+
+    // ── Tone mapping (Reinhard) + gamma  ───────  WRONG AND UNNEEDED
+    //    If we merge it into vmrv2, we can use libplacebo directly.
+    // color = color / (color + vec3(1.0));            // HDR → LDR
+    // color = pow(color, vec3(1.0 / 2.2));            // linear → sRGB
+
+    outColor = vec4(color * opacity, opacity);
+
+    // VERIFIED: albedo and ao are okay.
+    // outColor = vec4(albedo, 1.0);
+
+    // VERIFIED: Ambient occlusion works correctly
+    // outColor = vec4(ambient, opacity);
+
+    // VERIFIED: normal (N) is faceted but correct!
+    // outColor = vec4((N + 1) / 2, opacity);
+
+    // VERIFIED: diffuse is correct for metallic
+    //outColor = vec4(diffuse, opacity);
+
+    // VERIFIED: specular is correct 
+    // outColor = vec4(specular, opacity);
+
+    // VERIFIED: opacity works correctly.
+    // outColor = vec4(vec3(opacity), opacity);
+
+    // INCORRECT: normal mapping does not work correctly.
+
+})";
+        }
+        
+        std::string vertexSTs()
+        {
+            return R"(#version 450
+layout(location = 0) in vec3 vPos;
+layout(location = 1) in vec2 vTexture;
+layout(location = 0) out vec2 fTexture;
+layout(location = 1) out vec3 fragPosition;
+
+layout(set = 0, binding = 0, std140) uniform Transform {
+     mat4 mvp;
+} transform;
+
+void main()
+{
+    fragPosition = vPos;
+    fTexture = vTexture;
+    gl_Position = transform.mvp * vec4(vPos, 1.0);
+})";
+        }
+
+        std::string fragmentSTs()
+        {
+            return R"(#version 450
+layout(location = 0) in vec2 fTexture;
+layout(location = 1) in vec3 inPosition;
+layout(location = 0) out vec4 outColor;
+                  
+layout(push_constant) uniform PushConstants {
+    vec4 color;
+} pc;       
+                 
+void main()
+{
+      outColor = vec4(fTexture.r, fTexture.g, 0, 1);
+})";
+        }
+        
+        std::string vertexSource()
+        {
+            return R"(#version 450
+layout(location = 0) in vec3 vPos;
+layout(location = 1) in vec2 vTexture;
+layout(location = 0) out vec2 fTexture;
+layout(location = 1) out vec3 fPos;
+layout(set = 0, binding = 0, std140) uniform Transform {
+     mat4 mvp;
+} transform;
+
+void main()
+{
+    gl_Position = transform.mvp * vec4(vPos, 1.0);
+    fTexture = vTexture;
+    fPos = vPos;
 })";
         }
 
@@ -150,14 +506,14 @@ layout(push_constant) uniform PushConstants {
                  
 void main()
 {
-     outColor = texture(textureSampler, fTexture) * pc.color;
+     outColor = texture(textureSampler, fTexture); // * pc.color;
 })";
         }
 
         const std::string videoLevels = R"(
-              // enum tl::image::VideoLevels
-              const uint VideoLevels_FullRange  = 0;
-              const uint VideoLevels_LegalRange = 1;
+// enum tl::image::VideoLevels
+const uint VideoLevels_FullRange  = 0;
+const uint VideoLevels_LegalRange = 1;
 )";
 
         std::string imageFragmentSource()
@@ -174,22 +530,26 @@ const uint PixelType_L_U16             = 2;
 const uint PixelType_L_U32             = 3;
 const uint PixelType_L_F16             = 4;
 const uint PixelType_L_F32             = 5;
+
 const uint PixelType_LA_U8             = 6;
 const uint PixelType_LA_U32            = 7;
 const uint PixelType_LA_U16            = 8;
 const uint PixelType_LA_F16            = 9;
 const uint PixelType_LA_F32            = 10;
+
 const uint PixelType_RGB_U8            = 11;
 const uint PixelType_RGB_U10           = 12;
 const uint PixelType_RGB_U16           = 13;
 const uint PixelType_RGB_U32           = 14;
 const uint PixelType_RGB_F16           = 15;
 const uint PixelType_RGB_F32           = 16;
+
 const uint PixelType_RGBA_U8           = 17;
 const uint PixelType_RGBA_U16          = 18;
 const uint PixelType_RGBA_U32          = 19;
 const uint PixelType_RGBA_F16          = 20;
 const uint PixelType_RGBA_F32          = 21;
+
 const uint PixelType_YUV_420P_U8       = 22;
 const uint PixelType_YUV_422P_U8       = 23;
 const uint PixelType_YUV_444P_U8       = 24;
@@ -232,6 +592,10 @@ float getBitDepth(int pixelType)
     {
         return 16.0;
     }
+    else if (pixelType == PixelType_ARGB_4444_Premult)
+    {
+        return 4.0;
+    }
     else // U8 fallback
     {
         return 8.0;
@@ -250,7 +614,7 @@ vec4 sampleTexture(
 {
        vec4 c;
 
-       if ((pixelType >= PixelType_YUV_420P_U8 && pixelType <= PixelType_YUV_444P_U16))
+       if ((pixelType >= PixelType_YUV_420P_U8 && pixelType <= PixelType_ARGB_4444_Premult))
        {
 
           float y  = texture(s0, textureCoord).r;
@@ -319,6 +683,21 @@ vec4 sampleTexture(
            c.g = (c.g - (16.0 / 255.0)) * (255.0 / (240.0 - 16.0));
            c.b = (c.b - (16.0 / 255.0)) * (255.0 / (240.0 - 16.0));
         }
+
+        if (1 == imageChannels)
+        {
+           c.g = c.b = c.r;
+           c.a = 1.0;
+        }
+        else if (2 == imageChannels)
+        {
+           c.a = c.g;
+           c.g = c.b = c.r;
+        }
+        else if (3 == imageChannels)
+        {
+           c.a = 1.0;
+        }
       }
       return c;
 }
@@ -361,32 +740,115 @@ void main()
 })";
         }
 
+        std::string debandingFragmentSource(
+            const float threshold,
+            const float range,
+            const int iterations,
+            const float grain
+            )
+        {
+            return string::Format(R"(
+// Simplified pseudocode representation of the deband algorithm
+
+const float kTHRESHOLD = {0};
+const float kRANGE = {1};
+const int kITERATIONS = {2};
+const float kGRAIN = {3};
+
+// PRNG helpers for randomness
+float mod289(float x) { return x - floor(x / 289.0) * 289.0; }
+float permute(float x) { return mod289((34.0 * x + 1.0) * x); }
+float rand(float x) { return fract(x / 41.0); }
+
+// Main sampling function per pixel
+vec4 deband(sampler2D tex, vec2 pos) {
+    vec3 m = vec3(pos, rand(pos.x + pos.y)) + vec3(1.0);
+    float h = permute(permute(permute(m.x) + m.y) + m.z);
+
+    ivec2 imageSize = textureSize(tex, 0);  // LOD 0 for base level
+    vec2 invImageSize = vec2(1.0 / imageSize.x, 1.0 / imageSize.y);
+
+    vec4 col = texture(tex, pos);
+
+    for (int i = 1; i <= kITERATIONS; i++) {
+        // Compute local average with increasing range (i * kRANGE)
+        float range = i * kRANGE;
+
+        float dist = rand(h) * range; h = permute(h);
+        float dir = rand(h) * 6.2831853; h = permute(h);
+
+        // Compute offset vector
+        vec2 pt = dist * invImageSize;  // Normalize to texture space
+        vec2 o = vec2(cos(dir), sin(dir));
+
+        // Sample 4 points at 90-degree intervals around the pixel
+        vec4 ref[4];
+        ref[0] = texture(tex, pos + pt * vec2(o.x, o.y));   // SE
+        ref[1] = texture(tex, pos + pt * vec2(-o.y, o.x));  // NE
+        ref[2] = texture(tex, pos + pt * vec2(-o.x, -o.y)); // NW
+        ref[3] = texture(tex, pos + pt * vec2(o.y, -o.x));  // SW
+
+        // Average them
+        vec4 avg = (ref[0] + ref[1] + ref[2] + ref[3]) / 4.0;
+
+        // Compute absolute difference
+        vec4 diff = abs(col - avg);
+
+        // Dynamic threshold decreases per iteration for finer control
+        float iter_threshold = kTHRESHOLD / (i * 16384.0);
+
+        col = mix(avg, col, greaterThan(diff, vec4(iter_threshold)));
+    }
+
+    if (kGRAIN > 0) {
+        // Generate a 3D noise vector cheaply
+        vec3 noise = vec3(
+            fract(h * 1.234),
+            fract(h * 2.345),
+            fract(h * 3.456)
+        );
+        col.rgb += (kGRAIN * (1.0 / 8192.0)) * (noise - 0.5);
+    }
+
+    return col;
+}
+)")
+                .arg(threshold)
+                .arg(range)
+                .arg(iterations)
+                .arg(grain);
+        }
+        
         std::string displayFragmentSource(
             const std::string& ocioICSDef, const std::string& ocioICS,
             const std::string& ocioDef, const std::string& ocio,
             const std::string& lutDef, const std::string& lut,
             timeline::LUTOrder lutOrder, const std::string& toneMapDef,
-            const std::string& toneMap)
+            const std::string& toneMap,
+            const std::string& debandingDef,
+            const std::string& debanding)
         {
             std::vector<std::string> args;
-            args.push_back(toneMapDef);  // 0
-            args.push_back(videoLevels); // 1
-            args.push_back(ocioICSDef);  // 2
-            args.push_back(ocioDef);     // 3
-            args.push_back(lutDef);      // 4
+            args.push_back(toneMapDef);   // 0
+            args.push_back(videoLevels);  // 1
+            args.push_back(ocioICSDef);   // 2
+            args.push_back(ocioDef);      // 3
+            args.push_back(lutDef);       // 4
+            args.push_back(debandingDef); // 5
+            args.push_back(debanding);    // 6
             switch (lutOrder)
             {
             case timeline::LUTOrder::PreColorConfig:
-                args.push_back(lut);     // 5
-                args.push_back(ocioICS); // 6
-                args.push_back(toneMap); // 7
-                args.push_back(ocio);    // 8
+                args.push_back(lut);     // 7
+                args.push_back(ocioICS); // 8
+                args.push_back(toneMap); // 9
+                args.push_back(ocio);    // 10
                 break;
             case timeline::LUTOrder::PostColorConfig:
-                args.push_back(ocioICS); // 5
-                args.push_back(lut);     // 6
-                args.push_back(toneMap); // 7
-                args.push_back(ocio);    // 8
+                args.push_back(ocioICS); // 7
+                args.push_back(lut);     // 8
+                args.push_back(toneMap); // 9
+                args.push_back(ocio);    // 10
                 break;
             default:
                 break;
@@ -457,6 +919,7 @@ layout(set = 0, binding = 5, std140) uniform UBO
     int        channels;
     int        mirrorX;
     int        mirrorY;
+    int        dither;
     float      softClip;
     int        videoLevels;
     int        invalidValues;
@@ -478,9 +941,12 @@ vec4 levelsFunc(vec4 value, Levels data)
 {
     vec4 tmp;
     float levelsRange = data.inHigh - data.inLow;
-    tmp[0] = clamp((value[0] - data.inLow) / levelsRange, 0, 1);
-    tmp[1] = clamp((value[1] - data.inLow) / levelsRange, 0, 1);
-    tmp[2] = clamp((value[2] - data.inLow) / levelsRange, 0, 1);
+    if (levelsRange > 0)
+    {
+      tmp[0] = clamp((value[0] - data.inLow) / levelsRange, 0, 1);
+      tmp[1] = clamp((value[1] - data.inLow) / levelsRange, 0, 1);
+      tmp[2] = clamp((value[2] - data.inLow) / levelsRange, 0, 1);
+   }
     if (tmp[0] >= 0.0)
         tmp[0] = pow(tmp[0], data.gamma);
     if (tmp[1] >= 0.0)
@@ -521,6 +987,7 @@ vec4 normalizeFunc(vec4 value, Normalize data)
     return value;
 }
 
+
 // ocioICSDef
 {2}
 
@@ -529,6 +996,10 @@ vec4 normalizeFunc(vec4 value, Normalize data)
 
 // lutDef
 {4}
+
+// DefandingDef
+{5}
+
 
 void main()
 {
@@ -542,7 +1013,8 @@ void main()
         t.y = 1.0 - t.y;
     }
 
-    outColor = texture(textureSampler, t);
+    // Read texture with or without debanding.
+    {6}
 
     // Video levels.
     if (VideoLevels_LegalRange == ubo.videoLevels)
@@ -555,13 +1027,10 @@ void main()
     }
 
     // Apply color tranform to linear space and LUT (or vicecersa).
-    {5}
-    {6}
-
-    // Call libplacebo tonemapping
     {7}
+    {8}
 
-    // Apply color transformations.
+    // Apply color transformations in linear space.
     if (uboColor.data.enabled)
     {
         outColor = colorFunc(outColor, uboColor.data.add, uboColor.data.matrix);
@@ -577,8 +1046,11 @@ void main()
         outColor = softClipFunc(outColor, ubo.softClip);
     }
 
+    // Call libplacebo tonemapping (may go to PQ space after this)
+    {9}
+
     // Apply OCIO Display/View.
-    {8}
+    {10}
 
     if (uboLevels.data.enabled)
     {
@@ -600,6 +1072,7 @@ void main()
            outColor.b *= 0.5f;
         }
     }
+
     // Swizzle for the channels display.
     if (Channels_Red == ubo.channels)
     {
@@ -638,7 +1111,9 @@ void main()
                 .arg(args[5])
                 .arg(args[6])
                 .arg(args[7])
-                .arg(args[8]);
+                .arg(args[8])
+                .arg(args[9])
+                .arg(args[10]);
         }
 
         std::string differenceFragmentSource()
@@ -662,7 +1137,48 @@ void main()
 })";
         }
 
+        std::string multiplyFragmentSource()
+        {
+            return R"(#version 450
+                 
+layout(location = 0) in vec2 fTexture;
+layout(location = 0) out vec4 outColor;
+                 
+layout(binding = 1) uniform sampler2D textureSampler;
+layout(binding = 2) uniform sampler2D textureSamplerB;
+                 
+void main()
+{
+    vec4 c = texture(textureSampler, fTexture);
+    vec4 cB = texture(textureSamplerB, fTexture);
+    outColor.r = abs(c.r * cB.r);
+    outColor.g = abs(c.g * cB.g);
+    outColor.b = abs(c.b * cB.b);
+    outColor.a = max(c.a, cB.a);
+})";
+        }
 
+        std::string addFragmentSource()
+        {
+            return R"(#version 450
+                 
+layout(location = 0) in vec2 fTexture;
+layout(location = 0) out vec4 outColor;
+                 
+layout(binding = 1) uniform sampler2D textureSampler;
+layout(binding = 2) uniform sampler2D textureSamplerB;
+                 
+void main()
+{
+    vec4 c = texture(textureSampler, fTexture);
+    vec4 cB = texture(textureSamplerB, fTexture);
+    outColor.r = abs(c.r + cB.r);
+    outColor.g = abs(c.g + cB.g);
+    outColor.b = abs(c.b + cB.b);
+    outColor.a = max(c.a, cB.a);
+})";
+        }
+        
         std::string softFragmentSource()
         {
             return R"(#version 450
@@ -801,6 +1317,265 @@ void main() {
 }
 )";
         }
+        
+        std::string computeHDRPeakDetection()
+        {
+#ifdef __APPLE__
+            // macOS compatible version
+            return R"(
+#version 450
+#extension GL_KHR_shader_subgroup_arithmetic : enable
 
+#define SLICES 12
+#define PQ_BITS 14
+#define PQ_MAX ((1 << PQ_BITS) - 1)
+#define HIST_BITS 7
+#define HIST_BIAS 64
+#define HIST_BINS 64
+
+            layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+            layout(set = 0, binding = 0) uniform sampler2D img;
+
+            struct PeakData {
+                uint frame_wg_count[SLICES];
+                uint frame_wg_active[SLICES];
+                uint frame_sum_pq[SLICES];
+                uint frame_max_pq[SLICES];
+                uint frame_hist[SLICES * HIST_BINS];
+            };
+
+            // Output SSBO
+            layout(std430, set = 0, binding = 1) buffer PeakBuffer {
+                PeakData data;
+            };
+
+            shared uint wg_sum;
+            shared uint wg_max;
+            shared uint wg_active_count;
+            shared uint wg_hist[HIST_BINS];
+
+            void main() {
+                uvec2 pos = gl_GlobalInvocationID.xy;
+                uvec2 img_size = textureSize(img, 0);
+    
+                // SAFETY: All threads must reach the barrier. We use a boolean mask 
+                // instead of an early 'return'.
+                bool valid = (pos.x < img_size.x && pos.y < img_size.y);
+
+                // 1. Initialize Shared Memory (All threads participate)
+                uint local_idx = gl_LocalInvocationIndex;
+                uint wg_size = gl_WorkGroupSize.x * gl_WorkGroupSize.y;
+    
+                if (local_idx == 0) {
+                    wg_sum = 0;
+                    wg_max = 0;
+                    wg_active_count = 0;
+                }
+                for (uint i = local_idx; i < HIST_BINS; i += wg_size) {
+                    wg_hist[i] = 0;
+                }
+    
+                // Barrier is safe because no thread returned early
+                barrier();
+
+                uint y_pq = 0;
+                bool is_active = false;
+
+                if (valid) {
+                    vec3 color = texture(img, vec2(pos) / vec2(img_size)).rgb;
+                    // Use MaxRGB for better peak detection (MoltenVK compatible)
+                    float luma = max(color.r, max(color.g, color.b));
+        
+                    // Manual PQ OETF (Linear 0..1 to PQ 0..1)
+                    // Adjust these constants if your input scaling is different
+                    luma = clamp(luma, 0.0, 1.0);
+                    float l = pow(luma, 0.1593017578125);
+                    l = (0.8359375 + 18.8515625 * l) / (1.0 + 18.6875 * l);
+                    l = pow(l, 78.84375);
+        
+                    y_pq = uint(l * PQ_MAX + 0.5);
+                    is_active = (y_pq > 0);
+                }
+
+                // 2. Subgroup Reductions
+                // We use subgroupAdd(uint) which is widely supported in Metal
+                uint sub_sum = subgroupAdd(y_pq);
+                uint sub_max = subgroupMax(y_pq);
+                uint sub_active = subgroupAdd(is_active ? 1u : 0u);
+
+                if (subgroupElect()) {
+                    atomicAdd(wg_sum, sub_sum);
+                    atomicMax(wg_max, sub_max);
+                    atomicAdd(wg_active_count, sub_active);
+                }
+
+                // 3. Histogram Update
+                if (valid && is_active) {
+                    int bin = int(y_pq >> (PQ_BITS - HIST_BITS)) - HIST_BIAS;
+                    if (bin >= 0 && bin < HIST_BINS) {
+                        atomicAdd(wg_hist[bin], 1u);
+                    }
+                }
+
+                barrier();
+
+                // 4. Final Global Update
+                if (local_idx == 0) {
+                    uint slice = (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) % SLICES;
+                    atomicAdd(data.frame_wg_count[slice], 1u);
+        
+                    if (wg_active_count > 0) {
+                        atomicAdd(data.frame_wg_active[slice], 1u);
+                        atomicAdd(data.frame_sum_pq[slice], wg_sum / wg_active_count);
+                        atomicMax(data.frame_max_pq[slice], wg_max);
+                    }
+                }
+
+                // Parallel Global Histogram Write
+                uint slice_offset = ((gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) % SLICES) * HIST_BINS;
+                for (uint i = local_idx; i < HIST_BINS; i += wg_size) {
+                    if (wg_hist[i] > 0) {
+                        atomicAdd(data.frame_hist[slice_offset + i], wg_hist[i]);
+                    }
+                }
+            }
+)";
+        }
+#else
+            return R"(
+#version 450
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+
+#define SLICES 12
+#define PQ_BITS 14
+#define PQ_MAX ((1 << PQ_BITS) - 1)
+#define HIST_BITS 7
+#define HIST_BIAS 64
+#define HIST_BINS 64
+
+// Nvidia RTX 3080 has a warp size of 32. 
+// A 16x16 local size gives us exactly 8 warps per workgroup.
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform sampler2D img;
+
+struct PeakData {
+    uint frame_wg_count[SLICES];
+    uint frame_wg_active[SLICES];
+    uint frame_sum_pq[SLICES];
+    uint frame_max_pq[SLICES];
+    uint frame_hist[SLICES * HIST_BINS];
+};
+
+layout(std430, set = 0, binding = 1) buffer PeakBuffer {
+    PeakData data;
+};
+
+// Luma coefficients (libplacebo style)
+const vec3 LUMA_COEFFS = vec3(0.2627, 0.6780, 0.0593);
+
+// Use shared memory for workgroup-wide reduction
+shared uint wg_sum;
+shared uint wg_max;
+shared uint wg_active_count;
+shared uint wg_hist[HIST_BINS];
+
+void main() {
+    uvec2 pos = gl_GlobalInvocationID.xy;
+    uvec2 img_size = textureSize(img, 0);
+    
+    // On NVIDIA, early returns are fine as long as they don't bypass 
+    // a barrier that other threads in the same warp need.
+    bool within_bounds = (pos.x < img_size.x && pos.y < img_size.y);
+
+    uint local_idx = gl_LocalInvocationIndex;
+    uint wg_size = gl_WorkGroupSize.x * gl_WorkGroupSize.y;
+    
+    // 1. Fast Parallel Clear
+    if (local_idx == 0) {
+        wg_sum = 0;
+        wg_max = 0;
+        wg_active_count = 0;
+    }
+    for (uint i = local_idx; i < HIST_BINS; i += wg_size) {
+        wg_hist[i] = 0;
+    }
+    
+    // Sync shared memory
+    barrier();
+
+    uint y_pq = 0;
+    bool is_active = false;
+
+    if (within_bounds) {
+        vec3 color = vec3(1,1,1); //texture(img, vec2(pos) / vec2(img_size)).rgb;
+        // RTX 3080 handles max() extremely fast
+        // float luma = dot(color, LUMA_COEFFS);  // Weighted for accuracy
+        float luma = max(color.r, max(color.g, color.b));
+        
+        // Fast PQ OETF approximation or full precision
+        luma = clamp(luma, 0.0, 1.0);
+        float l = pow(luma, 0.1593017578125);
+        l = (0.8359375 + 18.8515625 * l) / (1.0 + 18.6875 * l);
+        l = pow(l, 78.84375);
+        
+        y_pq = uint(l * PQ_MAX + 0.5);
+        is_active = (y_pq > 0);
+    }
+
+    // 2. Warp-Level Reduction (RTX 3080/Ampere optimized)
+    // Subgroup functions map directly to NVIDIA 'shfl' and 'popc' instructions
+    uint warp_sum = subgroupAdd(y_pq);
+    uint warp_max = subgroupMax(y_pq);
+    uint warp_active = subgroupAdd(is_active ? 1u : 0u);
+
+    // Only one thread per warp updates shared memory (Reduces bank conflicts)
+    if (subgroupElect()) {
+        atomicAdd(wg_sum, warp_sum);
+        atomicMax(wg_max, warp_max);
+        atomicAdd(wg_active_count, warp_active);
+    }
+
+    // 3. Histogram Update with Shared Memory
+    if (within_bounds && is_active) {
+        int bin = int(y_pq >> (PQ_BITS - HIST_BITS)) - HIST_BIAS;
+        if (bin >= 0 && bin < HIST_BINS) {
+            // Ampere has high-speed shared atomics
+            atomicAdd(wg_hist[bin], 1u);
+        }
+    }
+
+    barrier();
+
+    // 4. Global SSBO Update (One thread per workgroup)
+    if (local_idx == 0) {
+        // Use a modulo-based slice to distribute atomic pressure across the SSBO
+        uint slice = (gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) % SLICES;
+        
+        atomicAdd(data.frame_wg_count[slice], 1u);
+        
+        if (wg_active_count > 0) {
+            atomicAdd(data.frame_wg_active[slice], 1u);
+            // On high-end GPUs, we can calculate the average here
+            atomicAdd(data.frame_sum_pq[slice], wg_sum / wg_active_count);
+            atomicMax(data.frame_max_pq[slice], wg_max);
+        }
+    }
+
+    // 5. Global Histogram Merge
+    // Distribute the 64 bins across the 256 threads for a single coalesced write
+    uint slice_offset = ((gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x) % SLICES) * HIST_BINS;
+    if (local_idx < HIST_BINS) {
+        uint val = wg_hist[local_idx];
+        if (val > 0) {
+            atomicAdd(data.frame_hist[slice_offset + local_idx], val);
+        }
+    }
+}
+)";
+}
+#endif
     } // namespace timeline_vlk
 } // namespace tl

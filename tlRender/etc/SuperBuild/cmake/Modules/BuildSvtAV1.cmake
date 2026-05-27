@@ -1,24 +1,26 @@
 include(ExternalProject)
 
-include(GNUInstallDirs)
-
-#set(SvtAV1_TAG v3.0.0)  # 3.0+ branch not ocmpatible with FFmpeg 7.0.1
-set(SvtAV1_TAG v2.3.0)
+set(SvtAV1_GIT_REPOSITORY "https://gitlab.com/AOMediaCodec/SVT-AV1.git")
+set(SvtAV1_GIT_TAG "v4.0.1")
 
 # This tries to use NASM or GAS for compilation
-set(SvtAV1_ARGS ${TLRENDER_EXTERNAL_ARGS})
-list(APPEND SvtAV1_ARGS
-    -DCMAKE_INSTALL_LIBDIR=lib
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5  # uses old CMake files
-)
+set(SvtAV1_ARGS
+    ${TLRENDER_EXTERNAL_ARGS}
+    -DBUILD_APPS=OFF
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+    -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include
+    -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_PREFIX}/lib
+    -DCMAKE_INSTALL_BINDIR=${CMAKE_INSTALL_PREFIX}/bin)
 
 
 set(SvtAV1_DEPENDENCIES )
 if(NOT WIN32)
-    set(SvtAV1_DEPENDENCIES NASM)
-else()
-    include(functions/Msys2)
-    set(SvtAV1_MSYS2 ${MRV2_MSYS_CMD})
+    if(SYSTEM_PROCESSOR_LC MATCHES ".*amd64.*")
+	if(UNIX)
+	    list(APPEND SvtAV1_DEPENDENCIES NASM)
+	    list(APPEND SvtAV1_ARGS -DCMAKE_ASM_NASM_COMPILER=${CMAKE_INSTALL_PREFIX}/bin/nasm)
+	endif()
+    endif()
 endif()
 
 message(STATUS "SvtAV1 DEPENDENCIES=${SvtAV1_DEPENDENCIES}")
@@ -27,12 +29,10 @@ ExternalProject_Add(
     SvtAV1
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/SvtAV1
 
-    GIT_REPOSITORY "https://gitlab.com/AOMediaCodec/SVT-AV1.git"
-    GIT_TAG ${SvtAV1_TAG}
+    GIT_REPOSITORY ${SvtAV1_GIT_REPOSITORY}
+    GIT_TAG ${SvtAV1_GIT_TAG}
     
     DEPENDS ${SvtAV1_DEPENDENCIES}
-
-    PATCH_COMMAND ${SvtAV1_PATCH}
     
     LIST_SEPARATOR |
     CMAKE_ARGS ${SvtAV1_ARGS}

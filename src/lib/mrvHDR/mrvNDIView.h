@@ -69,6 +69,9 @@ namespace mrv
         
         //! Toggle Fullscreen.
         void toggle_fullscreen();
+
+        //! Update list of NDI sources.
+        void updateSources(const std::vector<std::string>&);
         
         
         void prepare() FL_OVERRIDE;
@@ -79,25 +82,21 @@ namespace mrv
         std::vector<const char*> get_device_extensions() FL_OVERRIDE;
 
     protected:
-        //! Shaders used in GLFW demo
-        VkShaderModule m_vert_shader_module;
-        VkShaderModule m_frag_shader_module;
-
         //! This is for holding the textures
         std::vector<std::shared_ptr<vlk::Texture> > m_textures;
 
         //! This is for swapchain pipeline layout.
-        VkPipelineLayout      m_pipeline_layout;
+        VkPipelineLayout      m_pipeline_layout = VK_NULL_HANDLE;
 
         //! Memory for descriptor sets.
-        VkDescriptorPool      m_desc_pool;
+        VkDescriptorPool      m_desc_pool = VK_NULL_HANDLE;
 
         //! Describe texture bindings whithin desc. set  
-        VkDescriptorSetLayout m_desc_layout;
+        VkDescriptorSetLayout m_desc_layout = VK_NULL_HANDLE;
         
         //! Actual data bound to shaders like texture or
         //! uniform buffers
-        VkDescriptorSet       m_desc_set; 
+        VkDescriptorSet       m_desc_set = VK_NULL_HANDLE; 
 
         void init_colorspace() FL_OVERRIDE;
 
@@ -111,16 +110,22 @@ namespace mrv
         void prepare_descriptor_set();
 
         void update_texture(VkCommandBuffer);
-
+        
     private:
         void _init();
-        void _copy(const uint8_t* video_frame);
+        void _copy(const uint8_t* video_frame, int stride_in_bytes);
         void _startThreads();
         void _exitThreads();
         void _findThread();
         void _videoThread();
         void _audioThread();
-
+        std::string _fragmentSource();
+        void _parseVariables(std::stringstream& s,
+                             std::size_t& currentOffset,
+                             const struct pl_shader_res* res,
+                             const std::size_t pushConstantsMaxSize);
+        void _fillVariables(VkCommandBuffer cmd, const struct pl_shader_res* res);
+        
         VkShaderModule prepare_vs();
         VkShaderModule prepare_fs();
 

@@ -18,7 +18,7 @@ namespace py = pybind11;
 #include <tlTimeline/ImageOptions.h>
 #include <tlTimeline/LUTOptions.h>
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 #include "mrvCore/mrvUtil.h"
 
 #include "mrvOptions/mrvStereo3DOptions.h"
@@ -85,7 +85,7 @@ namespace tl
               << (a.enabled ? "True" : "False") << " value=" << a.value << ">";
             return o;
         }
-
+        
         inline std::ostream&
         operator<<(std::ostream& o, const DisplayOptions& a)
         {
@@ -352,7 +352,7 @@ Contains all classes and enums related to image controls.
             py::init<
                 timeline::Channels, image::Mirror, timeline::Color,
                 timeline::Levels, timeline::EXRDisplay, timeline::SoftClip,
-                timeline::ImageFilters, image::VideoLevels>(),
+            timeline::ImageFilters, image::VideoLevels>(),
             py::arg("channels") = timeline::Channels::Color, py::arg("mirror"),
             py::arg("color"), py::arg("levels"), py::arg("exrDisplay"),
             py::arg("softClip"), py::arg("imageFilters"),

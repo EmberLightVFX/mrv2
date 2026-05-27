@@ -11,7 +11,7 @@
 #include <fstream>
 #include <thread>
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 
 #include "mrvFl/mrvPreferences.h"
 
@@ -42,6 +42,8 @@ namespace mrv
             virtual int sync();
 
             virtual void print(const char* c) = 0;
+
+            std::string oldMsg;
         };
 
         struct errorbuffer : public logbuffer

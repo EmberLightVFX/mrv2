@@ -5,7 +5,7 @@
 include(ExternalProject)
 
 set(pyFLTK_GIT_REPOSITORY "git://git.code.sf.net/p/pyfltk/git-code")
-set(pyFLTK_GIT_TAG master)
+set(pyFLTK_GIT_TAG e536e892091941d501d514c649515d144842a91e)
 
 
 
@@ -78,7 +78,7 @@ set(pyFLTK_PATCH
     "${PROJECT_SOURCE_DIR}/cmake/patches/pyFLTK-patch/swig/pyFinalize.i"
     "${CMAKE_BINARY_DIR}/deps/pyFLTK/src/pyFLTK/swig/"
 
-    # For avoiding depreacated fl_ask
+    # For avoiding deprecated fl_ask
     COMMAND
     ${CMAKE_COMMAND} -E copy_if_different
     "${PROJECT_SOURCE_DIR}/cmake/patches/pyFLTK-patch/swig/fl_ask.i"
@@ -89,7 +89,7 @@ set(pyFLTK_PATCH
     "${PROJECT_SOURCE_DIR}/cmake/patches/pyFLTK-patch/swig/Fl_Group.i"
     "${CMAKE_BINARY_DIR}/deps/pyFLTK/src/pyFLTK/swig/"
 
-    # For build fixes (like no forms)
+    # For build fixes (like no forms or building always shared)
     COMMAND
     ${CMAKE_COMMAND} -E copy_if_different
     "${PROJECT_SOURCE_DIR}/cmake/patches/pyFLTK-patch/setup.py"
@@ -101,7 +101,13 @@ set(pyFLTK_ENV ${CMAKE_COMMAND} -E env CXXFLAGS=${pyFLTK_CXX_FLAGS} )
 if(WIN32)
     set(pyFLTK_ENV ${pyFLTK_ENV} "PATH=${pyFLTK_PATH}" "FLTK_HOME=${CMAKE_INSTALL_PREFIX}" --) 
 elseif(APPLE)
-    set(pyFLTK_ENV ${pyFLTK_ENV} "PATH=${pyFLTK_PATH}" "DYLD_LIBRARY_PATH=${pyFLTK_DYLD_LIBRARY_PATH}" -- )
+    set(pyFLTK_C_COMPILER ${GENERIC_C_COMPILER})
+    set(pyFLTK_CXX_COMPILER ${GENERIC_CXX_COMPILER})
+    set(pyFLTK_ENV ${pyFLTK_ENV}
+	"PATH=${pyFLTK_PATH}"
+	"CC=${pyFLTK_C_COMPILER}"
+	"CXX=${pyFLTK_CXX_COMPILER}"
+	"DYLD_LIBRARY_PATH=${pyFLTK_DYLD_LIBRARY_PATH}" -- )
 else()
     set(pyFLTK_ENV ${pyFLTK_ENV} "PATH=${pyFLTK_PATH}" "LD_LIBRARY_PATH=${pyFLTK_LD_LIBRARY_PATH}" -- )
 endif()
@@ -123,8 +129,8 @@ endif()
 # Commands for configure, build and install
 set(pyFLTK_CONFIGURE
     COMMAND ${pyFLTK_ENV} ${Python_EXECUTABLE} -m pip install setuptools
-    COMMAND ${pyFLTK_ENV} ${Python_EXECUTABLE} setup.py swig --enable-shared --disable-forms ${pyFLTK_ARGS} ${pyFLTK_DEBUG})
-set(pyFLTK_BUILD     ${pyFLTK_ENV} ${Python_EXECUTABLE} setup.py build --enable-shared --disable-forms ${pyFLTK_ARGS} ${pyFLTK_DEBUG})
+    COMMAND ${pyFLTK_ENV} ${Python_EXECUTABLE} -m pip install build)
+set(pyFLTK_BUILD     ${pyFLTK_ENV} ${Python_EXECUTABLE} -m build --wheel)
 set(pyFLTK_INSTALL ${pyFLTK_ENV} ${Python_EXECUTABLE} -m pip install . )
 
 ExternalProject_Add(

@@ -14,7 +14,7 @@
 #
 . etc/build_dir.sh
 
-echo "This script will clear Python at $BUILD_DIR"
+echo "This script will clear Python, pybind11, OTIO, pyFLTK and mrv2 at $BUILD_DIR"
 ask_to_continue
 
 
@@ -36,4 +36,22 @@ if [[ $KERNEL == *Windows* ]]; then
     
     echo "Cleaning Windows' bin/Scripts directory"
     rm -rf $INSTALL/bin/Scripts
+
+    echo "Cleaning $INSTALL/python"
+    rm -rf $INSTALL/python
 fi
+
+echo "Cleaning tlRender/etc/SuperBuild/OTIO"
+rm -rf $BUILD_DIR/tlRender/etc/SuperBuild/OTIO
+
+echo "Cleaning deps/Python"
+rm -rf $BUILD_DIR/deps/Python
+
+echo "Cleaning deps/pyFLTK"
+rm -rf $BUILD_DIR/deps/pyFLTK
+
+echo "Cleaning deps/pybind11"
+rm -rf $BUILD_DIR/deps/pybind11
+
+echo "Cleaning mrv2"
+rm -rf $BUILD_DIR/mrv2

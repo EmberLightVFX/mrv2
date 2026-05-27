@@ -1,4 +1,188 @@
-v1.5.4
+v1.6.6
+======
+
+mrv2 and vmrv2 are open source professional players and review tools for VFX, animation and computer graphics for Windows, Linux and macOS.  You can choose to compile from source or get binaries.
+
+If you are unsure what binary to choose, go to:
+
+https://mrv2.sourceforge.io/downloads/mrv2-download-page.html
+
+mrv2 ships now in two compiled versions:
+
+   - mrv2 with OpenGL backend  (free and donationware)
+   - vmrv2 with Vulkan backend (free and donationware)
+
+It also ships for many more architectures, so be careful to download the correct one.
+It has NOT been tested on Windows aarch64 nor Linux aarch64 (beta testers wanted).
+
+Unlocking Features
+------------------
+
+For unlocking features, once mrv2 loads, you should go to:
+  
+       Help->Unlock Features.
+       
+Donationware prices of binary licenses through PayPal:
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UJMHRRKYCPXYW)
+
+License works for both mrv2 and vmrv2 (you can have both installed).
+You need to have an internet connection for the license system.
+
+The donationware version when running without a donation, does not have:
+
+    - Annotations (available from Solo and later)
+    - Python (available in Standard and later)
+    - Editing (available in Edit and later)
+    - Voice and Link Annotations (available in Pro)
+    - Internet remote reviews from anywhere on the world (available in Pro+)
+
+They do have, however:
+
+    - Tone-mapping (OpenGL) and HDR (Vulkan)
+    - OpenEXR layer switching
+    - Saving Images and Movies with Audio
+
+Prices might change (go up or down) depending on competition and new features.
+
+ChangeLog
+---------
+
+- UI: Made thumbnails size in Panels be selectable with Preferences->Thumbnails->Panels.  macOS now defaults to small panel thumbnails, as most users use it from a laptop.
+- UI: Fixed restoring of image size in viewport when switching from Full Screen.  This would effect mainly Kwin/Plasma on Linux.
+- UI: Fixed statistics panel to more correctly reflect the usage.
+- Core: Added MBOX and FIFO swap_interval() indicators to OpenGL build too.
+- Core: Added __GL_SYNC_TO_VBLANK=0 to OpenGL Linux distro for NVidia cards' performance issues under Ubuntu 26.04 LTS/Gnome50.
+- Core: Fixed OpenGL backend setting VSync always on at start, even when it was set to Never or Presentation Only.
+- Python: Updated to v3.14.5.
+- Python: Updated pyFTLK build.
+- NDI: Updated to v6.3.2.
+- OpenEXR: Updated to v3.4.12.
+- OpenJPH: Updated to v0.27.3.
+- Build:  Made macOS dylibs automatically use @rpath instead of relying on DYLD_LIBRARY_PATH, for being more compatible and allowing to code sign the installer later on.
+- Build: Fixed missing OTIO dependency on Python.
+- Python:  Fixed registering RationalTime and TimeRange under the mrv2 namespace.  Now we just use opentimelineio directly, which would prevent opentimelineio from being imported.  That does mean that if you were using mrv2.RationalTime or mrv2.TimeRange, you will need to update your scripts to use otime.RationalTime and otime.TimeRange.
+- Python: Updated demos to use opentimelineio.
+- Python/UI:  Added imports for opentimelineio in Python Panel.
+- Build: Added and Improved bin/helpers/clean_* scripts to remove only portions of the compilation chain.
+
+
+v1.6.5
+======
+
+ChangeLog
+---------
+
+- UI: Fixed Window positioning on Windows, X11 and macOS with multiple screens, by storing the screen number.  Note that positioning on Wayland cannot be controlled.
+- UI: Fixed Panels positioning getting saved improperly on Windows, X11, macOS and Wayland on multiple screens.
+- UI: Fixed title of URL Movie window, which was showing as Link Annotations.
+- UI: Preferences and Hotkey windows are now non modal (ie. they remain above the main window).
+- UI/Network: The Sync menu now shows up whenever you open the Network or WebRTC panels.
+- UI/Performance: Improved the performance of Waveform, Vectorscope and Statistics window on Windows.
+- Building: moved install of NDI to cmake/functions.cmake.
+- Building: change NDI install to be done at install time instead of at configure time, so NDI DSOs can be easily updated.
+- Building: Made NDI on Linux auto detect the platform.
+- Core: Fixed Multiply and Add shaders for macOS using version 450 instead of 410 of OpenGL.  This made mrv2 (OpenGL) unusable.  I apologyze to all macOS users for this.
+
+
+v1.6.4
+======
+
+ChangeLog
+---------
+
+- Updated build to use Svt-AV1 v4.0.1.
+- Added Svt-AV1 version to Help->About Window.
+- Fixed Preferences->OCIO Display->Display / View selection when there was a single Display.
+- Fixed a Linux Wayland Cairo race condition in FLTK when playing back heavy videos.
+- Fixed a random crash on Linux Wayland when moving the vmrv2 or mrv2 window from a monitor with scale of 100% to a monitor with a scale of 200%. 
+- Fixed a minor validation error on vmrv2 when switching to Blit the Viewports.
+- UI Improvement: cleaned up Annotations Panel a bit.
+- Bug fix: fixed password and suffix entries when opening an URL movie.
+- Bug fix: fixed Cancel button when opening an URL movie.
+- Python: added session.save_and_reload() to save the session and restart the viewer with the same session.  This is useful to propagate changes to the environment variables on Windows.
+- Python: added cmd.open_url_movie() for opening url movies with optional user name, password and suffix.
+- Building: improved building performance on the cloud.
+- Vulkan: fixed showing LA_U8 and similar images.
+- Network: fixed synchronizing of two viewers showing up in Edit mode by default.
+- Network: Added WebRTC Panel to synchronize two mrv2 or vmrv2 viewers anywhere in the world.  Syncing is heavily encrypted and the media does not travel through the web.  This feature is ONLY available in the Pro+ tier and it is not available by default in the GitHub release.
+- Core: Removed unused Poco JSON and Poco XML libraries.  Makes .exe and similar archive files smaller and improves start up times.
+- UI: Fixed a bug where hiding the Secondary Window would mute the volume.
+
+
+v1.6.3
+======
+
+ChangeLog
+---------
+
+- Added two new Compare Modes (Add and Multiply).  Multiply can be useful to check ambient occlusion passes.
+- Added Image->Compare->Toggle A and B to easily switch the order of comparisons.
+- Fixed missing suffixes in Image->Go To.
+- Fixed missing suffixes in PDF's images creation titles.
+- Fixed the Non-Native File Requester on Windows not allowing to show the drives.
+- Fixed building on the cloud with potentially only 1 CPU.
+- Fixed OCIO Looks always overriding potential Looks attached to a custom Display transform.
+- Fixed Path.cpp and File.cpp code for UTF-8 under C++20 (wrong use of u8strings)
+- MAJOR BUG FIX:  Fixed Vulkan Text Annotations which had gotten broken due to a requested change in path handling.  Now it works correctly, including emojis.
+- Fixed .webp image sequences not working when they had a suffix.
+- Improved and fixed minor bugs in the postinst.in and postrm.in scripts used on Linux's DEB and RPM packages.
+- UI improvement: On Linux Vulkan Wayland builds, fixed the blurriness of the timeline.
+- Moved usdviewer utility into its own repository at:
+
+  	* www.github.com:ggarra13/usdviewer.git
+	
+It was making the Vulkan vmrv2 slower to load.
+
+
+v1.6.2
+======
+
+ChangeLog
+---------
+
+- Fixed a bug with file requester not supporting the file suffix for single files (not sequences).
+- Fixed a bug with Link Annotations exiting as soon as an image was selected.
+- Added support for an AI prompt to Link Annotations.  This is the first step in hooking vmrv2 and mrv2 to modern AI services through Python.
+- Added a new Python command: annotation.getLinkAnnotationsJSON().
+- UI improvement:  Waveform can change its max value and whether it is shown as Log or not.
+- UI improvement:  UI's Waveform now remembers its last settings.
+- UI fix:  Changing texture filtering with SHIFT + f does no longer trigger Fit ALl.
+- Wayland Vulkan:  Hiding the timeline at start would leave it floating in space upon resizing for 4K videos / images due to the window animation.  Not it is fixed.
+- Fixed saving JPEG image sequences on Vulkan backend.
+- Updated OpenEXR to v3.4.9.
+- Improved performance of playback when Waveform or Vectorscope were open and no selection was made.
+- Fixed Vulkan validation errors on Environment Maps switching.
+- Switched to Environment Map creation function to use tlRender's Matrix library instead of depending on Imath.
+- Added toggling USD's enableSceneLights in OpenGL backend.
+- Added toggling USD's enableSceneMaterials in OpenGL backend.
+- On vmrv2, made Debanding default to None as it was messing artists' viewing of images. If you already started vmrv2, you should change Window->Preferences->User Interface->Render->Debanding.
+- Fixed USD render options in Python and in the UI.
+- There's now an additional utility called usdviewer that uses Vulkan to parse and preview OpenUSD assets.  It is still very much a work in progress.
+
+  + It currently has:
+  	  * Meshes only (with an approx. 4GB memory limit)
+	  * Subsets
+	  * UsdPreviewShader only
+	  * Bone Animation (memory hungry)
+	  * Shape Animation
+	  * Textures
+	  * One Single Light is used from the POV of the camera and
+	    a pseudo skylight dome light.
+	  
+  + It is missing:
+          * Proper transparency
+          * Subdivision surfaces (only the unsubdived mesh is shown)
+	  * NURBs Patches (with or without weights)
+	  * NURBs Splines
+	  * Basis Splines
+	  * Displacement mapping
+	  * Actual scene lighting
+	  * Dome lights
+	  
+
+
+v1.6.1
 ======
 
 mrv2 and vmrv2 are open source professional players and review tools for VFX, animation and computer graphics for Windows, Linux and macOS.  You can choose to compile from source or get binaries.
@@ -15,8 +199,8 @@ mrv2 ships now in two compiled versions:
 It also ships for many more architectures, so be careful to download the correct one.
 It has NOT been tested on Windows aarch64 nor Linux aarch64 (beta testers wanted).
 
-Prices for binaries
--------------------
+Unlocking Features
+------------------
 
 For unlocking features, once mrv2 loads, you should go to:
   
@@ -26,13 +210,125 @@ Donationware prices of binary licenses through PayPal:
 
 [![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UJMHRRKYCPXYW)
 
-I use the email information to contact you privately.  I don't sell your information, as I don't have access to it, except for your email, which I use to contact you if you run into issues.
+License works for both mrv2 and vmrv2 (you can have both installed).
+You need to have an internet connection for the license system.
 
-- u$  25 for a Solo node-locked license for one year.
-- u$  50 for a Standard node-locked standard license for one year.
-- u$  75 for a Edit node-locked license with annotations and editing tools for one year.
-- u$ 150 for a Pro node-locked license for one year.
-- u$ 300 for a Pro+ node-locked license to own (allows changing machine).
+The donationware version when running without a donation, does not have:
+
+    - Annotations (available from Solo and later)
+    - Python (available in Standard and later)
+    - Editing (available in Edit and later)
+    - Voice and Link Annotations (available in Pro)
+
+They do have, however:
+
+    - Tone-mapping (OpenGL) and HDR (Vulkan)
+    - OpenEXR layer switching
+    - Saving Images and Movies with Audio
+
+Prices might change (go up or down) depending on competition and new features.
+
+ChangeLog
+----------
+
+- Added Rec2020 support for the Vectorscope.
+- Made BT601 and BT709 in Vectorscope work when the swapchain is VK_COLOR_SPACE_HDR10_ST2084_EXT.  There are some minor floating point issues.
+- Fixed vectorscope to display the proper image values when pixel bar's pixel types is set to Original (O).
+- Added Panel->Waveform Monitor as a new Panel.
+- Fixed a bad redraw issue with Vectorscope at Rec2020.
+- Made waveform display the proper image values when pixel bar's pixel type is set to Original (O).
+- Added SDR and HDR settings to Waveform monitor.
+- Fixed some bugs in color formulas.
+- Fixed a huge bug from v1.6.0 where it would not allow saving movie files.
+- Fixed a huge bug when saving image sequences in Vulkan backend.
+
+v1.6.0
+======
+
+ChangeLog
+----------
+
+- UI improvement: Improved readability of the Media Information Panel.
+- UI improvement: When using the free version of mrv2/vmrv2, the menu functions supported only on unlocked versions are shown as ghosted instead of just missing.  That way users can tell what vmrv2 / mrv2 **FULLY** supports.
+- UI improvement: The Files panel allows changing the sort order of the elements (Loaded, File Name, Directory and User name).  Just use the RMB on a clip and select Order/File sName.
+- Added support for sequences with a suffix like render_0001_suffix.exr in file requester, drag and drop and command-line.
+- Major refactoring of code.
+- Fixed a Vulkan hang (VK_ERROR_DEVICE_LOST) when creating thumbnails in the Edit timeline window.  It would happen with .otio timelines.
+- Fixed a hang and crash on program exit after editing a clip with the Trim tool.
+- Added File->Open->URL Movie to open a movie with an URL to allow direct streaming of movies into vmrv2 from an https:// or http:// site.  By default, a sample link is provided for evaluation.
+- Vectorscope no longer clamps values.
+- Fixed Vectorscope layout and improved its performance.
+- Added type to vectorscope to switch from ITU 709, ITU 601 and HSV.
+- Fixed getting out of temporary selection mode by using scrubbing when it was not visible.
+- Fixed color::rgb::to_ITU601 conversion to be done in float.
+- Fixed coefficients of color::rgb::to_ITU709.
+- Fixed mrvColor's L_F32, LA_F32 and L_U8 conversions.
+- Fixed vectorscope on Vulkan and OpenGL as the values were not right.
+- Updated to FFmpeg 8.1.
+- Updated to NASM 3.02rc3.
+- v1.6.0 re-release: fix to disappearing HUD after doing a SHIFT + Area selection.
+
+
+v1.5.9
+======
+
+ChangeLog
+---------
+
+- This update concentrates on UI improvements and user friendliness.
+- Improved Timecode input widget skipping over : and ; and prevent an invalid time (ie. --:--:--:--).
+- Fixed Log Panel becoming huge in height when dragging from one Window to another with different scaling factors.  It was a Windows bug.
+- Fixed menus in FLTK potentially appearing floating in space with two screens of different scaling factors.
+- Fixed Panels saving and loading positions on multiple screen setups with different scaling factors on Windows.
+- Fixed timeline and pixel toolbar stretching outside the main window when there was a window with a bigger scale factor than the window that was running vmrv2 on (Linux Wayland issue)
+- Incremented the margins of floating panels to 4 pixels to make them easier to resize.
+- Made the vectorscope smaller so it fits properly on the side panel.
+- Fixed EDL and Playlist creation which had gotten broken on v1.5.0 in code simplification.
+- Modified Edit Menu to make it more clear.
+- Move Edit Associated to Edit Menu.
+- Fixed Trim editing of Transitions hanging.
+- Fixed a potential hanging on the Vulkan thumbnail system.  If a thumbnail cannot be gotten in two seconds, it will default to black.
+- Made missing media files in session files ask if they want to be changed for another media file with a file requester when loaded and media cannot be read.
+- Cleaned up Darby's tlRender code stripping it to its minimum.  It is now faster, smaller and compiles faster.
+- Fixed resizing of Pixel Bar under X11 (Wayland was OK).
+- Made Python's Panel menus appear on the correct monitor on multiple monitor setups with several scaling factors on Linux Wayland.  The drawback is that the Python Panel can only be docked with the yellow button, not by going to the dock area like all other panels.
+- Added multi selecting of transition items and clips.
+- Made Edit->Selected->Remove Items handle removing of both multiple transitions and clips.
+- Made Edit->Selected->Remove Items be run with the Delete key when focus is in the timeline and selection mode is Select.
+- Fixed Vulkan macOS to check hdr.monitor.max_nits >= 400 for actual HDR support.
+- Bumped macOS deployment version to 12.0 or higher.
+- Updated OpenEXR to v3.4.7.	  
+- Updated OpenJPH to v0.26.3.
+- Uninstall on Windows now uninstalls version of mvr2/vmrv2 properly.
+
+
+v1.5.8
+======
+
+mrv2 and vmrv2 are open source professional players and review tools for VFX, animation and computer graphics for Windows, Linux and macOS.  You can choose to compile from source or get binaries.
+
+If you are unsure what binary to choose, go to:
+
+https://mrv2.sourceforge.io/downloads/mrv2-download-page.html
+
+mrv2 ships now in two compiled versions:
+
+   - mrv2 with OpenGL backend  (free and donationware)   
+   - vmrv2 with Vulkan backend (free and donationware)
+
+It also ships for many more architectures, so be careful to download the correct one.
+It has NOT been tested on Windows aarch64 nor Linux aarch64 (beta testers wanted).
+
+Unlocking Features
+------------------
+
+For unlocking features, once mrv2 loads, you should go to:
+  
+       Help->Unlock Features.
+       
+Donationware prices of binary licenses through PayPal:
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UJMHRRKYCPXYW)
 
 License works for both mrv2 and vmrv2 (you can have both installed).
 You need to have an internet connection for the license system.
@@ -55,6 +351,195 @@ Prices might change (go up or down) depending on competition and new features.
 ChangeLog
 ---------
 
+- Fixed toggling off Render->HDR Data->Inactive on HDR monitors which was not working previously.
+- Fixed Vulkan metadata being sent when not tone-mapping and no ocio was set.
+- Fixed one minor validation error on pixel look ups just after loading a video.
+- Fixed showing sRGB pictures (like .png) on Windows on an HDR monitor when the monitor had HDR set to off.
+- Made OCIO's "Not on Videos or BT709 Data" the default option.
+- Added Linux's HDR enabled monitor detection code, besides parsing EDID.
+- Fixed Wayland's monitor enumeration to match FLTK's monitor indices.
+- Made Annotations Panel's Notes text wrap around when reaching the border.
+- Improved displaying SDR content on HDR monitor on Windows.
+- Improved moving Panel windows from a 4K monitor to a 2K monitor when their scaling factor is different.
+
+
+v1.5.7
+======
+
+mrv2 and vmrv2 are open source professional players and review tools for VFX, animation and computer graphics for Windows, Linux and macOS.  You can choose to compile from source or get binaries.
+
+If you are unsure what binary to choose, go to:
+
+https://mrv2.sourceforge.io/downloads/mrv2-download-page.html
+
+mrv2 ships now in two compiled versions:
+
+   - mrv2 with OpenGL backend  (free and donationware)   
+   - vmrv2 with Vulkan backend (free and donationware)
+
+It also ships for many more architectures, so be careful to download the correct one.
+It has NOT been tested on Windows aarch64 nor Linux aarch64 (beta testers wanted).
+
+Unlocking Features
+------------------
+
+For unlocking features, once mrv2 loads, you should go to:
+  
+       Help->Unlock Features.
+       
+Donationware prices of binary licenses through PayPal:
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UJMHRRKYCPXYW)
+
+License works for both mrv2 and vmrv2 (you can have both installed).
+You need to have an internet connection for the license system.
+
+The donationware version when running without a donation, does not have:
+
+    - Annotations (available from Solo and later)
+    - Python (available in Standard and later)
+    - Editing (available in Edit and later)
+    - Voice and Link Annotations (available in Pro)
+
+They do have, however:
+
+    - Tone-mapping (OpenGL) and HDR (Vulkan)
+    - OpenEXR layer switching
+    - Saving Images and Movies with Audio
+
+Prices might change (go up or down) depending on competition and new features.
+
+ChangeLog
+---------
+
+- First, the good news: the powers that be allowed me to buy an HDR monitor, so I am now squashing bugs right and left.
+- Upgraded to OpenUSD v26.03.
+- Upgraded to OpenEXR v3.4.6.
+- Fixed audio playback of ALab .otio trailer.
+- Fixed colors of playing SDR videos on Windows when HDR was enabled.
+- Added a convenient option, mainly for HDR, in:
+  	Preferences->OCIO->No OCIO on Videos or SDR/RGB data
+  to turn off OCIO automatically, mainly when playing videos or showing sRGB images.  Most likely you will want this option on all the time.
+- On Vulkan on Linux, when swapchain is VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, try to use the best format like VK_FORMAT_A2R10G10B10_UNORM_PACK32 if possible.
+- On Vulkan we now extract the monitor's primaries from EDID on Linux and with DXGI on Windows and with the corresponding functions on macOS.
+- Fixed a Vulkan HDR cyan color clamping and bad matrix calculation inherited from tlRender.
+- On Vulkan, added debanding of main image to smooth out gradients.  You control it with "Render->Debanding" and Preferences->Render Debanding to make it permanent.  There's None, Low, Medium and High settings.
+- Made HUD display scale up to make it more readable when the viewport resolution is too big.
+- Implemented "Playback/Go to/Next 10 Seconds" and "Playback/Go to/Previous 10 Seconds".  The default shortcut hotkeys are CTRL+Left Arrow and CTRL+Right Arrow.
+- Fixed OS's screen scaling not being taken into account in the hdr utility.
+- Fixed a hanging on Vulkan when loading a 4K video from the command-line on
+KDE.
+- Changed font in the timeline to make it a little bit more readable.
+- Fixed a sporadic Wayland buffer size crash on the Vulkan backend.
+- Improved performance of resizing the Window on Vulkan.
+- Added HUD font size to Preferences->User Interface->View Window.
+- Bug fixed switching from one monitor with HDR to one without.
+- Bug fixed menus showing up in the wrong place when you had two monitors of different resolutions (like one 4K and another FullHD).
+- A warning about Performance on Linux: currently fractional scaling (like 150%) of large mmonitors makes both players slower.  It is recommended you stick to 100% or 200% percentages.
+
+
+v1.5.6
+======
+
+ChangeLog
+---------
+
+- Fixed EDID connector to support Asahi Linux eDP-1 in mrvMonitor_linux.cpp.
+- Fixed NDI's hdr utility hanging on Debug builds on Linux.
+- Made NDI's hdr utility thread safe, as it was potentially stomping on FLTK.
+- Fixed NDI Input streaming inside mrv2 / vmrv2 to not bring up the progress bar.
+- Fixed FLTK reporsitory to make Vulkan backend on MacOS match the scores of the Linux counterpart to select:
+     VK_COLOR_SPACE_HDR10_ST2084_EXT
+ for proper HDR, instead of DISPLAY_P3.
+ - Made common sRGB formats tonemap automatically under Vulkan.  Linear or floating point images need to use the proper OpenColorIO transforms.
+ - Added isOTIO to the list of sRGB formats to tonemap automatically under Vulkan.
+ - Added NITS to one of the Pixel Color Values you can display in the Pixel Bar besides Full and Original.
+ - Fixed Channel switching (ie. Red, Green, Blue, Luma) on OpenEXRs which had gotten broken.
+ - Fixed Vectorscope placing colors in the wrong direction.
+ - Improved Vectorscope by allowing it to be resizable.
+ - Made current time in timeline reposition itself if it would clip outside the window.
+ 
+
+v1.5.5
+======
+
+mrv2 and vmrv2 are open source professional players and review tools for VFX, animation and computer graphics for Windows, Linux and macOS.  You can choose to compile from source or get binaries.
+
+If you are unsure what binary to choose, go to:
+
+https://mrv2.sourceforge.io/downloads/mrv2-download-page.html
+
+mrv2 ships now in two compiled versions:
+
+   - mrv2 with OpenGL backend  (free and donationware)   
+   - vmrv2 with Vulkan backend (free and donationware)
+
+It also ships for many more architectures, so be careful to download the correct one.
+It has NOT been tested on Windows aarch64 nor Linux aarch64 (beta testers wanted).
+
+Unlocking Features
+------------------
+
+For unlocking features, once mrv2 loads, you should go to:
+  
+       Help->Unlock Features.
+       
+Donationware prices of binary licenses through PayPal:
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UJMHRRKYCPXYW)
+
+License works for both mrv2 and vmrv2 (you can have both installed).
+You need to have an internet connection for the license system.
+
+The donationware version when running without a donation, does not have:
+
+    - Annotations (available from Solo and later)
+    - Python (available in Standard and later)
+    - Editing (available in Edit and later)
+    - Voice and Link Annotations (available in Pro)
+
+They do have, however:
+
+    - Tone-mapping (OpenGL) and HDR (Vulkan)
+    - OpenEXR layer switching
+    - Saving Images and Movies with Audio
+
+Prices might change (go up or down) depending on competition and new features.
+
+ChangeLog
+---------
+
+- Added HDR peak detection (working as good as plplay).
+- Improved performance of dynamic HDR Data on the Vulkan backend.
+- Improved performance of Media Information Panel's Video Tab.
+- Added HDR10+ variables to Media Informtion Panel's Video Tab.
+- Added Dolby Vision variables to Media Information Panel's Video Tab.
+- Added Dolby Vision support on all platforms.
+- Added HDR Peak Detection controls to Prefences->HDR Peak Detection.
+- Fixed OpenColorIO's 1D Luts on Vulkan backend.
+- Fixed ordering of OpenColorIO's textures on the Vulkan backend.
+- Improved performance of HDR playback by keeping the state.
+- Added sending HDR metadata for proper HDR when using OCIO and not just movies.
+- Fixed color picker toolbar always showing solid alpha channel for images with it on the Vulkan backend.
+- Fixed color toolbar to support values with 4 digits, like 10000.000 for HDR lookups.
+- Removed Vulkan validation errors from NDI's Panel -> NDI Output Stream.
+- Sped up NDI Output Stream and hdr utility.
+- Made NDI Output Stream not pass metadata when OpenColorIO is enabled.
+- Fixed NDI some core dumps.
+- Fixed NDI's hdr utility crashes on Windows.
+- Improved performance of NDI's hdr utility with changing metadata.
+- Added code to handle OpenColorIO properly on Linux with HDR.
+  Still untested as NVidia drivers are still in beta and compositors like
+  Mutter or Kwin are just finishing up their HDR paths.
+- Fixed stride in NDI's hdr utility which could cause incorrect displays with odd resolutions.
+
+
+v1.5.4
+======
+
+ChangeLog
+---------
+
 - Fixed some HDR clipping issues when displaying HDR content on an SDR monitor.
 - Same fix added to hdr utility.
 - Made vmrv2 and mrv2 match libplacebo's plplay output, without hdr peak detection.
@@ -70,7 +555,7 @@ ChangeLog
 - Added support for the .heif and .heic movie / picture formats.
 - Fixed monitor device look up on KDE Plasma not finding the right connector (it is different than GNOME).
 - Fixed HDR10+ metadata not getting passed from FFmpeg correctly on each frame.
-- Fixed HDR EOTF and primaries not getting passed from FFmpeg correctly on each frame.HDR
+- Fixed HDR EOTF and primaries not getting passed from FFmpeg correctly on each frame.
 - HDR tone mapping algorithm was not allowed to be changed on HDR monitors on the Vulkan backend.  Fixed.
 - Fixed levelsFunc in display shader on both backends.
 - Fixed validation error on compute flag on Vulkan backend.

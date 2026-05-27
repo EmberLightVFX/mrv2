@@ -13,6 +13,7 @@ extern "C"
 }
 #endif
 
+#include <tlTimelineVk/HDRPeakDetection.h>
 #include <tlTimelineVk/RenderOptions.h>
 #include <tlTimelineVk/Render.h>
 
@@ -22,6 +23,8 @@ extern "C"
 #include <tlVk/Shader.h>
 #include <tlVk/Texture.h>
 #include <tlVk/TextureAtlas.h>
+
+#include <tlCore/StatsSystem.h>
 
 #if defined(TLRENDER_OCIO)
 #    include <OpenColorIO/OpenColorIO.h>
@@ -41,16 +44,39 @@ namespace tl
     namespace timeline_vlk
     {
         // For drawing
+        std::string vertexDummy();
+        std::string fragmentDummy();
+
+        std::string vertexSTs();
+        std::string fragmentSTs();
+
+        std::string vertexUSD();
+        std::string fragmentUSD();
+
+        std::string vertexPBR();
+        std::string fragmentPBR();
+
+        
         std::string vertexSource();
         std::string vertex2Source();
         std::string vertex2NoUVsSource();
+
         std::string meshFragmentSource();
         std::string colorMeshVertexSource();
         std::string colorMeshFragmentSource();
         std::string textFragmentSource();
         std::string textureFragmentSource();
         std::string differenceFragmentSource();
+        std::string multiplyFragmentSource();
+        std::string addFragmentSource();
+        std::string debandingFragmentSource(const float threshold = 48.F,
+                                            const float range = 16.F,
+                                            const int iterations = 1,
+                                            const float grain = 32.F);
 
+        // For HDR peak detection
+        std::string computeHDRPeakDetection();
+        
         // For pixel conversions
         std::string computeRGB_F16_To_RGBA_F16();
         std::string computeRGB_F32_To_RGBA_F32();
@@ -66,7 +92,9 @@ namespace tl
             const std::string& ocioDef, const std::string& ocio,
             const std::string& lutDef, const std::string& lut,
             timeline::LUTOrder, const std::string& toneMapDef,
-            const std::string& toneMap);
+            const std::string& toneMap,
+            const std::string& debandingDef = "",
+            const std::string& debanding = "");
 
         std::vector<std::shared_ptr<vlk::Texture> > getTextures(
             Fl_Vk_Context&, const image::Info&, const timeline::ImageFilters&,
@@ -109,18 +137,32 @@ namespace tl
 #if defined(TLRENDER_LIBPLACEBO)
         struct LibPlaceboData
         {
-            LibPlaceboData();
+            LibPlaceboData(Fl_Vk_Context& ctx,
+                           const bool peak_detection = false);
             ~LibPlaceboData();
 
+            // Libplacebo variables
             pl_log log;
             pl_gpu gpu;
             pl_shader shader;
             pl_shader_obj state = nullptr;
             const pl_shader_res* res = nullptr;
-
+            
             std::vector<pl_shader_var> pcUBOvars;
             void* pcUBOData = nullptr;
             size_t pcUBOSize = 0;
+
+            // Peak detection variables
+            float maxPeak = 0;
+            float avgPeak = 0;
+            
+            
+            // Vulkan variables
+            Fl_Vk_Context& ctx;
+            std::vector<VkFence> ssboFences;
+            std::vector<VkCommandBuffer> ssboCmds;
+            VkCommandPool ssboCmdPool = VK_NULL_HANDLE;
+            
             std::vector<std::shared_ptr<vlk::Texture> > textures;
         };
 #endif
@@ -135,19 +177,23 @@ namespace tl
             // Current frame in the swapchain
             int32_t frameIndex; // must be an int32_t not an uint32_t.
 
-            bool hdrMonitorFound = false;
-            float monitorMinNits = 0.005F;
-            float monitorMaxNits = 1000.F;
+            monitor::Capabilities monitor;
 
             math::Size2i renderSize;
             timeline::OCIOOptions ocioOptions;
             timeline::LUTOptions lutOptions;
             timeline::HDROptions hdrOptions;
+            timeline::ShaderOptions shaderOptions; 
             unsigned bindingIndex = 7;
             timeline::RenderOptions renderOptions;
+            std::string oldSource;
+
+
+            //! Variable to cache source code to avoid recreation of shader
+            //! when possible
+            std::string oldSourceCode;
 
 #if defined(TLRENDER_OCIO)
-            //! \todo Add a cache for OpenColorIO data.
             std::unique_ptr<OCIOData> ocioData;
             std::unique_ptr<OCIOLUTData> lutData;
 #endif // TLRENDER_OCIO
@@ -167,6 +213,7 @@ namespace tl
                 std::vector<VkPipeline> pipelines;
                 std::vector<VkPipelineLayout> pipelineLayouts;
                 std::vector<std::shared_ptr<vlk::ShaderBindingSet> > bindingSets;
+                std::vector<std::shared_ptr<vlk::OffscreenBuffer> > buffers;
             };
             std::array<FrameGarbage, vlk::MAX_FRAMES_IN_FLIGHT> garbage;
 
@@ -180,6 +227,7 @@ namespace tl
                 pipelines;
             std::shared_ptr<TextureCache> textureCache;
             std::shared_ptr<vlk::TextureAtlas> glyphTextureAtlas;
+            std::shared_ptr<vlk::Texture> blueNoiseTexture;
             std::map<image::GlyphInfo, vlk::TextureAtlasID> glyphIDs;
             std::unordered_map<std::string, std::shared_ptr<vlk::VBO> > vbos;
             std::unordered_map<std::string, std::shared_ptr<vlk::VAO> > vaos;
@@ -198,8 +246,8 @@ namespace tl
                 size_t pipelineChanges = 0;
             };
             Stats currentStats;
-            std::list<Stats> stats;
             std::chrono::steady_clock::time_point logTimer;
+            std::shared_ptr<system::StatsSystem> statsSystem;
 
             void createTextMesh(Fl_Vk_Context& ctx, const geom::TriangleMesh2&);
         };

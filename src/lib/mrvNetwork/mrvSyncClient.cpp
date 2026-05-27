@@ -16,7 +16,7 @@
 
 namespace mrv
 {
-    void ConnectionHandler::syncClient()
+    void TCP::syncClient()
     {
         ViewerUI* ui = App::ui;
         PreferencesUI* prefs = ui->uiPrefs;
@@ -91,7 +91,6 @@ namespace mrv
             // Send Background Options
             msg["command"] = "setBackgroundOptions";
             msg["value"] = view->getBackgroundOptions();
-            ;
             pushMessage(msg);
 
             // Send Compare Options
@@ -106,10 +105,9 @@ namespace mrv
 
             // Set Edit mode
             msg["command"] = "setEditMode";
-            EditMode mode =
-                (editMode == EditMode::kSaved || editMode == EditMode::kFull)
-                    ? EditMode::kFull
-                    : EditMode::kTimeline;
+            EditMode mode = (editMode == EditMode::kFull)
+                            ? EditMode::kFull
+                            : EditMode::kTimeline;
             msg["value"] = mode;
             msg["height"] = editModeH;
             pushMessage(msg);

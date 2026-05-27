@@ -31,8 +31,8 @@
 #include "mrvCore/mrvColorSpaces.h"
 #include "mrvCore/mrvLocale.h"
 #include "mrvCore/mrvSequence.h"
-#include "mrvCore/mrvString.h"
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvString.h"
+#include "mrvOS/mrvI8N.h"
 
 #include <tlTimelineVk/RenderShadersBinary.h>
 
@@ -60,10 +60,11 @@ namespace mrv
 {
     namespace
     {
-        monitor::HDRCapabilities
+        
+        tl::monitor::Capabilities
         getHDRCapabilities(int screen_num)
         {
-            monitor::HDRCapabilities out;
+            tl::monitor::Capabilities out;
             if (desktop::Wayland())
             {
                 const std::string& monitorName = desktop::monitorName(screen_num);
@@ -114,6 +115,7 @@ namespace mrv
 
         int Viewport::log_level() const
         {
+            // Set to 3 to debug color space and format interaction.
             return 0;
         }
 
@@ -388,49 +390,37 @@ namespace mrv
         void Viewport::_getMonitorNits(bool quiet)
         {
             TLRENDER_P();
-            
-            if (!p.hdrCapabilities.supported)
-            {
-#ifdef __linux__
-                if (!quiet)
-                {
-                    LOG_WARNING(_("Could not determine monitor's nits."));
-                }
-                if (p.hdrMonitorFound)
-                {
-                    p.hdrCapabilities.min_nits = 0.F;
-                    p.hdrCapabilities.max_nits = 1000.F;
-                }
-                else
-                {
-                    p.hdrCapabilities.min_nits = 0.F;
-                    p.hdrCapabilities.max_nits = 100.F;
-                }
-#else
-                p.hdrMonitorFound = false;
-#endif
-            }
-            
-            if (!p.hdrMonitorFound)
-            {
-                LOG_STATUS(_("HDR monitor not found or not configured."));
-                colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-                format() = VK_FORMAT_B8G8R8A8_UNORM;
+
+            if (p.monitor.hdr_enabled)
+            {                
+                std::string msg =
+                    string::Format(_("HDR monitor min. nits = {0}")).
+                    arg(p.monitor.min_nits);
+                LOG_STATUS(msg);
+                
+                msg = string::Format(_("HDR monitor max. nits = {0}")).
+                      arg(p.monitor.max_nits);
+                LOG_STATUS(msg);
             }
             else
             {
-                if (!quiet)
+                if (colorSpace() == VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
                 {
-                    std::string msg =
-                        string::Format(_("HDR monitor min. nits = {0}")).
-                        arg(p.hdrCapabilities.min_nits);
-                
-                    LOG_STATUS(msg);
-                
-                    msg = string::Format(_("HDR monitor max. nits = {0}")).
-                          arg(p.hdrCapabilities.max_nits);
-                    LOG_STATUS(msg);
+                    // Pass it through.
                 }
+                else if (colorSpace() != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                {
+                    colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+                    format() = VK_FORMAT_B8G8R8A8_UNORM;
+                    
+                    p.monitor.hdr_enabled = p.monitor.hdr_supported = false;
+                    p.monitor.min_nits = 0.001F;
+                    p.monitor.max_nits = 100.F;
+                    
+                    LOG_STATUS(_("HDR monitor not found or not configured."));
+                }
+                
+                
             }
         }
             
@@ -442,10 +432,7 @@ namespace mrv
             // This call will try to set colorSpace() to the best color space
             // possible based on what Vulkan returns.
             Fl_Vk_Window::init_colorspace();
-
-            // Look for HDR10 or HLG if present
-            p.hdrMonitorFound = false;
-
+            
             // First check if Wayland returned a valid color space for this
             // monitor.
             bool valid_colorspace = false;
@@ -462,23 +449,33 @@ namespace mrv
                 break;
             }
             
-            p.screen_index = this->screen_num();
-            p.hdrCapabilities = getHDRCapabilities(p.screen_index);
             if (valid_colorspace)
             {
-                p.hdrMonitorFound = true;
-                LOG_STATUS(_("HDR monitor found."));
-
-                _getMonitorNits(false);
+                if (p.monitor_first_run)
+                {
+                    p.screen_index = this->screen_num();
+                    p.monitor = getHDRCapabilities(p.screen_index);
+                    p.monitor_first_run = false; 
+                }
+                _getMonitorNits();
             }
             else
             {
-                colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-                format() = VK_FORMAT_B8G8R8A8_UNORM;
-                LOG_STATUS(_("HDR monitor not found or not configured."));
+                if (colorSpace() != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                {
+                    colorSpace() = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+                    format() = VK_FORMAT_B8G8R8A8_UNORM;
+                }
+                
+                if (p.monitor.hdr_enabled)
+                    LOG_STATUS(_("HDR monitor not detected by Vulkan or Window Manager."));
+                
+                p.monitor.hdr_enabled = p.monitor.hdr_supported = false;
+                p.monitor.min_nits = 0.001F;
+                p.monitor.max_nits = 100.F;
             }
-            
-            std::string msg;
+
+            std::string msg;            
             msg = string::Format(_("Vulkan color space is {0}")).arg(string_VkColorSpaceKHR(colorSpace()));
             LOG_STATUS(msg);
                     
@@ -542,11 +539,13 @@ namespace mrv
             TLRENDER_P();
             MRV2_VK();
 
+            // Needed
             wait_device();
 
-            // Destroy main renders
+            // Destroy main renderers
             vk.render.reset();
             vk.annotationRender.reset();
+            vk.overlayRender.reset();
 
             // Destroy auxiliary render classes
             vk.lines.reset();
@@ -615,13 +614,11 @@ namespace mrv
                 }
                 
                 // Set the renderers's max nits
-                vk.render = timeline_vlk::Render::create(ctx, context);
-
-                vk.render->setMonitorHDRSupported(p.hdrMonitorFound);
-                vk.render->setMonitorMinNits(p.hdrCapabilities.min_nits);
-                vk.render->setMonitorMaxNits(p.hdrCapabilities.max_nits);                
-                
-                vk.annotationRender = timeline_vlk::Render::create(ctx, context);
+                if (!vk.render)
+                    vk.render = timeline_vlk::Render::create(ctx, context);
+        
+                if (!vk.annotationRender)
+                    vk.annotationRender = timeline_vlk::Render::create(ctx, context);
 
                 
                 p.fontSystem = image::FontSystem::create(context);
@@ -689,12 +686,26 @@ namespace mrv
             return TimelineViewport::handle(event);
         }
 
+        Fl_Vk_Context& Viewport::getContext()
+        {
+            return ctx;
+        }
+        
         void Viewport::draw()
         {
             TLRENDER_P();
             MRV2_VK();
+            
+            
+            // Get the command buffer started for the current frame.
+            VkCommandBuffer cmd = getCurrentCommandBuffer();
 
-            // Check if the window changed screen.
+            // Clear the frame
+            begin_render_pass(cmd);
+            end_render_pass(cmd);
+            
+            // Check if the window changed screen.  This must come
+            // after end_render_pass(cmd).
             bool changed_screen = false;
             if (p.screen_index != this->screen_num())
             {
@@ -706,29 +717,51 @@ namespace mrv
             {
                 // If we changed screen from an HDR to an SDR one, or one with
                 // different nits settings, recreate the Vulkan swapchain.
-                auto hdr = getHDRCapabilities(this->screen_num());
-                if (hdr.supported != p.hdrCapabilities.supported ||
-                    hdr.min_nits != p.hdrCapabilities.min_nits ||
-                    hdr.max_nits != p.hdrCapabilities.max_nits)
+                const auto monitor = getHDRCapabilities(p.screen_index);
+                if (monitor != p.monitor)
                 {
-                    m_swapchain_needs_recreation = true;
-                    redraw();
-                    return;
+                    std::string msg;
+                    if (monitor.hdr_enabled)
+                    { 
+                        msg =
+                            string::Format(
+                                _("Changed to HDR active monitor at index {0}")).
+                            arg(p.screen_index);
+                        LOG_STATUS(msg);
+                    }
+                    else
+                    {
+                        if (monitor.hdr_supported)
+                        {                            
+                            msg = string::Format(
+                                _("Changed to HDR supported but inactive monitor "
+                                  "at index {0}")).
+                                arg(p.screen_index);
+                            LOG_STATUS(msg);
+                        }
+                        else
+                        {
+                            msg = string::Format(_("Changed to SDR monitor at index {0}")).
+                                  arg(p.screen_index);
+                            LOG_STATUS(msg);
+                        }
+                    }
                 }
+                p.monitor = monitor;
+                
+                // If we changed screen we may have gone to a monitor with
+                // different scaling.  Recreate swapchain.
+                m_swapchain_needs_recreation = true;
+                init_colorspace();
+                redraw();
+                return;
             }
-
-            // Get the command buffer started for the current frame.
-            VkCommandBuffer cmd = getCurrentCommandBuffer();
-
-            // Clear the frame
-            begin_render_pass(cmd);
-            end_render_pass(cmd);
-
+            
             // Store command for easy access.
             vk.cmd = cmd;
             
-            const auto& viewportSize = getViewportSize();
-            const auto& renderSize = getRenderSize();
+            const math::Size2i viewportSize = getViewportSize();
+            const math::Size2i renderSize = getRenderSize();
 
             bool hasAlpha = false;
             const float alpha = p.ui->uiMain->get_alpha() / 255.F;
@@ -828,11 +861,11 @@ namespace mrv
                 {
                     vk.buffer = vlk::OffscreenBuffer::create(
                         ctx, renderSize, offscreenBufferOptions);
+                    vk.readPixels = false;
+                    
                     // As render resolution might have changed,
                     // we need to reset the quad size.
                     vk.vbo.reset();
-                    if (hasFrameView())
-                        _frameView();
                 }
             }
             else
@@ -937,31 +970,31 @@ namespace mrv
                 if (p.showVideo)
                 {
                     int screen = this->screen_num();
+                    auto ocio = p.ocioOptions;
+                    
+                    if (p.ocio_disabled)
+                        ocio.enabled = false;
+                            
                     if (screen >= 0 && !p.monitorOCIOOptions.empty() &&
                         screen < p.monitorOCIOOptions.size())
                     {
-                        timeline::OCIOOptions o = p.ocioOptions;
-                        o.display = p.monitorOCIOOptions[screen].display;
-                        o.view = p.monitorOCIOOptions[screen].view;
-                        vk.render->setOCIOOptions(o);
+                        ocio.display = p.monitorOCIOOptions[screen].display;
+                        ocio.view = p.monitorOCIOOptions[screen].view;
+                        vk.render->setOCIOOptions(ocio);
 
-                        _updateMonitorDisplayView(screen, o);
                     }
                     else
                     {
-                        vk.render->setOCIOOptions(p.ocioOptions);
-                        _updateMonitorDisplayView(screen, p.ocioOptions);
+                        vk.render->setOCIOOptions(ocio);
                     }
+                    
+                    _updateMonitorDisplayView(screen, ocio);
 
-                    timeline::BackgroundOptions backgroundOptions = getBackgroundOptions();        
-                    if (transparent)
-                    {
-                        backgroundOptions.type = timeline::Background::Solid;
-                        backgroundOptions.color0 = image::Color4f(r, g, b, a);
-                    }
-            
+                    timeline::BackgroundOptions backgroundOptions = getBackgroundOptions();
+                    vk.render->setShaderOptions(p.shaderOptions);
                     vk.render->setLUTOptions(p.lutOptions);
                     vk.render->setHDROptions(p.hdrOptions);
+                    vk.render->setMonitorCapabilities(p.monitor);
                     if (p.missingFrame &&
                         p.missingFrameType != MissingFrameType::kBlackFrame)
                     {
@@ -1045,6 +1078,7 @@ namespace mrv
                 {
                     vk.annotation = vlk::OffscreenBuffer::create(
                         ctx, viewportSize, offscreenBufferOptions);
+                    
                     vk.avbo.reset();
                     
                     const auto& mesh = geom::box(math::Box2i(0, 0,
@@ -1096,7 +1130,6 @@ namespace mrv
                         vk.overlay = vlk::OffscreenBuffer::create(ctx,
                                                                   renderSize,
                                                                   offscreenBufferOptions);
-                        
                         if (!vk.overlayRender)
                         {
                             if (auto context = vk.context.lock())
@@ -1295,15 +1328,15 @@ namespace mrv
                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
                 vk.buffer->setImageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-                                
+                
                 // dstImage barrier (swapchain image)
                 transitionImageLayout(cmd, dstImage,
                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
             }
+
+
             
-
-
             if (!m_in_render_pass)
             {
                 VkClearValue clear_values[2];
@@ -1324,6 +1357,7 @@ namespace mrv
                 vkCmdBeginRenderPass(cmd, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
                 m_in_render_pass = true;
             }
+            
 
             
             if (p.showAnnotations &&
@@ -1368,40 +1402,42 @@ namespace mrv
             if (!p.helpText.empty())
                 _drawHelpText();
             
-            math::Box2i selection = p.colorAreaInfo.box = p.selection;
-            if (selection.max.x >= 0)
+            if (p.selection.min.x >= 0)
             {
-                // Check min < max
-                if (selection.min.x > selection.max.x)
+                p.colorAreaInfo.box = p.selection;
+            
+                // Copy the pixel type
+                if (p.ui->uiPixelWindow->uiPixelValue->value() != PixelValue::kOriginal)
                 {
-                    int tmp = selection.max.x;
-                    selection.max.x = selection.min.x;
-                    selection.min.x = tmp;
+                    const vlk::OffscreenBufferOptions& options = vk.buffer->getOptions();
+                    p.colorAreaInfo.pixelType = options.colorType;
                 }
-                if (selection.min.y > selection.max.y)
+                else
                 {
-                    int tmp = selection.max.y;
-                    selection.max.y = selection.min.y;
-                    selection.min.y = tmp;
+                    p.colorAreaInfo.pixelType = image::PixelType::RGBA_F32;
                 }
-                // Copy it again in case it changed
-                p.colorAreaInfo.box = selection;
-
-                // Copy the pixel type (needed for Vulkan)
-                const vlk::OffscreenBufferOptions& options = vk.buffer->getOptions();
-                p.colorAreaInfo.pixelType = options.colorType;
             }
             
                     
-            if (selection.max.x >= 0)
+            if (p.selection.min.x >= 0)
                 _drawAreaSelection();
             
-            end_render_pass();
+            
+            end_render_pass(cmd);
 
-            if (selection.max.x >= 0)
+            if (vk.buffer)
+            {
+                vk.buffer->transitionToColorAttachment(cmd);
+            }
+            if (vk.annotation)
+            {
+                vk.annotation->transitionToColorAttachment(cmd);
+            }
+            
+            if (p.selection.min.x >= 0)
             {
                 if (panel::colorAreaPanel || panel::histogramPanel ||
-                    panel::vectorscopePanel)
+                    panel::vectorscopePanel || panel::waveformPanel)
                 {
                     _mapBuffer();
 
@@ -1420,24 +1456,23 @@ namespace mrv
                         {
                             panel::vectorscopePanel->update(p.colorAreaInfo);
                         }
+                        if (panel::waveformPanel)
+                        {
+                            panel::waveformPanel->update(p.colorAreaInfo);
+                        }
                     }
                 }
             }
+
             
             // Update the pixel bar from here only if we are playing a movie
             // and one that is not 1 frames long.                
-            bool update = !_shouldUpdatePixelBar();
+            bool update = vk.readPixels && !_shouldUpdatePixelBar();
             if (update)
                 updatePixelBar();
 
-            if (vk.buffer)
-            {
-                vk.buffer->transitionToColorAttachment(cmd);
-            }
-            if (vk.annotation)
-            {
-                vk.annotation->transitionToColorAttachment(cmd);
-            }
+            // After first run, we can read pixels.
+            vk.readPixels = true;
         }
 
         
@@ -1468,6 +1503,24 @@ namespace mrv
             {
                 rgba = color::fromVoidPtr(ptr, info.pixelType);
 
+                if (colorSpace() == VK_COLOR_SPACE_HDR10_ST2084_EXT)
+                {
+                    switch(p.ui->uiPixelWindow->uiPixelValue->value())
+                    {
+                    case PixelValue::kLinear:
+                        rgba = color::pqToLinear(rgba);
+                        break;
+                    case PixelValue::kNits:
+                        rgba = color::pqToNits(rgba);
+                        break;
+                    case PixelValue::kFull:
+                        break;
+                    default:
+                        break;
+                    }
+                }
+
+                
                 info.rgba.mean.r += rgba.r;
                 info.rgba.mean.g += rgba.g;
                 info.rgba.mean.b += rgba.b;
@@ -1550,12 +1603,41 @@ namespace mrv
             info.hsv.mean.r = info.hsv.mean.g = info.hsv.mean.b =
                 info.hsv.mean.a = 0.F;
 
-            if (p.ui->uiPixelWindow->uiPixelValue->value() == PixelValue::kFull)
+            switch(p.ui->uiPixelWindow->uiPixelValue->value())
+            {
+            case PixelValue::kLinear:
+            case PixelValue::kFull:
+            case PixelValue::kNits:
                 _calculateColorAreaFullValues(info);
-            else
+                break;
+            default:
                 _calculateColorAreaRawValues(info);
+            }
         }
 
+        image::Color4f Viewport::_pq_to_nits(const image::Color4f& rgba) const
+        {
+            image::Color4f out = rgba;
+            if (colorSpace() != VK_COLOR_SPACE_HDR10_ST2084_EXT)
+                return out;
+            out.r = color::pqToNits(rgba.r);
+            out.g = color::pqToNits(rgba.g);
+            out.b = color::pqToNits(rgba.b);
+            return out;
+        }
+        
+        image::Color4f Viewport::_pq_to_linear(const image::Color4f& rgba) const
+        {
+            image::Color4f out = rgba;
+            if (colorSpace() != VK_COLOR_SPACE_HDR10_ST2084_EXT)
+                return out;
+            out.r = color::pqToLinear(rgba.r);
+            out.g = color::pqToLinear(rgba.g);
+            out.b = color::pqToLinear(rgba.b);
+            return out;
+        }
+
+        
         void Viewport::_readPixel(image::Color4f& rgba)
         {
 
@@ -1564,7 +1646,8 @@ namespace mrv
 
             math::Vector2i pos = _getRaster();
 
-            if (p.ui->uiPixelWindow->uiPixelValue->value() != PixelValue::kFull)
+            if (p.ui->uiPixelWindow->uiPixelValue->value() ==
+                PixelValue::kOriginal)
             {
                 if (_isEnvironmentMap())
                     return;
@@ -1622,6 +1705,10 @@ namespace mrv
                 if (_isEnvironmentMap())
                 {
                     pos = _getFocus();
+                    //
+                    // \@todo: On Vulkan, we cannot get the pixel values of the
+                    //         front buffer (ie. the swapchain image).
+                    //
                     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
                     // glReadBuffer(GL_FRONT);
                     // glReadPixels(pos.x, pos.y, 1, 1, GL_RGBA, type,
@@ -1630,6 +1717,7 @@ namespace mrv
                 }
                 else
                 {
+                    
                     VkCommandBuffer cmd =
                         beginSingleTimeCommands(device(), commandPool());
 
@@ -1643,7 +1731,13 @@ namespace mrv
                         
                     vkFreeCommandBuffers(device(), commandPool(), 1, &cmd);
 
-                    const void* data = vk.buffer->getLatestReadPixels();
+                    VkResult result = VK_NOT_READY;
+                    void* data = nullptr;
+                    while (result == VK_NOT_READY)
+                    {
+                        result = vk.buffer->getLatestReadPixels(data);
+                    }
+                    
                     if (!data)
                         return;
 
@@ -1658,17 +1752,26 @@ namespace mrv
         {
             TLRENDER_P();
             MRV2_VK();
-            
-            if (p.ui->uiPixelWindow->uiPixelValue->value() == PixelValue::kFull)
+
+            switch(p.ui->uiPixelWindow->uiPixelValue->value())
             {
-                    
+            case PixelValue::kLinear:
+            case PixelValue::kFull:
+            case PixelValue::kNits:
+            {
+                if (!vk.readPixels)
+                    return;
+                
                 const math::Box2i box = p.colorAreaInfo.box;
 
                 const uint32_t W = box.w();
                 const uint32_t H = box.h();
+                
+                VkCommandBuffer cmd = beginSingleTimeCommands(device(),
+                                                              commandPool());
 
-                VkCommandBuffer cmd = beginSingleTimeCommands(device(), commandPool());
-
+                vk.buffer->transitionToShaderRead(cmd);
+                
                 vk.buffer->readPixels(cmd, box.min.x, box.min.y, W, H);
 
                 vkEndCommandBuffer(cmd);
@@ -1676,6 +1779,8 @@ namespace mrv
                 vk.buffer->submitReadback(cmd);
 
                 wait_queue();
+                    
+                vk.buffer->transitionToColorAttachment(cmd);
 
                 vkFreeCommandBuffers(device(), commandPool(), 1, &cmd);
 
@@ -1685,29 +1790,36 @@ namespace mrv
                     p.image = nullptr;
                 }
                 
-                p.image = vk.buffer->getLatestReadPixels();
-                if (!p.image)
+                VkResult result = VK_NOT_READY;
+                while (result == VK_NOT_READY)
                 {
-                    LOG_ERROR("Could not get pixel under mouse");
-                    return;
+                    result = vk.buffer->getLatestReadPixels(p.image);
                 }
+                if (!p.image)
+                    return;
                 
                 p.rawImage = false;
+                break;
             }
-            else
+            default:
             {
                 _unmapBuffer();
                 TimelineViewport::_mapBuffer();
+                break;
+            }
             }
         }
 
         void Viewport::_unmapBuffer()
         {
             TLRENDER_P();
-            if (!p.rawImage)
+            if (p.image)
             {
-                p.image = nullptr;
-                p.rawImage = true;
+                if (!p.rawImage)
+                {
+                    p.image = nullptr;
+                    p.rawImage = true;
+                }
             }
         }
 
@@ -1869,6 +1981,26 @@ namespace mrv
                 subpass.pPreserveAttachments = NULL;
             }
 
+            VkSubpassDependency dependencies[2] = {};
+
+            // External -> subpass: wait for color attachment output before writing
+            dependencies[0].srcSubpass    = VK_SUBPASS_EXTERNAL;
+            dependencies[0].dstSubpass    = 0;
+            dependencies[0].srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependencies[0].dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependencies[0].srcAccessMask = 0;
+            dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dependencies[0].dependencyFlags = 0;
+
+            // Subpass -> external: ensure writes are done before presentation reads
+            dependencies[1].srcSubpass    = 0;
+            dependencies[1].dstSubpass    = VK_SUBPASS_EXTERNAL;
+            dependencies[1].srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dependencies[1].dstStageMask  = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            dependencies[1].dstAccessMask = 0;
+            dependencies[1].dependencyFlags = 0;
+            
             VkRenderPassCreateInfo rp_info = {};
             rp_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
             rp_info.pNext = NULL;
@@ -1876,13 +2008,78 @@ namespace mrv
             rp_info.pAttachments = attachments;
             rp_info.subpassCount = 1;
             rp_info.pSubpasses = &subpass;
-            rp_info.dependencyCount = 0;
-            rp_info.pDependencies = NULL;
+            rp_info.dependencyCount = 2;
+            rp_info.pDependencies = dependencies;
                     
             VkResult result;
             result = vkCreateRenderPass(device(), &rp_info, NULL, &vk.loadRenderPass);
             VK_CHECK(result);
         }
+
+        
+        // Helper function to diagnose current state
+        void Viewport::_diagnoseColorSpaceState() const
+        {
+            TLRENDER_P();
+    
+            std::cerr << "\n=== COLOR SPACE DIAGNOSTICS ===" << std::endl;
+    
+            // Monitor info
+            std::cerr << "Monitor Index: " << p.screen_index << std::endl;
+            std::cerr << "Monitor HDR Supported: " << (p.monitor.hdr_supported ? "YES" : "NO") << std::endl;
+            std::cerr << "Monitor HDR Enabled: " << (p.monitor.hdr_enabled ? "YES" : "NO") << std::endl;
+            std::cerr << "Monitor Min Nits: " << p.monitor.min_nits << std::endl;
+            std::cerr << "Monitor Max Nits: " << p.monitor.max_nits << std::endl;
+            std::cerr << "Monitor Red: (" << p.monitor.red.x << ", " << p.monitor.red.y << ")" << std::endl;
+            std::cerr << "Monitor Green: (" << p.monitor.green.x << ", " << p.monitor.green.y << ")" << std::endl;
+            std::cerr << "Monitor Blue: (" << p.monitor.blue.x << ", " << p.monitor.blue.y << ")" << std::endl;
+            std::cerr << "Monitor White: (" << p.monitor.white.x << ", " << p.monitor.white.y << ")" << std::endl;
+    
+            // Vulkan state
+            std::cerr << "\nVulkan Configuration:" << std::endl;
+            std::cerr << "Color Space: " << string_VkColorSpaceKHR(colorSpace()) << std::endl;
+            std::cerr << "Format: " << string_VkFormat(format()) << std::endl;
+            std::cerr << "Swapchain Valid: " << (m_swapchain != VK_NULL_HANDLE ? "YES" : "NO") << std::endl;
+            std::cerr << "Swapchain Needs Recreation: " << (m_swapchain_needs_recreation ? "YES" : "NO") << std::endl;
+    
+            // HDR options
+            std::cerr << "\nHDR Options:" << std::endl;
+            std::cerr << "Tonemapping Enabled: " << (p.hdrOptions.tonemap ? "YES" : "NO") << std::endl;
+            std::cerr << "HDR Data Max CLL: " << p.hdrOptions.hdrData.maxCLL << std::endl;
+            std::cerr << "HDR Data Max FALL: " << p.hdrOptions.hdrData.maxFALL << std::endl;
+            std::cerr << "HDR Data Max Luminance: " << p.hdrOptions.hdrData.displayMasteringLuminance.getMax() << std::endl;
+    
+            // OCIO state
+            const int screen_idx = this->screen_num();
+            const timeline::OCIOOptions& ocio = getOCIOOptions(screen_idx);
+            std::cerr << "\nOCIO Configuration:" << std::endl;
+            std::cerr << "OCIO Enabled: " << (ocio.enabled ? "YES" : "NO") << std::endl;
+            std::cerr << "OCIO Display: " << ocio.display << std::endl;
+            std::cerr << "OCIO View: " << ocio.view << std::endl;
+    
+            // HDR metadata
+            std::cerr << "\nHDR Metadata:" << std::endl;
+            std::cerr << "Max Luminance: " << m_hdr_metadata.maxLuminance << std::endl;
+            std::cerr << "Min Luminance: " << m_hdr_metadata.minLuminance << std::endl;
+            std::cerr << "Max Content Light Level: " << m_hdr_metadata.maxContentLightLevel << std::endl;
+            std::cerr << "Max Frame Average Light Level: " << m_hdr_metadata.maxFrameAverageLightLevel << std::endl;
+            std::cerr << "Display Primary Red: (" 
+                      << m_hdr_metadata.displayPrimaryRed.x << ", " 
+                      << m_hdr_metadata.displayPrimaryRed.y << ")" << std::endl;
+            std::cerr << "Display Primary Green: (" 
+                      << m_hdr_metadata.displayPrimaryGreen.x << ", " 
+                      << m_hdr_metadata.displayPrimaryGreen.y << ")" << std::endl;
+            std::cerr << "Display Primary Blue: (" 
+                      << m_hdr_metadata.displayPrimaryBlue.x << ", " 
+                      << m_hdr_metadata.displayPrimaryBlue.y << ")" << std::endl;
+            std::cerr << "White Point: (" 
+                      << m_hdr_metadata.whitePoint.x << ", " 
+                      << m_hdr_metadata.whitePoint.y << ")" << std::endl;
+            std::cerr << "Metadata Changed: " << (m_hdr_metadata_changed ? "YES" : "NO") << std::endl;
+    
+            std::cerr << "==============================\n" << std::endl;
+        }
+
     } // namespace vulkan
 
 } // namespace mrv

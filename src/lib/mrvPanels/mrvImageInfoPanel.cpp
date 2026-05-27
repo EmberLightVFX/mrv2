@@ -27,10 +27,10 @@
 #include "mrvIcons/Info.h"
 
 #include "mrvCore/mrvColorSpaces.h"
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 #include "mrvCore/mrvUtil.h"
 #include "mrvCore/mrvSequence.h"
-#include "mrvCore/mrvString.h"
+#include "mrvOS/mrvString.h"
 #include "mrvCore/mrvMath.h"
 
 
@@ -89,8 +89,8 @@ namespace mrv
             (sizeof(kTitleColors) / sizeof(Fl_Color));
 
         static const Fl_Color kRowColors[] = {
-            0x80808000,
-            0xa0a0a000,
+            0xd0d0c000,
+            0xb0c0c000,
         };
 
         static const unsigned int kSizeOfRowColors =
@@ -1744,7 +1744,6 @@ namespace mrv
                     int compressionNumScanlines = video.compressionNumScanlines;
                     bool isLossyCompression = video.isLossyCompression;
                     bool isValidDeepCompression = video.isValidDeepCompression;
-                    std::string HDRdata;
                     int xLevels = 0, yLevels = 0;
 
 #ifdef TLRENDER_EXR
@@ -1805,11 +1804,6 @@ namespace mrv
                         if (it != tagData.end())
                         {
                             colorSpace = it->second;
-                        }
-                        it = tagData.find("hdr");
-                        if (it != tagData.end())
-                        {
-                            HDRdata = it->second;
                         }
                     }
                     else
@@ -1987,24 +1981,22 @@ namespace mrv
                             _("Color Space"), _("Color Transfer Space"),
                             colorSpace);
                     }
-                    if (!HDRdata.empty())
-                    {
-                        nlohmann::json json = nlohmann::json::parse(HDRdata);
-                        image::HDRData hdr = json.get<image::HDRData>();
 
+                    if (image::isHDR(hdr))
+                    {
                         math::Vector2f& v =
                             hdr.primaries[image::HDRPrimaries::Red];
                         snprintf(buf, 256, "(%g) (%g)", v.x, v.y);
                         add_text(
                             _("HDR Red Primaries"), _("HDR Red Primaries"),
                             buf);
-
+                    
                         v = hdr.primaries[image::HDRPrimaries::Green];
                         snprintf(buf, 256, "(%g) (%g)", v.x, v.y);
                         add_text(
                             _("HDR Green Primaries"), _("HDR Green Primaries"),
                             buf);
-
+                            
                         v = hdr.primaries[image::HDRPrimaries::Blue];
                         snprintf(buf, 256, "(%g) (%g)", v.x, v.y);
                         add_text(
@@ -2031,6 +2023,25 @@ namespace mrv
 
                         snprintf(buf, 256, "%g", hdr.maxFALL);
                         add_text(_("HDR maxFALL"), _("HDR maxFALL"), buf);
+
+                        if (isHDRPlus(hdr))
+                        {
+                            snprintf(buf, 256, "%g %g %g",
+                                     hdr.sceneMax[0],
+                                     hdr.sceneMax[1], hdr.sceneMax[2]);
+                            add_text(_("HDR10+ sceneMax"), _("HDR10+ sceneMax"), buf);
+                            
+                            snprintf(buf, 256, "%g", hdr.sceneAvg);
+                            add_text(_("HDR10+ sceneAvg"), _("HDR10+ sceneAvg"), buf);
+                        }
+                        if (isHDRDolbyVision(hdr))
+                        {
+                            snprintf(buf, 256, "%g", hdr.maxPQY);
+                            add_text(_("Dolby maxPQY"), _("Dolby maxPQY"), buf);
+                            
+                            snprintf(buf, 256, "%g", hdr.avgPQY);
+                            add_text(_("Dolby avgPQY"), _("Dolby avgPQY"), buf);
+                        }
                     }
                     ++group;
 
@@ -2433,8 +2444,7 @@ namespace mrv
             for (const auto& item : tagData)
             {
                 bool skip = false;
-                if (item.first == "hdr" ||
-                    item.first.substr(0, 5) == "Video" ||
+                if (item.first.substr(0, 5) == "Video" ||
                     item.first.substr(0, 5) == "Audio" ||
                     item.first.substr(0, 19) == "FFmpeg Pixel Format" ||
                     item.first.substr(0, 12) == "otioClipName" ||
@@ -2484,6 +2494,11 @@ namespace mrv
                 {
                     tagData[tag.first] = tag.second;
                 }
+                auto hdrData = videoData[0].layers[0].image->getHDR();
+                if (hdrData)
+                    hdr = *hdrData;
+                else
+                    hdr.eotf = image::EOTF_BT709;
             }
         }
     } // namespace panel

@@ -50,6 +50,10 @@ namespace tl
             bool operator==(const ItemOptions&) const;
             bool operator!=(const ItemOptions&) const;
         };
+        
+        void to_json(nlohmann::json& j, const ItemOptions& value);
+
+        void from_json(const nlohmann::json& j, ItemOptions& value);
 
         //! Display options.
         struct DisplayOptions
@@ -68,7 +72,7 @@ namespace tl
             bool transitions = false;
             bool markers = false;
             std::string regularFont = "NotoSans-Regular";
-            std::string monoFont = "NotoMono-Regular";
+            std::string monoFont = "NotoSans-Bold";
             int fontSize = 12;
             float clipRectScale = 2.F;
             timeline::OCIOOptions ocio;
@@ -78,6 +82,10 @@ namespace tl
             bool operator==(const DisplayOptions&) const;
             bool operator!=(const DisplayOptions&) const;
         };
+        
+        void to_json(nlohmann::json& j, const DisplayOptions& value);
+
+        void from_json(const nlohmann::json& j, DisplayOptions& value);
 
         //! Marker.
         struct Marker
@@ -167,6 +175,7 @@ namespace tl
 
             otime::TimeRange _timeRange = time::invalidTimeRange;
             otime::TimeRange _trimmedRange = time::invalidTimeRange;
+            bool _selected = false;
             double _scale = 500.0;
             ItemOptions _options;
             DisplayOptions _displayOptions;

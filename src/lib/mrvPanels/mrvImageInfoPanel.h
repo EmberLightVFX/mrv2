@@ -9,8 +9,10 @@
 #include <memory>
 #include <string>
 
-#include <tlCore/Util.h>
 #include <tlCore/Box.h>
+#include <tlCore/HDR.h>
+#include <tlCore/Util.h>
+
 
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Group.H>
@@ -18,7 +20,7 @@
 #include <FL/Fl_Scroll.H>
 
 #include "mrvCore/mrvMedia.h"
-#include "mrvCore/mrvString.h"
+#include "mrvOS/mrvString.h"
 
 #include "mrvWidgets/mrvPopupMenu.h"
 #include "mrvWidgets/mrvBrowser.h"
@@ -203,7 +205,8 @@ namespace mrv
             TimelinePlayer* player = nullptr;
             std::map<std::string, std::string, string::CaseInsensitiveCompare>
                 tagData;
-
+            image::HDRData hdr;
+            
             unsigned int xLevel = 0, yLevel = 0;
             
         public:

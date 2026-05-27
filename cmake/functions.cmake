@@ -35,12 +35,6 @@ function( is_macos_system_lib TARGET ISSYSLIB )
 
     set( ${ISSYSLIB} 0 PARENT_SCOPE)
     
-    if ("${TARGET}" MATCHES "/mrv2")
-        # local library
-	set( ${ISSYSLIB} 1 PARENT_SCOPE)
-	return()
-    endif()
-    
     if ("${TARGET}" MATCHES "^/System")
 	set( ${ISSYSLIB} 1 PARENT_SCOPE)
         return()
@@ -84,8 +78,9 @@ function( is_system_lib TARGET ISSYSLIB )
 	libavformat
 	libavutil
 	libcairo
-	libcrypto
+	libcryp
 	libdisplay-info
+	libdovi
 	liblcms2
 	libMaterial
 	libmd
@@ -292,7 +287,7 @@ function(install_library_with_links LIBRARY)
     endif()
     
     file(INSTALL
-	DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+	DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/"
 	TYPE SHARED_LIBRARY
 	FOLLOW_SYMLINK_CHAIN
 	FILES "${LIBRARY}"
@@ -318,22 +313,24 @@ function( get_runtime_dependencies TARGET )
 	    execute_process(COMMAND ldd ${exe} OUTPUT_VARIABLE ldd_out)
 	    string (REPLACE "\n" ";" ldd_out_lines ${ldd_out})
 	    foreach (line ${ldd_out_lines})
-		string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
+		# Capture everything after => excluding text starting with '('
+		string(REGEX REPLACE "^.* => ([^(]+) \\(.*$" "\\1" pruned "${line}")
+		# Remove any ending spaces
 		string (STRIP ${pruned} dep_filename)
-		if (IS_ABSOLUTE ${dep_filename})
+		if (IS_ABSOLUTE "${dep_filename}")
 
 		    list(FIND PROCESSED_LIBRARIES "${dep_filename}" already_processed)
                     if (already_processed EQUAL -1)
                         list(APPEND PROCESSED_LIBRARIES "${dep_filename}")
                         set(PROCESSED_LIBRARIES "${PROCESSED_LIBRARIES}" CACHE INTERNAL "List of processed libraries")
 
-			is_system_lib (${dep_filename} sys_lib)
+			is_system_lib ("${dep_filename}" sys_lib)
 			if (sys_lib EQUAL 0 OR INSTALL_SYSLIBS STREQUAL "true")
-			    install_library_with_links( ${dep_filename} )
+			    install_library_with_links( "${dep_filename}" )
 			endif()
                     endif()
 		else()
-		    is_system_lib (${dep_filename} sys_lib)
+		    is_system_lib ("${dep_filename}" sys_lib)
 		    if (sys_lib EQUAL 0)
 			message("${dep_filename} is NOT absolute - ${line}")
 		    endif()
@@ -387,6 +384,128 @@ endfunction()
 #
 function( get_macos_runtime_dependencies TARGET )
     install_macos_target_with_deps( "${TARGET}" )
+endfunction()
+
+#
+# Internal helper: rewrite every absolute LC_LOAD_DYLIB entry in BINARY
+# (dylib or executable) to @rpath/<basename>, skipping system libs and
+# already-relative references.
+#
+function( _fixup_macos_dep_refs BINARY )
+    get_filename_component( _bin_name "${BINARY}" NAME )
+
+    execute_process(
+        COMMAND otool -L "${BINARY}"
+        OUTPUT_VARIABLE _otool_out
+    )
+    string( REPLACE "\n" ";" _otool_lines "${_otool_out}" )
+
+    foreach( _line ${_otool_lines} )
+        # Strip trailing version info: " (compatibility version …)"
+        string( REGEX REPLACE "[ \t]\\(.*\\)[ \t]*$" "" _dep "${_line}" )
+        string( STRIP "${_dep}" _dep )
+
+        # Skip: empty lines and the "header" line that ends with ":"
+        if( "${_dep}" STREQUAL "" OR "${_dep}" MATCHES ":$" )
+            continue()
+        endif()
+
+        # Skip: already-relative references (@rpath, @loader_path, …)
+        if( "${_dep}" MATCHES "^@" )
+            continue()
+        endif()
+
+        # Skip: non-absolute paths (shouldn't appear, but be safe)
+        if( NOT IS_ABSOLUTE "${_dep}" )
+            continue()
+        endif()
+
+        # Skip: macOS system libraries (/System/…, /usr/lib/…)
+        is_macos_system_lib( "${_dep}" _is_sys )
+        if( _is_sys EQUAL 1 )
+            continue()
+        endif()
+
+        get_filename_component( _dep_name "${_dep}" NAME )
+        execute_process(
+            COMMAND install_name_tool
+                -change "${_dep}" "@rpath/${_dep_name}" "${BINARY}"
+            RESULT_VARIABLE _rc
+            ERROR_VARIABLE  _err
+        )
+        if( NOT _rc EQUAL 0 )
+            message( WARNING
+                "  -change failed in ${_bin_name}: ${_dep} -> @rpath/${_dep_name}: ${_err}" )
+        else()
+            message( STATUS "  dep ${_dep_name}: ${_dep} -> @rpath/${_dep_name}" )
+        endif()
+    endforeach()
+endfunction()
+
+#
+# Rewrites install names so all binaries in an .app bundle use @rpath:
+#
+#   fixup_macos_rpath( APP_LIB_DIR [EXECUTABLES exe1 exe2 …] )
+#
+#   APP_LIB_DIR   – path to Contents/Resources/lib; every real .dylib
+#                   in this tree gets its LC_ID_DYLIB set to
+#                   @rpath/<name> and all absolute load cmds rewritten.
+#
+#   EXECUTABLES   – optional list of Mach-O executables (e.g. the main
+#                   binary in Contents/MacOS and the unwrapped binary in
+#                   Contents/Resources/bin).  Executables have no install
+#                   name of their own, so only their LC_LOAD_DYLIB entries
+#                   are rewritten to @rpath/<depname>.
+#
+# Call once per app bundle after all libraries have been copied into it.
+#
+function( fixup_macos_rpath APP_LIB_DIR )
+    # Parse optional EXECUTABLES keyword argument
+    cmake_parse_arguments( _ARG "" "" "EXECUTABLES" ${ARGN} )
+
+    message( STATUS "--- fixup_macos_rpath: ${APP_LIB_DIR} ---" )
+
+    # ------------------------------------------------------------------
+    # 1. Fix every .dylib: set its own -id, then rewrite its load cmds
+    # ------------------------------------------------------------------
+    file( GLOB_RECURSE _all_dylibs "${APP_LIB_DIR}/*.dylib" )
+
+    foreach( _lib ${_all_dylibs} )
+        # Work on real files only – symlinks are just aliases.
+        if( IS_SYMLINK "${_lib}" )
+            continue()
+        endif()
+
+        get_filename_component( _lib_name "${_lib}" NAME )
+
+        # Fix the library's own install name (LC_ID_DYLIB)
+        execute_process(
+            COMMAND install_name_tool -id "@rpath/${_lib_name}" "${_lib}"
+            RESULT_VARIABLE _rc
+            ERROR_VARIABLE  _err
+        )
+        if( NOT _rc EQUAL 0 )
+            message( WARNING "install_name_tool -id failed for ${_lib_name}: ${_err}" )
+        else()
+            message( STATUS "  id  -> @rpath/${_lib_name}" )
+        endif()
+
+        # Rewrite absolute dependency references
+        _fixup_macos_dep_refs( "${_lib}" )
+    endforeach()
+
+    # ------------------------------------------------------------------
+    # 2. Fix executables: rewrite their load cmds (no -id for exes)
+    # ------------------------------------------------------------------
+    foreach( _exe ${_ARG_EXECUTABLES} )
+        if( NOT EXISTS "${_exe}" )
+            message( WARNING "fixup_macos_rpath: executable not found: ${_exe}" )
+            continue()
+        endif()
+        get_filename_component( _exe_name "${_exe}" NAME )
+        message( STATUS "  exe ${_exe_name}: rewriting load cmds" )
+        _fixup_macos_dep_refs( "${_exe}" )
+    endforeach()
 endfunction()
 
 
@@ -524,4 +643,47 @@ function(copy_pdbs DIR INSTALL_DIR)
 	    endif()
 	endif()
     endforeach()
+endfunction()
+
+function(install_ndi)
+    # ---------------------------------------------------------------------------
+    # NDI install
+    # ---------------------------------------------------------------------------
+    if(TLRENDER_NDI)
+	if(WIN32)
+            if(TLRENDER_NDI_SDK MATCHES ".*Advanced.*")
+		set(_NDI_DLL
+                    "${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.Advanced.x64.dll")
+            else()
+		set(_NDI_DLL
+                    "${TLRENDER_NDI_SDK}/bin/x64/Processing.NDI.Lib.x64.dll")
+            endif()
+            install(FILES "${_NDI_DLL}"
+		DESTINATION bin
+		COMPONENT applications)
+
+	elseif(APPLE)
+            install(CODE "
+            file(GLOB _NDI_DYLIBS
+                \"${TLRENDER_NDI_SDK}/lib/macOS/*.dylib*\")
+            foreach(_LIB IN LISTS _NDI_DYLIBS)
+                file(INSTALL \"\${_LIB}\"
+                    DESTINATION \"\${CMAKE_INSTALL_PREFIX}/lib\"
+                    FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+        " COMPONENT applications)
+
+	elseif(UNIX)
+            install(CODE "
+            file(GLOB _NDI_DSOS
+                \"${TLRENDER_NDI_SDK}/lib/${NDI_SDK_ARCH}/*.so*\")
+            foreach(_DSO IN LISTS _NDI_DSOS)
+                file(INSTALL \"\${_DSO}\"
+                    DESTINATION \"\${CMAKE_INSTALL_PREFIX}/lib\"
+                    FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+        " COMPONENT applications)
+
+	endif()
+    endif()
 endfunction()

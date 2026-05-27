@@ -133,6 +133,11 @@ extern "C"
 #    include <stb/stb_image.h>
 #endif
 
+#ifdef TLRENDER_SVTAV1
+#undef Bool
+#    include <svt-av1/EbSvtAv1.h>
+#endif
+
 #ifdef TLRENDER_TIFF
 #    include <tiffvers.h>
 #endif
@@ -149,6 +154,10 @@ extern "C"
 
 #ifdef MRV2_NETWORK
 #    include <Poco/Version.h>
+#endif
+
+#ifdef MRV2_NETWORK
+#   include <rtc/version.h>
 #endif
 
 #ifdef MRV2_PYBIND11
@@ -190,8 +199,8 @@ extern "C"
 
 #include "mrvWidgets/mrvVersion.h"
 
-#include "mrvCore/mrvOS.h"
-#include "mrvCore/mrvCPU.h"
+#include "mrvOS/mrvOS.h"
+#include "mrvOS/mrvCPU.h"
 
 
 #include <tlCore/String.h>
@@ -872,6 +881,11 @@ namespace mrv
           << "Copyright (c) 2016, Alliance for Open Media. All rights reserved."
           << endl << endl;
 #endif
+#ifdef MRV2_NETWORK
+        o << "libdatachannel v" << RTC_VERSION << endl
+          << "Copyright (c) 2020-2021 Paul-Louis Ageneau. All rights reserved."
+          << endl << endl;
+#endif
 #ifdef TLRENDER_NET
         o << curl_version() << endl
           << "(C) Daniel Stenberg, <daniel@haxx.se>, et al." << endl
@@ -916,11 +930,6 @@ namespace mrv
           << "Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc." << endl
           << endl;
 #endif
-        o << "libsamplerate" << endl
-          << "Copyright (c) 2012-2016, Erik de Castro Lopo "
-             "<erikd@mega-nerd.com>"
-          << endl
-          << endl;
 #ifdef TLRENDER_TIFF
         o << TIFFLIB_VERSION_STR
           << endl
@@ -1059,6 +1068,15 @@ namespace mrv
 #ifdef TLRENDER_STB
         o << "stb v" << STBI_VERSION << endl
           << "Copyright (c) 2017 Sean Barrett" << endl
+          << endl;
+#endif
+#ifdef TLRENDER_SVTAV1
+        o << "svt-av1 v"
+          << SVT_AV1_VERSION_MAJOR << "."
+          << SVT_AV1_VERSION_MINOR << "."
+          << SVT_AV1_VERSION_PATCHLEVEL
+          << endl
+          << "Copyright (c) 2019 Intel Corporation" << endl
           << endl;
 #endif
 #ifdef TLRENDER_USD
@@ -1379,6 +1397,8 @@ Christoph Lohr                                (Color Pipeline Debugging,
 danbradham                                    (UI debugging)
 darkvertext                                   (Environment mapping support)
 dchabashvili                                  (Annotations exporting to movs)
+Denislav Balevski                             (SDR on HDR debugging,
+                                               Open Session improvements)
 dynestudio                                    (OCIO pipeline debugging)
 efleurant                                     (Python script debugging)
 gerroon                                       (Saving suggestion)

@@ -11,7 +11,7 @@
 
 #include "mrvApp/mrvSettingsObject.h"
 
-#include "mrvFl/mrvFileRequester.h"
+#include "mrvFLTK/mrvFileRequester.h"
 #include "mrvFl/mrvIO.h"
 
 #include "mrvWidgets/mrvFunctional.h"
@@ -495,6 +495,9 @@ namespace mrv
             if (textBuffer->length() == 0)
             {
                 std::string imports = R"PYTHON(
+import opentimelineio as otio
+import opentimelineio.opentime as otime
+
 import mrv2
 from mrv2 import annotations, cmd, math, image, io, media
 from mrv2 import playlist, timeline, ui, )PYTHON";
@@ -513,6 +516,7 @@ from mrv2 import playlist, timeline, ui, )PYTHON";
             g->begin();
             create_menu();
             g->add(tile);
+            g->resizable(0);
         }
 
         void PythonPanel::run_code()

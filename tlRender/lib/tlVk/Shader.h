@@ -8,6 +8,7 @@
 #include <tlVk/Texture.h>
 #include <tlVk/OffscreenBuffer.h>
 #include <tlVk/ShaderBindingSet.h>
+#include <tlVk/DescriptorSetLayout.h>
 #include <tlVk/Vk.h>
 
 #include <tlCore/Color.h>
@@ -29,6 +30,7 @@ namespace tl
             kShaderVertex = 1,
             kShaderFragment = 2,
             kShaderCompute = 4,
+            kShaderGeometry = 8,
         };
 
         inline VkShaderStageFlags getVulkanShaderFlags(ShaderFlags stageFlags)
@@ -70,27 +72,27 @@ namespace tl
                        const std::string& name);
 
 
-            //! Create a new shader.
+            //! Create a new compute shader.
             static std::shared_ptr<Shader> create(
                 Fl_Vk_Context& ctx,
                 const std::string& computeSource,
                 const std::string& name);
             
-            //! Create a new shader.
+            //! Create a new compute shader from SPIRV.
             static std::shared_ptr<Shader> create(
                 Fl_Vk_Context& ctx,
                 const uint32_t* computeBytes,
                 const uint32_t computeLength,
                 const std::string& name);
             
-            //! Create a new shader.
+            //! Create a new vertex and fragment shader from source.
             static std::shared_ptr<Shader> create(
                 Fl_Vk_Context& ctx,
                 const std::string& vertexSource,
                 const std::string& fragmentSource,
                 const std::string& name);
             
-            //! Create a new shader.
+            //! Create a new vertex shader from SPIRV and fragment from source.
             static std::shared_ptr<Shader> create(
                 Fl_Vk_Context& ctx,
                 const uint32_t* vertexBytes,
@@ -98,7 +100,7 @@ namespace tl
                 const std::string& fragmentSource,
                 const std::string& name);
             
-            //! Create a new shader.
+            //! Create a new vertex and fragment shaders from SPIRV.
             static std::shared_ptr<Shader> create(
                 Fl_Vk_Context& ctx,
                 const uint32_t* vertexBytes,
@@ -110,18 +112,21 @@ namespace tl
             //! Get the shader name.
             const std::string& getName() const;
 
-            //! Get the vertex shader source.
-            const std::string& getVertexSource() const;
-
-            //! Get the fragment shader source.
-            const std::string& getFragmentSource() const;
-
             //! Get the Vulkan vertex module.
             const VkShaderModule& getVertex() const;
 
             //! Get the Vulkan fragment module.
             const VkShaderModule& getFragment() const;
 
+            //! Get the vertex source if available.
+            const std::string& getVertexSource() const;
+            
+            //! Get the fragment source if available.
+            const std::string& getFragmentSource() const;
+            
+            //! Get the compute source if available.
+            const std::string& getComputeSource() const;
+            
             //! Get the Vulkan description set for current frame.
             const VkDescriptorSet getDescriptorSet() const;
 
@@ -185,7 +190,7 @@ namespace tl
                 const std::string& name,
                 const std::shared_ptr<Texture>& texture,
                 const ShaderFlags stageFlags = kShaderFragment);
-
+            
             //! Add and FBO to list of shader parameters.
             void addFBO(
                 const std::string& name,
@@ -201,7 +206,7 @@ namespace tl
             void addStorageBuffer(const std::string& name, 
                                   const ShaderFlags stageFlags = kShaderCompute);
 
-            //! Attach an FBO and updata shader parameters.
+            //! Attach an Storage Buffer and updata shader parameters.
             void setStorageBuffer(
                 const std::string& name,
                 const uint8_t* data,
@@ -215,10 +220,28 @@ namespace tl
             void setStorageImage(
                 const std::string& name,
                 const std::shared_ptr<Texture>& texture);
-            
-            //! Create desciptor set bindings for all frames
-            void createDescriptorSets();
 
+            //! Attach a SSBO (Shader Storage Buffer Object).
+            template <typename T>
+            void addSSBO(const std::string& name,
+                         const T& value,
+                         const ShaderFlags stageFlags = kShaderCompute);
+
+            //! Set a SSBO (Shader Storage Buffer Object) initial value.
+            template <typename T>
+            void setSSBO(const std::string& name, const T& value);
+
+            //! Clear SSBO values to 0
+            void clearSSBO(
+                VkCommandBuffer cmd,
+                const std::string& name);
+
+            //! Map the SSBO data.
+            void* mapSSBO(const std::string& name);
+
+            //! Unmap the SSBO data.
+            void unmapSSBO(const std::string& name);
+            
             //! Create a new shader binding set.
             std::shared_ptr<ShaderBindingSet> createBindingSet();
 
@@ -228,12 +251,15 @@ namespace tl
             //! Create a pipelineLayout
             void createPipelineLayout();
             
-            //! Create a compute pipeline from this shader.  Must be called after createBindingSet.
+            //! Create a compute pipeline from this shader.
+            //! Must be called after createBindingSet.
             void createComputePipeline();
 
             //! Dispatch compute shader.
-            void dispatch(VkCommandBuffer cmd, uint32_t width, uint32_t height);
-            
+            void dispatch(VkCommandBuffer cmd,
+                          uint32_t groupCountX, uint32_t groupCountY,
+                          uint32_t groupCountZ = 1);
+
             //! Print out a list of descriptor set bindings for vertex shader.
             void debugVertexDescriptorSets();
 
@@ -244,13 +270,13 @@ namespace tl
             //! types.
             void debugDescriptorSets();
 
-            //! Print out all debug info.
-            void debug();
-
+            //! Get object count.
+            static size_t getObjectCount();
+            
         private:
-            void _createVertexShader();
-            void _createFragmentShader();
-            void _createComputeShader();
+            void _createVertexShader(const std::string&);
+            void _createFragmentShader(const std::string&);
+            void _createComputeShader(const std::string&);
             
             Fl_Vk_Context& ctx;
             
@@ -260,7 +286,7 @@ namespace tl
             uint32_t current_binding_index = 0;
 
             //! Descriptor set layout shared across sets and pools.
-            VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+            std::shared_ptr<DescriptorSetLayout> activeLayout;
 
             //! Internal variable used to point all resources to the right
             //! frame in flight.
@@ -288,6 +314,9 @@ namespace tl
             
             typedef ShaderBindingSet::StorageImageParameter StorageImageBinding;
             std::map<std::string, StorageImageBinding> storageImageBindings;
+
+            typedef ShaderBindingSet::SSBOParameter SSBOBinding;
+            std::map<std::string, SSBOBinding> ssbos;
             
             std::shared_ptr<ShaderBindingSet> activeBindingSet;
 

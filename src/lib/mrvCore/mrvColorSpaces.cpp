@@ -8,7 +8,7 @@
 
 #include <Imath/ImathFun.h>
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvOS/mrvI8N.h"
 #include "mrvCore/mrvColorSpaces.h"
 
 using tl::image::Color4f;
@@ -72,13 +72,18 @@ namespace
      * @param rgb         original RGB pixel values
      * @param maxV        The max value of r, g, and b in rgb pixel
      * @param spanV       The (max-min) value between r,g,b channels in rgb
-     * pixel
+     *                     pixel
      *
      * @return a float representing the pixel hue [0..1]
      */
     inline float
     hue(const Color4f& rgb, const float maxV, const float spanV) noexcept
     {
+        // If spanV is practically zero, hue is meaningless (grayscale). 
+        // We catch this in the parent function, but returning 0.0f here is a
+        // safe fallback.
+        if (spanV < 1e-6f) return 0.0f;
+        
         float h;
         if (rgb.r == maxV)
         {
@@ -255,10 +260,15 @@ namespace mrv
             {
                 Color4f lab(to_xyz(rgb, chroma, Y));
 
-                float Xn = cubeth(lab.r / chroma.white.x);
-                float Yn = cubeth(lab.g / chroma.white.y);
-                float Zn =
-                    cubeth(lab.b / (1.0f - chroma.white.x - chroma.white.y));
+                // Derive XYZ white point from chromaticities
+                const float wy = chroma.white.y;
+                const float Xn_ref = chroma.white.x / wy;
+                const float Yn_ref = 1.0f;
+                const float Zn_ref = (1.0f - chroma.white.x - wy) / wy;
+
+                float Xn = cubeth(lab.r / Xn_ref);
+                float Yn = cubeth(lab.g / Yn_ref);
+                float Zn = cubeth(lab.b / Zn_ref);
 
                 lab.r = (116.0f * Yn - 16.0f);
                 lab.g = (500.0f * (Xn - Yn));
@@ -313,7 +323,7 @@ namespace mrv
             /**
              * @brief Convert a RGB color to HSV
              *
-             * @param rgb RGB color in [0-1] range.
+             * @param rgb RGB color in 0-any range.
              *
              * @return HSV color
              */
@@ -321,13 +331,20 @@ namespace mrv
             {
                 float minV = std::min(rgb.r, std::min(rgb.g, rgb.b));
                 float maxV = std::max(rgb.r, std::max(rgb.g, rgb.b));
-                float h, s, v;
+    
                 float spanV = maxV - minV;
-                v = maxV;
-                s = (maxV != 0.0f) ? (spanV / maxV) : 0.0f;
-                if (s == 0)
-                    h = 0;
-                else
+    
+                float v = maxV; 
+                float h = 0.0f;
+                float s = 0.0f;
+
+                // Use a small epsilon instead of 0.0f to protect against float inaccuracy
+                if (maxV > 1e-6f) 
+                {
+                    s = spanV / maxV;
+                }
+
+                if (s > 1e-6f) // If it has saturation, calculate hue
                 {
                     h = hue(rgb, maxV, spanV);
                 }
@@ -369,7 +386,8 @@ namespace mrv
                 return Color4f(
                     rgb.r * 0.299f + rgb.g * 0.587f + rgb.b * 0.114f,
                     -rgb.r * 0.595716f - rgb.g * 0.274453f - rgb.b * 0.321263f,
-                    rgb.r * 0.211456f - rgb.g * 0.522591f + rgb.b * 0.31135f);
+                    rgb.r * 0.211456f - rgb.g * 0.522591f + rgb.b * 0.31135f,
+                    rgb.a);
             }
 
             //! Analog PAL
@@ -378,7 +396,8 @@ namespace mrv
                 return Color4f(
                     rgb.r * 0.299f + rgb.g * 0.587f + rgb.b * 0.114f,
                     -rgb.r * 0.14713f - rgb.g * 0.28886f + rgb.b * 0.436f,
-                    rgb.r * 0.615f - rgb.g * 0.51499f - rgb.b * 0.10001f);
+                    rgb.r * 0.615f - rgb.g * 0.51499f - rgb.b * 0.10001f,
+                    rgb.a);
             }
 
             //! Analog Secam/PAL-N
@@ -387,40 +406,64 @@ namespace mrv
                 return Color4f(
                     rgb.r * 0.299f + rgb.g * 0.587f + rgb.b * 0.114f,
                     -rgb.r * 0.450f - rgb.g * 0.883f + rgb.b * 1.333f,
-                    -rgb.r * 1.333f + rgb.g * 1.116f + rgb.b * 0.217f);
+                    -rgb.r * 1.333f + rgb.g * 1.116f + rgb.b * 0.217f,
+                    rgb.a);
             }
 
             //! ITU. 601 or CCIR 601  (Digital PAL and NTSC )
+            //! ITU. 601 (Full Range / YPbPr)
             Color4f to_ITU601(const Color4f& rgb) noexcept
             {
+                // Luma (Y) coefficients for BT.601
+                float y = rgb.r * 0.299f + rgb.g * 0.587f + rgb.b * 0.114f;
+    
                 return Color4f(
-                    16.f + rgb.r * 65.481f + rgb.g * 128.553f + rgb.b * 24.966f,
-                    128.f - rgb.r * 37.797f - rgb.g * 74.203f + rgb.b * 112.0f,
-                    128.f + rgb.r * 112.0f - rgb.g * 93.786f - rgb.b * 18.214f);
+                    y,
+                    (rgb.b - y) * 0.5643f, // Pb: Scales (B-Y) to [-0.5, 0.5]
+                    (rgb.r - y) * 0.7132f,  // Pr: Scales (R-Y) to [-0.5, 0.5]
+                    rgb.a
+                    );
             }
-
+            
             //! ITU. 709  (Digital HDTV )
-            Color4f to_ITU709(const Color4f& rgb) noexcept
-            {
+            Color4f to_ITU709(const Color4f& rgb) noexcept {
+                float y = rgb.r * 0.2126f + rgb.g * 0.7152f + rgb.b * 0.0722f;
                 return Color4f(
-                    rgb.r * 0.299f + rgb.g * 0.587f + rgb.b * 0.114f,
-                    -rgb.r * 0.299f - rgb.g * 0.587f + rgb.b * 0.886f,
-                    rgb.r * 0.701f - rgb.g * 0.587f - rgb.b * 0.114f);
+                    y,
+                    (rgb.b - y) / 1.8556f, // Pb
+                    (rgb.r - y) / 1.5748f,  // Pr
+                    rgb.a
+                    );
             }
 
+            image::Color4f to_Rec2020(const image::Color4f& c) noexcept
+            {
+                constexpr float Kr = 0.2627f;
+                constexpr float Kg = 0.6780f;
+                constexpr float Kb = 0.0593f;
+
+                const float Y  = Kr * c.r + Kg * c.g + Kb * c.b;
+                const float Cb = (c.b - Y) / (2.f * (1.f - Kb));  // ÷ 1.8814
+                const float Cr = (c.r - Y) / (2.f * (1.f - Kr));  // ÷ 1.4746
+
+                return image::Color4f(Y, Cb, Cr, c.a);
+            }
         } // namespace rgb
 
         namespace yuv
         {
-            //! Analog PAL
+            //! Analog PAL  (full-range float YCbCr)
             Color4f to_rgb(const Color4f& yuv) noexcept
             {
-                float y2 = 1.164f * (yuv.r - 16);
-                Color4f rgb(
-                    y2 + 2.018f * (yuv.g - 128),
-                    y2 - 0.813f * (yuv.b - 128) - 0.391f * (yuv.g - 128),
-                    y2 + 1.596f * (yuv.b - 128));
-                return rgb;
+                const float y  = yuv.r;           // [0, 1]  (or higher for HDR)
+                const float cb = yuv.g;           // [-0.5, 0.5]
+                const float cr = yuv.b;           // [-0.5, 0.5]
+
+                return Color4f(
+                    y                            + 1.402000f * cr,
+                    y - 0.344136f * cb           - 0.714136f * cr,
+                    y + 1.772000f * cb,
+                    yuv.a);
             }
         } // namespace yuv
 
@@ -438,11 +481,8 @@ namespace mrv
                 const image::Color4f& YPbPr,
                 const math::Vector4f& yuvCoefficients) noexcept
             {
-                Color4f c;
+                image::Color4f c;
 
-                c.r = Imath::clamp(YPbPr.r, 0.F, 1.F);
-                c.g = Imath::clamp(YPbPr.g, -0.5F, 0.5F);
-                c.b = Imath::clamp(YPbPr.b, -0.5F, 0.5F);
                 c.a = YPbPr.a;
 
                 const float y = c.r;
@@ -467,22 +507,43 @@ namespace mrv
          * @param videoLevels VideoLevels enum.
          */
         void
-        checkLevels(image::Color4f& yuv, const image::VideoLevels videoLevels)
-        {
+        checkLevels(image::Color4f& yuv,
+                    const image::VideoLevels videoLevels)
+        {            
             if (videoLevels == image::VideoLevels::FullRange)
             {
-                yuv.g = yuv.g - 0.5f;
-                yuv.b = yuv.b - 0.5f;
+                // Chroma is encoded as [0, 1]; re-centre to [-0.5, 0.5]
+                yuv.g -= 0.5f;
+                yuv.b -= 0.5f;
             }
+            // else if (videoLevels == image::VideoLevels::LegalRangeHDR)
+            // {
+            //     // BT.2020 / SMPTE ST.2084 — 10-bit legal range, normalised to [0, 1]
+            //     constexpr float kLumaMin     = 64.0f  / 1023.0f;
+            //     constexpr float kLumaScale   = 1023.0f / 876.0f;   // span = 940 - 64
+            //     constexpr float kChromaMin   = 64.0f  / 1023.0f;
+            //     constexpr float kChromaScale = 1023.0f / 896.0f;   // span = 960 - 64
+
+            //     yuv.r =  (yuv.r - kLumaMin)   * kLumaScale;
+            //     yuv.g = ((yuv.g - kChromaMin) * kChromaScale) - 0.5f;
+            //     yuv.b = ((yuv.b - kChromaMin) * kChromaScale) - 0.5f;
+            // }
             else if (videoLevels == image::VideoLevels::LegalRange)
             {
-                yuv.r = (yuv.r - (16.0f / 255.0f)) * (255.0f / (235.0f - 16.0f));
-                // Cb/Cr: scale and center
-                yuv.g = ((yuv.g - (16.0f / 255.0f)) * (255.0f / (240.0f - 16.0f))) - 0.5f;
-                yuv.b = ((yuv.b - (16.0f / 255.0f)) * (255.0f / (240.0f - 16.0f))) - 0.5f;
+                // BT.601 / BT.709 SDR limited range, expressed as normalised floats.
+                // Luma:   [16/255, 235/255]  → span = 219
+                // Chroma: [16/255, 240/255]  → span = 224
+                constexpr float kLumaMin    = 16.0f  / 255.0f;
+                constexpr float kLumaScale  = 255.0f / 219.0f;   // 1 / (235-16)
+                constexpr float kChromaMin  = 16.0f  / 255.0f;
+                constexpr float kChromaScale = 255.0f / 224.0f;  // 1 / (240-16)
+
+                yuv.r =  (yuv.r - kLumaMin)   * kLumaScale;
+                yuv.g = ((yuv.g - kChromaMin) * kChromaScale) - 0.5f;
+                yuv.b = ((yuv.b - kChromaMin) * kChromaScale) - 0.5f;
             }
         }
-
+        
         //! Convert tlRender's layer names to more human readable ones.
         std::string layer(const std::string layerName)
         {

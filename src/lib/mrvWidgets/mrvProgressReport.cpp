@@ -3,10 +3,11 @@
 // Copyright Contributors to the mrv2 Project. All rights reserved.
 
 
-
 #include "mrvWidgets/mrvProgressReport.h"
 
-#include "mrvCore/mrvI8N.h"
+#include "mrvNetwork/mrvTCP.h"
+
+#include "mrvOS/mrvI8N.h"
 
 #include <FL/Fl_Output.H>
 #include <FL/Fl_Progress.H>
@@ -62,6 +63,7 @@ namespace mrv
         w->set_modal();
         w->end();
 
+        tcp->lock();
         _startTime = std::chrono::steady_clock::now();
         _frameDuration = 0;
     }
@@ -74,6 +76,7 @@ namespace mrv
         fps = nullptr;
         remain = nullptr;
         elapsed = nullptr;
+        tcp->unlock();
     }
 
     void ProgressReport::set_start(int64_t value)
@@ -178,11 +181,10 @@ namespace mrv
             fps = nullptr;
             remain = nullptr;
             elapsed = nullptr;
+            tcp->unlock();
             return false;
         }
 
-        // This must come after w->visible() check to avoid progress reports
-        // when loading multiple small movies.
         Fl::check();
         ++_frame;
         

@@ -64,8 +64,8 @@ namespace mrv
             {
                 VkRenderPass oldRenderPass = render->getRenderPass();
                 render->setRenderPass(renderPass);
-                render->drawMesh(pipelineName, "mesh", "mesh", 
-                                 mesh, pos, color, false);
+                render->drawMeshViewport(pipelineName, "mesh", "mesh", 
+                                         mesh, pos, color, false);
                 render->setRenderPass(oldRenderPass);
             }
             else
@@ -83,6 +83,8 @@ namespace mrv
             const math::Vector2i& center, const float radius,
             const image::Color4f& color, const bool soft = false);
 
+        std::string gpuName(int index = 0);
+        
     }  // namespace util
     
 } // namespace mrv
