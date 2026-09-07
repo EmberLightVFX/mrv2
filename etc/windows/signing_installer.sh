@@ -54,15 +54,11 @@ sign_installer() {
 #
 if [[ "$PASS" != "" ]]; then
     if [[ -e "${NSIS_INSTALLER}" ]]; then
-        if [[ -n "$PASS" ]]; then
-            echo "Installer found. Starting signing process..."
-            sign_installer
-        else
-            echo "Skipping code signing (not authorized user: $USER)"
-        fi
+        echo "Installer found. Starting signing process..."
+        sign_installer
     else
         echo "Error: Installer not found at ${NSIS_INSTALLER}"
     fi
 else
-    echo "PASSWORD not set.  Cannot sign installer."
+    echo "PASSWORD not set. Skipping installer signing for unsigned build."
 fi

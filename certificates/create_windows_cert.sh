@@ -8,9 +8,9 @@ VENDOR_NAME="Gonzalo Garramuno (ggarra13@gmail.com)"
 OUTPUT_FILE="mrv2.pfx"
 PASS="${MRV2_WINDOWS_SIGNING_PASSWORD}"
 
-if [[ "$MRV2_WINDOWS_SIGNING_PASSWORD" == "" ]]; then
-    echo "No MRV2_WINDOWS_SIGNING_PASSWORD set.  Cannot create certificate."
-    exit 1
+if [[ -z "$MRV2_WINDOWS_SIGNING_PASSWORD" ]]; then
+    echo "No MRV2_WINDOWS_SIGNING_PASSWORD set. Skipping certificate creation for unsigned build."
+    exit 0
 fi
 
 echo "Removing old files..."

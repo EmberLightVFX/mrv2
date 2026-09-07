@@ -32,10 +32,12 @@ mkdir -p $PWD/${BUILD_DIR}/install/bin/
 # Create Windows certificate file
 #
 if [[ $KERNEL == *Windows* ]]; then
-    if [[ ! -e certificates/mrv2.pfx ]]; then
+    if [[ ! -e certificates/mrv2.pfx && -n "${MRV2_WINDOWS_SIGNING_PASSWORD:-}" ]]; then
 	cd certificates
 	./create_windows_cert.sh
 	cd -
+    elif [[ ! -e certificates/mrv2.pfx ]]; then
+	echo "MRV2_WINDOWS_SIGNING_PASSWORD not set; continuing without a Windows code-signing certificate."
     fi
 elif [[ $KERNEL == *Darwin* ]]; then
     true
