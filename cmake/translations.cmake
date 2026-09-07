@@ -41,51 +41,24 @@ function(create_translation_for TARGET SOURCES)
 	    get_filename_component(_py_basename ${_py_plugin} NAME_WLE)
 	    set( _potFile "${_potPythonPluginDir}/${_py_basename}.pot" )
 
-	    #
-	    # First, try to find pygettext.py script
-	    #
-	    set(_pyscript_dir "${CMAKE_BINARY_DIR}/../../../deps/Python/src/Python/Tools/i18n" )
-	    if (NOT EXISTS ${_pyscript_dir})
-		find_package(Python COMPONENTS Interpreter)
-		get_filename_component(_dir ${PYTHON_EXECUTABLE} DIRECTORY)
-		set(_pyscript_dir "${_dir}/../share/doc/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/examples/Tools/i18n" )
-	    endif()
-	    
-	    set(_py_gettext_script "${_pyscript_dir}/pygettext.py")
-
-	    #
-	    # If pygettext.py script not found, search for command
-	    #
-	    if (NOT EXISTS ${_py_gettext_script})
-		message(WARNING "pygettext.py not found!  Looking for command")
-		find_program(_py_gettext_cmd NAMES pygettext3 pygettext)
-	    else()
-		set(_py_gettext_cmd ${PYTHON_EXECUTABLE} )
-	    endif()
-	    
-	    set(_py_gettext_args ${_py_gettext_script}
+	    set(_py_gettext_cmd xgettext)
+	    set(_py_gettext_args -L Python --no-location
 		-d ${_py_basename} -o ${_potFile} ${_py_plugin_full_path} )
 	    
-	    if (NOT DEFINED _py_gettext_cmd OR
-		    "${_py_gettext_cmd}" STREQUAL "")
-		message(FATAL_ERROR "pygettext command or pygettext.py script missing.  Did not know how to create .pot file ${_potFile}")
-	    else()
-		# If we have a pygettext command, create the plugin.pot file target
-		add_custom_command(OUTPUT ${_potFile}
-		    COMMAND ${_py_gettext_cmd} ${_py_gettext_args}
-		    DEPENDS ${_py_plugin_full_path}
-		    COMMENT "Creating ${_potFile}"
-		)
-		list(APPEND pot_files ${_potFile})
-	    endif()
+	    # If we have a pygettext command, create the plugin.pot file target
+	    add_custom_command(OUTPUT ${_potFile}
+		COMMAND ${_py_gettext_cmd} ${_py_gettext_args}
+		DEPENDS ${_py_plugin_full_path}
+		COMMENT "Creating ${_potFile}"
+	    )
+	    list(APPEND pot_files ${_potFile})
 	endforeach()
     endif()
     
     #
     # Then, create the .po files if they don't exist and add a target for .mo files.
     #	   
-    foreach( lang ${LANGUAGES} )
-	
+    foreach( lang ${LANGUAGES} )	
 	set( _moDir "${ROOT_DIR}/share/locale/${lang}/LC_MESSAGES" )
 	set( _moFile "${_moDir}/${TARGET}-v${mrv2_VERSION}.mo" )
 	set( _poDir  "${ROOT_DIR}/po/${TARGET}" )
@@ -109,7 +82,7 @@ function(create_translation_for TARGET SOURCES)
 
 
 	add_custom_command( OUTPUT "${_moFile}"
-	    COMMAND msgmerge --quiet --update --backup=none ${_poFile} "${_absPotFile}"
+	    COMMAND msgmerge --quiet --no-location --update --backup=none ${_poFile} "${_absPotFile}"
 	    COMMAND msgfmt -v "${_poFile}" -o "${_moFile}"
 	    DEPENDS ${_poFile} ${_absPotFile}
 	    COMMENT "Creating ${_moFile} after merging ${_poFile}"
@@ -136,18 +109,19 @@ function(create_translation_for TARGET SOURCES)
 	    foreach(_py_plugin_full_path ${_py_plugins})
 		get_filename_component(_py_plugin ${_py_plugin_full_path} NAME)
 		get_filename_component(_py_basename ${_py_plugin} NAME_WLE)
-		set( _moFile  "${_moDir}/${_py_basename}.mo" )
-		set( _poFile  "${_poDir}/${_py_basename}.po" )
-		set( _potFile "${_potPythonPluginDir}/${_py_basename}.pot" )
+		set(_moFile  "${_moDir}/${_py_basename}.mo" )
+		set(_poFile  "${_poDir}/${_py_basename}.po" )
+		set(_potFile "${_potPythonPluginDir}/${_py_basename}.pot" )
 
 		if (NOT EXISTS ${_poFile})
-		    message( STATUS "${_poFile} does not exist.  Calling msginit" )
-		    execute_process( COMMAND
-			msginit --input=${_potFile} --no-translator --locale=${lang} --output=${_poFile} )
+		    message(STATUS "${_poFile} does not exist.  Calling msginit" )
+		    execute_process(COMMAND
+			msginit --input=${_potFile} --no-translator --locale=${lang} --output=${_poFile})
 		endif()
 	
 		add_custom_command( OUTPUT "${_poFile}"
-		    COMMAND msgmerge --lang ${lang} --quiet --update --backup=none "${_poFile}" "${_potFile}"
+		    COMMAND cmake -E echo "Creating ${_poFile}"
+		    COMMAND msgmerge --lang ${lang} --quiet --no-location --update --backup=none "${_poFile}" "${_potFile}"
 		    DEPENDS ${_potFile}
 		    COMMENT "Creating ${_poFile} after merging ${_potFile}"
 		)
@@ -177,7 +151,8 @@ function(create_translation_for TARGET SOURCES)
     endif()
     add_custom_target(
 	${_pot_target}
-	COMMAND xgettext --from-code=UTF-8 --package-name=${TARGET} --package-version="v${mrv2_VERSION}" --copyright-holder="Contributors to the mrv2 Project" --msgid-bugs-address="ggarra13@gmail.com" -d ${TARGET} -c++ -k_ ${SOURCES} -o "${_absPotFile}"
+	# COMMAND xgettext --from-code=UTF-8 --no-location --package-name=${TARGET} --package-version="v${mrv2_VERSION}" --copyright-holder="Contributors to the mrv2 Project" --msgid-bugs-address="ggarra13@gmail.com" -d ${TARGET} -c++ -k_ ${SOURCES} -o "${_absPotFile}"
+	COMMAND xgettext --from-code=UTF-8 --no-location --package-name=${TARGET} --package-version="v${mrv2_VERSION}" --copyright-holder="Contributors to the mrv2 Project" --msgid-bugs-address="ggarra13@gmail.com" -d ${TARGET} -c++ -k_ ${SOURCES} -o "${_absPotFile}"
 	WORKING_DIRECTORY "${ROOT_DIR}/lib"
 	COMMENT Running xgettext for ${TARGET}_pot target
 	DEPENDS ${_abspot_dep}

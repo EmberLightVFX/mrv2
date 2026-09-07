@@ -143,7 +143,7 @@ namespace tl
         }
 
         std::string ThumbnailCache::getThumbnailKey(
-            int height, const file::Path& path, const otime::RationalTime& time,
+            int height, const file::Path& path, const OTIO_NS::RationalTime& time,
             const io::Options& options)
         {
             std::vector<std::string> s;
@@ -185,7 +185,7 @@ namespace tl
 
         std::string ThumbnailCache::getWaveformKey(
             const math::Size2i& size, const file::Path& path,
-            const otime::TimeRange& timeRange, const io::Options& options)
+            const OTIO_NS::TimeRange& timeRange, const io::Options& options)
         {
             std::vector<std::string> s;
             s.push_back(string::Format("{0}").arg(size));
@@ -257,7 +257,8 @@ namespace tl
                 file::Path path;
                 std::vector<file::MemoryRead> memoryRead;
                 int height = 0;
-                otime::RationalTime time = time::invalidTime;
+                OTIO_NS::RationalTime time = time::invalidTime;
+                std::string mediaReferenceKey;
                 io::Options options;
                 std::promise<std::shared_ptr<image::Image> > promise;
             };
@@ -268,7 +269,8 @@ namespace tl
                 file::Path path;
                 std::vector<file::MemoryRead> memoryRead;
                 math::Size2i size;
-                otime::TimeRange timeRange = time::invalidTimeRange;
+                OTIO_NS::TimeRange timeRange = time::invalidTimeRange;
+                std::string mediaReferenceKey;
                 io::Options options;
                 std::promise<std::shared_ptr<geom::TriangleMesh2> > promise;
             };
@@ -314,7 +316,7 @@ namespace tl
 #ifdef VULKAN_BACKEND
                 std::shared_ptr<timeline_vlk::Render> render;
                 std::shared_ptr<vlk::OffscreenBuffer> buffer;
-                VkCommandBuffer cmd = VK_NULL_HANDLE; 
+                VkCommandBuffer cmd = VK_NULL_HANDLE;
                 VkCommandPool commandPool = VK_NULL_HANDLE;
                 uint32_t frameIndex = 0;
 #endif
@@ -364,11 +366,11 @@ namespace tl
             _p(new Private)
         {
         }
-        
+
         void ThumbnailGenerator::_startThreads()
         {
             TLRENDER_P();
-            
+
             p.infoThread.running = true;
             p.infoThread.thread = std::thread(
                 [this]
@@ -433,7 +435,7 @@ namespace tl
 #endif
 
 #ifdef VULKAN_BACKEND
-        
+
         void ThumbnailGenerator::_init(
             const std::shared_ptr<ThumbnailCache>& cache,
             const std::shared_ptr<system::Context>& context)
@@ -445,9 +447,9 @@ namespace tl
             p.cache = cache;
 
             _startThreads();
-            
+
         }
-        
+
         void ThumbnailGenerator::_startThreads()
         {
             TLRENDER_P();
@@ -489,6 +491,11 @@ namespace tl
                         if (device != VK_NULL_HANDLE &&
                             p.thumbnailThread.commandPool != VK_NULL_HANDLE)
                         {
+                            {
+                                std::lock_guard mutex(ctx.queue_mutex());
+                                vkDeviceWaitIdle(device);
+                            }
+
                             VkCommandPool& commandPool = p.thumbnailThread.commandPool;
 
                             vkFreeCommandBuffers(device, commandPool, 1, &p.thumbnailThread.cmd);
@@ -524,13 +531,13 @@ namespace tl
                         _waveformCancel();
                     });
         }
-        
+
         ThumbnailGenerator::ThumbnailGenerator(Fl_Vk_Context& ctx) :
             ctx(ctx),
             _p(new Private)
         {
         }
-        
+
 #endif
         ThumbnailGenerator::~ThumbnailGenerator()
         {
@@ -643,16 +650,18 @@ namespace tl
         }
 
         ThumbnailRequest ThumbnailGenerator::getThumbnail(
-            const file::Path& path, int height, const otime::RationalTime& time,
-            const io::Options& options)
+            const file::Path& path, int height, const OTIO_NS::RationalTime& time,
+            const std::string& mediaReferenceKey, const io::Options& options)
         {
-            return getThumbnail(path, {}, height, time, options);
+            return getThumbnail(path, {}, height, time, mediaReferenceKey,
+                                options);
         }
 
         ThumbnailRequest ThumbnailGenerator::getThumbnail(
             const file::Path& path,
             const std::vector<file::MemoryRead>& memoryRead, int height,
-            const otime::RationalTime& time, const io::Options& options)
+            const OTIO_NS::RationalTime& time,
+            const std::string& mediaReferenceKey, const io::Options& options)
         {
             TLRENDER_P();
             (p.requestId)++;
@@ -662,6 +671,7 @@ namespace tl
             request->memoryRead = memoryRead;
             request->height = height;
             request->time = time;
+            request->mediaReferenceKey = mediaReferenceKey;
             request->options = options;
             ThumbnailRequest out;
             out.id = p.requestId;
@@ -690,15 +700,18 @@ namespace tl
 
         WaveformRequest ThumbnailGenerator::getWaveform(
             const file::Path& path, const math::Size2i& size,
-            const otime::TimeRange& range, const io::Options& options)
+            const OTIO_NS::TimeRange& range,
+            const std::string& mediaReferenceKey, const io::Options& options)
         {
-            return getWaveform(path, {}, size, range, options);
+            return getWaveform(path, {}, size, range, mediaReferenceKey,
+                               options);
         }
 
         WaveformRequest ThumbnailGenerator::getWaveform(
             const file::Path& path,
             const std::vector<file::MemoryRead>& memoryRead,
-            const math::Size2i& size, const otime::TimeRange& timeRange,
+            const math::Size2i& size, const OTIO_NS::TimeRange& timeRange,
+            const std::string& mediaReferenceKey,
             const io::Options& options)
         {
             TLRENDER_P();
@@ -709,6 +722,7 @@ namespace tl
             request->memoryRead = memoryRead;
             request->size = size;
             request->timeRange = timeRange;
+            request->mediaReferenceKey = mediaReferenceKey;
             request->options = options;
             WaveformRequest out;
             out.id = p.requestId;
@@ -816,7 +830,7 @@ namespace tl
                 request = p.infoMutex.requests.front();
                 p.infoMutex.requests.pop_front();
             }
-            
+
             // The request will be null if we woke up for any other reason
             if (request)
             {
@@ -873,17 +887,17 @@ namespace tl
                 {
                     return;
                 }
-        
+
                 request = p.thumbnailMutex.requests.front();
                 p.thumbnailMutex.requests.pop_front();
             }
-            
+
             // If we didn't get a valid request, just return and wait again
             if (!request)
             {
                 return;
             }
-            
+
 #ifdef OPENGL_BACKEND
             std::shared_ptr<image::Image> image;
             const std::string key = ThumbnailCache::getThumbnailKey(
@@ -930,10 +944,10 @@ namespace tl
                                     gl::OffscreenBuffer::create(
                                         size, options);
                             }
-                            const otime::RationalTime time =
+                            const OTIO_NS::RationalTime time =
                                 request->time != time::invalidTime
                                 ? request->time
-                                : info.videoTime.start_time();
+                                : info.videoTime->start_time();
                             const auto videoData =
                                 read->readVideo(time, request->options)
                                 .get();
@@ -943,6 +957,11 @@ namespace tl
                                 gl::OffscreenBufferBinding binding(
                                     p.thumbnailThread.buffer);
                                 p.thumbnailThread.render->begin(size);
+                                const math::Matrix4x4f ortho = math::ortho(
+                                    0.F, static_cast<float>(size.w),
+                                    static_cast<float>(size.h), 0.F,
+                                    -1.F, 1.F);
+                                p.thumbnailThread.render->setTransform(ortho);
                                 p.thumbnailThread.render->drawImage(
                                     videoData.image,
                                     {math::Box2i(0, 0, size.w, size.h)});
@@ -964,13 +983,11 @@ namespace tl
                                 ".otioz", request->path.getExtension(),
                                 string::Compare::CaseInsensitive))
                         {
-                            otime::RationalTime offsetTime =
-                                time::invalidTime;
                             timeline::Options timelineOptions;
                             timelineOptions.ioOptions = request->options;
                             auto timeline = timeline::Timeline::create(
-                                request->path, context, offsetTime,
-                                timelineOptions);
+                                context, request->path, timelineOptions);
+                            timeline->setMediaReferenceKey(request->mediaReferenceKey);
                             const auto info = timeline->getIOInfo();
                             // const auto videoData = timeline->getVideo(
                             //     timeline->getTimeRange().start_time()).future.get();
@@ -1004,6 +1021,11 @@ namespace tl
                                     gl::OffscreenBufferBinding binding(
                                         p.thumbnailThread.buffer);
                                     p.thumbnailThread.render->begin(size);
+                                    const math::Matrix4x4f ortho = math::ortho(
+                                        0.F, static_cast<float>(size.w),
+                                        static_cast<float>(size.h), 0.F,
+                                        -1.F, 1.F);
+                                    p.thumbnailThread.render->setTransform(ortho);
                                     p.thumbnailThread.render->drawVideo(
                                         {videoData},
                                         {math::Box2i(
@@ -1071,7 +1093,7 @@ namespace tl
 
                         result = vkAllocateCommandBuffers(device, &allocInfo, &p.thumbnailThread.cmd);
                     }
-                    
+
                     if (result == VK_SUCCESS)
                     {
                         p.thumbnailThread.render =
@@ -1085,7 +1107,7 @@ namespace tl
                     return;
                 }
             }
-    
+
 
             // --- Process the Request ---
             std::shared_ptr<image::Image> image;
@@ -1135,10 +1157,10 @@ namespace tl
                                         vlk::OffscreenBuffer::create(ctx,
                                                                      size, options);
                                 }
-                                const otime::RationalTime time =
+                                const OTIO_NS::RationalTime time =
                                     request->time != time::invalidTime
                                     ? request->time
-                                    : info.videoTime.start_time();
+                                    : info.videoTime->start_time();
                                 const auto videoData =
                                     read->readVideo(time, request->options)
                                     .get();
@@ -1151,15 +1173,15 @@ namespace tl
 
                                     VkCommandBuffer& cmd = p.thumbnailThread.cmd;
                                     vkResetCommandBuffer(cmd, 0);
-                        
+
                                     VkCommandBufferBeginInfo beginInfo = {};
                                     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
                                     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-                        
+
                                     vkBeginCommandBuffer(cmd, &beginInfo);
-                        
+
                                     p.thumbnailThread.buffer->transitionToColorAttachment(cmd);
-                        
+
                                     timeline::RenderOptions renderOptions;
                                     renderOptions.clear = true;
                                     p.thumbnailThread.render->begin(cmd, p.thumbnailThread.buffer,
@@ -1171,7 +1193,7 @@ namespace tl
                                         0.F, static_cast<float>(size.h),
                                         -1.F, 1.F);
                                     p.thumbnailThread.render->setTransform(ortho);
-                        
+
                                     p.thumbnailThread.render->drawImage(
                                         videoData.image,
                                         {math::Box2i(0, 0, size.w, size.h)});
@@ -1181,23 +1203,24 @@ namespace tl
 
                                     p.thumbnailThread.buffer->readPixels(cmd, 0, 0, size.w,
                                                                          size.h);
-                                    
+
                                     vkEndCommandBuffer(cmd);
-                
+
                                     p.thumbnailThread.buffer->submitReadback(cmd);
-                                    
+
                                     VkResult result = VK_NOT_READY;
                                     void* imageData = nullptr;
-                                    while (result == VK_NOT_READY)
+                                    while (result == VK_NOT_READY &&
+                                           p.thumbnailThread.running)
                                     {
                                         result = p.thumbnailThread.buffer->getLatestReadPixels(imageData);
                                     }
-                                    
+
                                     if (imageData)
                                         std::memcpy(image->getData(), imageData, image->getDataByteCount());
                                     else
                                         std::memset(image->getData(), 0, image->getDataByteCount());
-                                    
+
                                     p.thumbnailThread.frameIndex = (p.thumbnailThread.frameIndex + 1) % vlk::MAX_FRAMES_IN_FLIGHT;
                                 }
                             }
@@ -1210,17 +1233,15 @@ namespace tl
                                 ".otioz", request->path.getExtension(),
                                 string::Compare::CaseInsensitive))
                         {
-                            otime::RationalTime offsetTime =
-                                time::invalidTime;
                             timeline::Options timelineOptions;
                             timelineOptions.ioOptions = request->options;
                             auto timeline = timeline::Timeline::create(
-                                request->path, context, offsetTime,
-                                timelineOptions);
+                                context, request->path, timelineOptions);
+                            timeline->setMediaReferenceKey(request->mediaReferenceKey);
                             const auto info = timeline->getIOInfo();
                             // const auto videoData = timeline->getVideo(
                             //     timeline->getTimeRange().start_time()).future.get();
-                            const otime::RationalTime time =
+                            const OTIO_NS::RationalTime time =
                                 request->time != time::invalidTime
                                 ? request->time
                                 : timeline->getTimeRange().start_time();
@@ -1255,18 +1276,18 @@ namespace tl
                                     image = image::Image::create(
                                         size.w, size.h,
                                         image::PixelType::RGBA_U8);
-                                        
+
                                     VkCommandBuffer& cmd = p.thumbnailThread.cmd;
                                     vkResetCommandBuffer(cmd, 0);
-                                    
+
                                     VkCommandBufferBeginInfo beginInfo = {};
                                     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
                                     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-   
+
                                     vkBeginCommandBuffer(cmd, &beginInfo);
-                            
+
                                     p.thumbnailThread.buffer->transitionToColorAttachment(cmd);
-                            
+
                                     timeline::RenderOptions renderOptions;
                                     renderOptions.clear = true;
                                     p.thumbnailThread.render->begin(cmd,
@@ -1276,7 +1297,7 @@ namespace tl
 
                                     const math::Matrix4x4f ortho = math::ortho(
                                         0.F, static_cast<float>(size.w),
-                                        0.F, static_cast<float>(size.h), 
+                                        0.F, static_cast<float>(size.h),
                                         -1.F, 1.F);
                                     p.thumbnailThread.render->setTransform(ortho);
                                     p.thumbnailThread.render->drawVideo(
@@ -1284,27 +1305,28 @@ namespace tl
                                         {math::Box2i(
                                                 0, 0, size.w, size.h)});
                                     p.thumbnailThread.render->end();
-                                    
+
                                     p.thumbnailThread.buffer->readPixels(cmd, 0, 0, size.w,
                                                                          size.h);
-                                    
+
                                     vkEndCommandBuffer(cmd);
-                
+
                                     p.thumbnailThread.buffer->submitReadback(cmd);
 
 
                                     VkResult result = VK_NOT_READY;
                                     void* imageData = nullptr;
-                                    while (result == VK_NOT_READY)
+                                    while (result == VK_NOT_READY &&
+                                           p.thumbnailThread.running)
                                     {
                                         result = p.thumbnailThread.buffer->getLatestReadPixels(imageData);
                                     }
-                                    
+
                                     if (imageData)
                                         std::memcpy(image->getData(), imageData, image->getDataByteCount());
                                     else
                                         std::memset(image->getData(), 0, image->getDataByteCount());
-                                        
+
 
                                     p.thumbnailThread.frameIndex = (p.thumbnailThread.frameIndex + 1) % vlk::MAX_FRAMES_IN_FLIGHT;
                                 }
@@ -1319,7 +1341,7 @@ namespace tl
             request->promise.set_value(image);
             p.cache->addThumbnail(key, image);
 #endif
-            
+
         }
 
         namespace
@@ -1488,7 +1510,7 @@ namespace tl
                 {
                     return;
                 }
-        
+
                 request = p.waveformMutex.requests.front();
                 p.waveformMutex.requests.pop_front();
             }
@@ -1518,12 +1540,12 @@ namespace tl
                             if (read)
                             {
                                 const auto info = read->getInfo().get();
-                                const otime::TimeRange timeRange =
+                                const OTIO_NS::TimeRange timeRange =
                                     request->timeRange != time::invalidTimeRange
                                         ? request->timeRange
-                                        : otime::TimeRange(
-                                              otime::RationalTime(0.0, 1.0),
-                                              otime::RationalTime(1.0, 1.0));
+                                        : OTIO_NS::TimeRange(
+                                              OTIO_NS::RationalTime(0.0, 1.0),
+                                              OTIO_NS::RationalTime(1.0, 1.0));
                                 const auto audioData =
                                     read->readAudio(timeRange, request->options)
                                         .get();
@@ -1604,7 +1626,7 @@ namespace tl
         void
         ThumbnailSystem::_init(const std::shared_ptr<system::Context>& context)
         {
-            ISystem::_init("tl::TIMELINEUI::ThumbnailSystem", context);
+            ISystem::_init(context, "tl::timelineui::ThumbnailSystem");
             TLRENDER_P();
             p.cache = ThumbnailCache::create(context);
 #ifdef OPENGL_BACKEND
@@ -1657,17 +1679,20 @@ namespace tl
         }
 
         ThumbnailRequest ThumbnailSystem::getThumbnail(
-            const file::Path& path, int height, const otime::RationalTime& time,
-            const io::Options& ioOptions)
+            const file::Path& path, int height, const OTIO_NS::RationalTime& time,
+            const std::string& mediaReferenceKey, const io::Options& ioOptions)
         {
-            return _p->generator->getThumbnail(path, height, time, ioOptions);
+            return _p->generator->getThumbnail(path, height, time,
+                                               mediaReferenceKey, ioOptions);
         }
 
         WaveformRequest ThumbnailSystem::getWaveform(
             const file::Path& path, const math::Size2i& size,
-            const otime::TimeRange& timeRange, const io::Options& ioOptions)
+            const OTIO_NS::TimeRange& timeRange,
+            const std::string& mediaReferenceKey, const io::Options& ioOptions)
         {
-            return _p->generator->getWaveform(path, size, timeRange, ioOptions);
+            return _p->generator->getWaveform(path, size, timeRange,
+                                              mediaReferenceKey, ioOptions);
         }
 
         void ThumbnailSystem::cancelRequests(const std::vector<uint64_t>& ids)

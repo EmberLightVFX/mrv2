@@ -10,6 +10,13 @@
 #endif
 
 
+#include "mrvNetwork/mrvDummyClient.h"
+#ifdef MRV2_NETWORK
+#    include "mrvNetwork/mrvCommandInterpreter.h"
+#    include "mrvNetwork/mrvComfyUIListener.h"
+#    include "mrvNetwork/mrvImageListener.h"
+#    include "mrvNetwork/mrvWebRTCClient.h"
+#endif
 
 #ifdef MRV2_PYBIND11
 #    include <pybind11/embed.h>
@@ -21,7 +28,6 @@ namespace py = pybind11;
 
 #include "mrvApp/mrvApp.h"
 #include "mrvApp/mrvGlobals.h"
-#include "mrvApp/mrvPlaylistsModel.h"
 #include "mrvApp/mrvFilesModel.h"
 #include "mrvApp/mrvMainControl.h"
 #include "mrvApp/mrvSettingsObject.h"
@@ -77,15 +83,6 @@ namespace py = pybind11;
 
 #include "mrvUI/mrvDesktop.h"
 
-#include "mrvNetwork/mrvDummyClient.h"
-#ifdef MRV2_NETWORK
-#    include "mrvNetwork/mrvCommandInterpreter.h"
-#    include "mrvNetwork/mrvClient.h"
-#    include "mrvNetwork/mrvComfyUIListener.h"
-#    include "mrvNetwork/mrvImageListener.h"
-#    include "mrvNetwork/mrvServer.h"
-#    include "mrvNetwork/mrvParseHost.h"
-#endif
 
 #if defined(TLRENDER_USD)
 #    include "mrvOptions/mrvUSD.h"
@@ -107,6 +104,7 @@ namespace py = pybind11;
 #include "mrvFl/mrvOCIO.h"
 
 #ifdef MRV2_NETWORK
+#    include <Poco/Net/Net.h>
 #    include <Poco/Net/SSLManager.h>
 #endif
 
@@ -168,9 +166,8 @@ namespace mrv
 #endif
 
 #ifdef MRV2_NETWORK
-        bool server = false;
-        std::string client;
-        unsigned port = 55150;
+        std::string webrtcProject;
+        std::string webrtcRoom;
 #endif
 
         timeline::CompareOptions compareOptions;
@@ -179,8 +176,8 @@ namespace mrv
         double speed = 0.0;
         timeline::Playback playback = timeline::Playback::Count;
         timeline::Loop loop = timeline::Loop::Count;
-        otime::RationalTime seek = time::invalidTime;
-        otime::TimeRange inOutRange = time::invalidTimeRange;
+        OTIO_NS::RationalTime seek = time::invalidTime;
+        OTIO_NS::TimeRange inOutRange = time::invalidTimeRange;
 
         timeline::OCIOOptions ocioOptions;
         timeline::LUTOptions lutOptions;
@@ -189,6 +186,7 @@ namespace mrv
         bool resetSettings = false;
         bool resetHotkeys = false;
         bool displayVersion = false;
+        bool displaySysInfo = false;
         bool otioEditMode = false;
 
 #if defined(TLRENDER_USD)
@@ -216,7 +214,6 @@ namespace mrv
         std::unique_ptr<PythonArgs> pythonArgs;
 #endif
 
-        std::shared_ptr<PlaylistsModel> playlistsModel;
         std::shared_ptr<FilesModel> filesModel;
         std::vector<std::shared_ptr<FilesModelItem> > files;
         std::vector<std::shared_ptr<FilesModelItem> > activeFiles;
@@ -350,12 +347,12 @@ namespace mrv
             {
                 app::CmdLineHeader::create({}, _("Debugging:")),
                 app::CmdLineValueOption<int>::create(
-                    Preferences::debug, {"-debug", "-d"},
+                    mrv::trace::debug, {"-debug", "-d"},
                     _("Debug verbosity.")),
                 app::CmdLineValueOption<int>::create(
-                    Preferences::logLevel, {"-logLevel", "-l"},
+                    mrv::trace::logLevel, {"-logLevel", "-l"},
                     _("Log verbosity."),
-                    string::Format("{0}").arg(Preferences::logLevel)),
+                    string::Format("{0}").arg(trace::logLevel)),
                 app::CmdLineHeader::create({}, _("Audio:")),
                 app::CmdLineValueOption<std::string>::create(
                     p.options.audioFileName, {"-audio", "-a"},
@@ -403,11 +400,11 @@ namespace mrv
                     p.options.loop, {"-loop"}, _("Playback loop mode."),
                     string::Format("{0}").arg(timeline::Loop::Loop),
                     string::join(timeline::getLoopLabels(), ", ")),
-                app::CmdLineValueOption<otime::RationalTime>::create(
+                app::CmdLineValueOption<OTIO_NS::RationalTime>::create(
                     p.options.seek, {"-seek"},
                     _("Seek to the given time, in value/fps format.  "
                       "Example: 50/30.")),
-                app::CmdLineValueOption<otime::TimeRange>::create(
+                app::CmdLineValueOption<OTIO_NS::TimeRange>::create(
                     p.options.inOutRange, {"-inOutRange", "-inout"},
                     _("Set the in/out points range in start/end/fps "
                       "format, like 23/120/24.")),
@@ -502,19 +499,12 @@ namespace mrv
 #endif // TLRENDER_USD
 #ifdef MRV2_NETWORK
                 app::CmdLineHeader::create({}, _("Networking:")),
-                app::CmdLineFlagOption::create(
-                    p.options.server, {"-server"},
-                    _("Start a server.  Use -port to specify a port "
-                      "number.")),
                 app::CmdLineValueOption<std::string>::create(
-                    p.options.client, {"-client"},
-                    _("Connect to a server at <value>.  Use -port to "
-                      "specify a port number.")),
-                app::CmdLineValueOption<unsigned>::create(
-                    p.options.port, {"-port"},
-                    _("Port number for the server to listen to or for the "
-                      "client to connect to."),
-                    string::Format("{0}").arg(p.options.port)),
+                    p.options.webrtcProject, {"-wp", "-project"},
+                    _("Connect to a WebRTC project at <value>.")),
+                app::CmdLineValueOption<std::string>::create(
+                    p.options.webrtcRoom, {"-wr", "-room"},
+                    _("Connect to a WebRTC room at <value>.")),
 #endif
 
                 app::CmdLineHeader::create({}, _("Miscellaneous:")),
@@ -523,15 +513,14 @@ namespace mrv
                     _("Open the application as if no license was present.")),
                 app::CmdLineFlagOption::create(
                     p.options.displayVersion, {"-version", "-v"},
-                    _("Return the version and exit."))});
+                    _("Return the version and exit.")),
+                app::CmdLineFlagOption::create(
+                    p.options.displaySysInfo, {"-sys", "-systemInfo"},
+                    _("Return the system information and exit."))});
 
-        DBG;
         const int exitCode = getExit();
         if (exitCode != 0)
-        {
-            DBG;
             return;
-        }
 
 #ifdef __APPLE__
         // For macOS, to read command-line arguments
@@ -554,7 +543,6 @@ namespace mrv
             p.options.fileNames.push_back(unused);
         }
 
-        DBG;
         if (p.options.displayVersion)
         {
             std::cout << std::endl
@@ -608,6 +596,7 @@ namespace mrv
         // Initialize POCO Net for SSL connections.
         //
 #ifdef MRV2_NETWORK
+        Poco::Net::initializeNetwork();
         Poco::Net::initializeSSL();
 #endif
 
@@ -636,7 +625,6 @@ namespace mrv
         p.contextObject = new mrv::ContextObject(context);
         p.timeUnitsModel = timeline::TimeUnitsModel::create(context);
         p.filesModel = FilesModel::create(context);
-        p.playlistsModel = PlaylistsModel::create(context);
 
         ui->uiTimeline->setContext(context, p.timeUnitsModel, ui);
         ui->uiTimeline->setScrollBarsVisible(false);
@@ -738,6 +726,68 @@ namespace mrv
             }
         }
 #endif
+
+        //
+        // Show the UI if no python script was fed in (when Python is
+        // supported).
+        // We make sure the UI is visible when we feed a filename.
+        // This is needed to avoid an issue with Wayland not properly
+        // refreshing the play buttons.
+        //
+        bool showUI = true;
+        bool headless = false;
+
+#ifdef VULKAN_BACKEND
+        // Reset the mode to create the Vulkan instance even on headless mode.
+        int stereo = 0;
+        ui->uiView->mode(FL_RGB | FL_DOUBLE | FL_ALPHA | FL_STENCIL |
+                         FL_OPENGL3 | stereo);
+        ui->uiTimeline->mode(FL_RGB | FL_ALPHA | FL_DOUBLE | FL_OPENGL3);
+#endif
+
+#ifdef MRV2_PYBIND11
+        if (app::soporta_python && !p.options.pythonScript.empty())
+        {
+            showUI = false;
+            headless = true;
+        }
+        if (p.options.displaySysInfo)
+        {
+            showUI = false;
+            headless = true;
+        }
+
+        ui->uiView->headless(headless);
+        ui->uiTimeline->headless(headless);
+
+        if (!headless)
+        {
+            ui->uiMain->show();
+            ui->uiMain->wait_for_expose();
+        }
+
+#endif
+
+        if (p.options.displaySysInfo)
+        {
+            ui->uiView->render_offscreen();
+            ui->uiTimeline->render_offscreen();
+
+            std::cout << std::endl
+                      << mrv::cpu_info()
+                      << std::endl
+                      << std::endl
+                      << mrv::gpu_information(ui)
+                      << std::endl;
+
+#ifdef VULKAN_BACKEND
+            ui->uiView->destroy();
+            ui->uiTimeline->destroy();
+#endif
+            delete ui;
+            ui = nullptr;
+            return;
+        }
 
         Preferences::run();
 
@@ -901,9 +951,9 @@ namespace mrv
                 // std::cout << "output device size: " << value << std::endl;
             });
         p.bmdFrameRateObserver =
-            observer::ValueObserver<otime::RationalTime>::create(
+            observer::ValueObserver<OTIO_NS::RationalTime>::create(
                 p.bmdOutputDevice->observeFrameRate(),
-                [this](const otime::RationalTime& value)
+                [this](const OTIO_NS::RationalTime& value)
                 {
                     // std::cout << "output device frame rate: " << value <<
                     // std::endl;
@@ -955,10 +1005,7 @@ namespace mrv
                         break;
                     }
                     default:
-                        if (_options.log)
-                        {
-                            uiLogDisplay->info(msg.c_str());
-                        }
+                        LOG_INFO(msg);
                         break;
                     }
                 }
@@ -978,25 +1025,8 @@ namespace mrv
         outputDisplay = new PythonOutput(0, 0, 400, 400);
 #endif
 
-        //
-        // Show the UI if no python script was fed in (when Python is supported).
-        // We make sure the UI is visible when we feed a filename.
-        // This is needed to avoid an issue with Wayland not properly refreshing the play buttons.
-        //
-        bool showUI = true;
-
-#ifdef MRV2_PYBIND11
-        if (app::soporta_python && !p.options.pythonScript.empty())
-        {
-            showUI = false;
-        }
-#endif
-
         if (showUI)
         {
-            ui->uiMain->show();
-            ui->uiMain->wait_for_expose();
-
             ui->uiView->take_focus();
 
             // Fix for always on top on Linux
@@ -1095,30 +1125,22 @@ namespace mrv
         }
 
 #ifdef MRV2_NETWORK
-        if (p.options.server)
+        if (!p.options.webrtcRoom.empty() &&
+            dynamic_cast<DummyClient*>(tcp) != nullptr)
         {
-            try
-            {
-                tcp = new Server(p.options.port);
-                store_port(p.options.port);
-            }
-            catch (const Poco::Exception& e)
-            {
-                LOG_ERROR(e.displayText());
-            }
-        }
-        else if (!p.options.client.empty())
-        {
-            std::string port;
-            parse_hostname(p.options.client, port);
-            if (!port.empty())
-            {
-                p.options.port = atoi(port.c_str());
-            }
-            tcp = new Client(p.options.client, p.options.port);
-            store_port(p.options.port);
-        }
+            std::string projectId = p.options.webrtcProject;
+            std::string roomId = p.options.webrtcRoom;
+            p.settings->setValue("WebRTC/Project", projectId);
+            p.settings->setValue("WebRTC/Room", roomId);
 
+            std::string sessionId = projectId + "_" + roomId;
+
+            std::string studio = os::sgetenv("MRV2_WEBRTC_STUDIO");
+            if (studio.empty())
+                studio = ui->uiPrefs->uiPrefsWebRTCStudio->value();
+
+            tcp = new WebRTCClient(studio, sessionId);
+        }
 #endif
 
         //
@@ -1200,8 +1222,17 @@ namespace mrv
                                string::Format(_("Running python script '{0}'")).arg(script)));
                 const auto& args = p.pythonArgs->getArguments();
 
+                // 2. Prepare the arguments in a C++ vector
+                std::vector<std::string> py_args;
+                py_args.push_back(script);
+
                 if (!args.empty())
                 {
+                    for (auto& arg : args)
+                    {
+                        py_args.push_back(arg);
+                    }
+
                     LOG_STATUS(_("with Arguments:"));
                     std::string out = "[";
                     out += tl::string::join(args, ',');
@@ -1209,12 +1240,11 @@ namespace mrv
                     LOG_STATUS(out);
                 }
 
-                std::ifstream is(script);
-                std::stringstream s;
-                s << is.rdbuf();
                 try
                 {
-                    py::exec(s.str());
+                    ui->uiView->render_offscreen();
+                    ui->uiTimeline->render_offscreen();
+                    run_python_script(py_args);
                 }
                 catch (const std::exception& e)
                 {
@@ -1223,6 +1253,12 @@ namespace mrv
                     _exit = 1;
                     return;
                 }
+
+#ifdef VULKAN_BACKEND
+                ui->uiView->destroy();
+                ui->uiTimeline->destroy();
+#endif
+
                 delete ui;
                 ui = nullptr;
                 return;
@@ -1283,6 +1319,8 @@ namespace mrv
             delete tcp;
             tcp = nullptr;
         }
+
+        Poco::Net::uninitializeNetwork();
     }
 
     App::~App()
@@ -1305,11 +1343,6 @@ namespace mrv
     const std::shared_ptr<FilesModel>& App::filesModel() const
     {
         return _p->filesModel;
-    }
-
-    const std::shared_ptr<PlaylistsModel>& App::playlistsModel() const
-    {
-        return _p->playlistsModel;
     }
 
     const timeline::LUTOptions& App::lutOptions() const
@@ -1375,20 +1408,15 @@ namespace mrv
 #endif
     }
 
-#ifdef MRV2_PYBIND11
-    const std::vector<std::string>& App::getPythonArgs() const
-    {
-        TLRENDER_P();
-        return p.pythonArgs->getArguments();
-    }
-#endif
-
     void App::removeListener()
     {
 #ifdef MRV2_NETWORK
         TLRENDER_P();
 
         p.imageListener.reset();
+        p.comfyUIListener.reset();
+
+        Poco::Net::initializeNetwork();
 #endif
     }
 
@@ -1397,8 +1425,8 @@ namespace mrv
         app->startPlayback();
     }
 
-    void App::_calculateCacheTimes(otime::RationalTime& startTime,
-                                   otime::RationalTime& endTime)
+    void App::_calculateCacheTimes(OTIO_NS::RationalTime& startTime,
+                                   OTIO_NS::RationalTime& endTime)
     {
         TLRENDER_P();
         const timeline::Playback& playback = p.options.playback;
@@ -1453,6 +1481,8 @@ namespace mrv
     {
         TLRENDER_P();
 
+        bool isLocked = tcp->isLocked();
+
         tcp->lock();
         p.player->setPlayback(timeline::Playback::Stop);
 
@@ -1464,7 +1494,7 @@ namespace mrv
         if (!info.video.empty())
         {
             auto video = info.video[0];
-            const auto duration = info.videoTime.duration();
+            const OTIO_NS::RationalTime duration = info.videoTime->duration();
             if (duration.to_seconds() > 180.0)
                 use_progress = true;
             if (video.size.w > 2048)
@@ -1475,9 +1505,9 @@ namespace mrv
                 use_progress = false;
 
         }
-        
+
         // Calculate start and end time used in progress report
-        otime::RationalTime startTime, endTime;
+        OTIO_NS::RationalTime startTime, endTime;
         _calculateCacheTimes(startTime, endTime);
 
         const timeline::Playback& playback = p.options.playback;
@@ -1486,7 +1516,7 @@ namespace mrv
         // We use the rate of the startTime to ensure we are working in frame
         // units
         double totalFrames = (endTime - startTime).to_frames();
-                            
+
         if (!p.progress)
         {
             p.progress = new ProgressReport(ui->uiMain,
@@ -1506,7 +1536,8 @@ namespace mrv
         else
         {
             // Start playback right away.
-            tcp->unlock();
+            if (!isLocked)
+                tcp->unlock();
             ui->uiView->setPlayback(playback);
         }
 
@@ -1515,15 +1546,16 @@ namespace mrv
              playback == timeline::Playback::Stop))
         {
             tcp->lock();
-            
+
             p.cacheInfoObserver =
                 observer::ValueObserver<timeline::PlayerCacheInfo>::create(
                     p.player->player()->observeCacheInfo(),
-                    [this, playback](const timeline::PlayerCacheInfo& value)
+                    [this, playback, isLocked]
+                    (const timeline::PlayerCacheInfo& value)
                         {
                             TLRENDER_P();
 
-                            otime::RationalTime startTime, endTime;
+                            OTIO_NS::RationalTime startTime, endTime;
                             _calculateCacheTimes(startTime, endTime);
 
                             // 1. Calculate the total duration we are waiting for
@@ -1535,16 +1567,16 @@ namespace mrv
                             for (const auto& t : value.videoFrames)
                             {
                                 // Clip the cached segment to our specific start/end window
-                                otime::TimeRange cachedRange = t;
+                                OTIO_NS::TimeRange cachedRange = t;
                                 if (cachedRange.start_time() <= startTime) {
                                     // adjust start
                                     auto diff = startTime - cachedRange.start_time();
-                                    cachedRange = otime::TimeRange(startTime, cachedRange.duration() - diff);
+                                    cachedRange = OTIO_NS::TimeRange(startTime, cachedRange.duration() - diff);
                                 }
                                 if (cachedRange.end_time_exclusive() >= endTime) {
                                     // adjust end
                                     auto newDuration = endTime - cachedRange.start_time();
-                                    cachedRange = otime::TimeRange(cachedRange.start_time(), newDuration);
+                                    cachedRange = OTIO_NS::TimeRange(cachedRange.start_time(), newDuration);
                                 }
 
                                 // If the resulting range is valid, add its duration to our count
@@ -1569,7 +1601,8 @@ namespace mrv
                                 p.progress = nullptr;
                                 ui->uiView->setPlayback(playback);
                                 p.cacheInfoObserver.reset();
-                                tcp->unlock();
+                                if (!isLocked)
+                                    tcp->unlock();
                                 return;
                             }
                         });
@@ -1577,15 +1610,16 @@ namespace mrv
         else if (use_progress && playback == timeline::Playback::Reverse)
         {
             tcp->lock();
-            
+
             p.cacheInfoObserver =
                 observer::ValueObserver<timeline::PlayerCacheInfo>::create(
                     p.player->player()->observeCacheInfo(),
-                    [this, playback](const timeline::PlayerCacheInfo& value)
+                    [this, playback, isLocked]
+                    (const timeline::PlayerCacheInfo& value)
                         {
                             TLRENDER_P();
 
-                            otime::RationalTime startTime, endTime;
+                            OTIO_NS::RationalTime startTime, endTime;
                             _calculateCacheTimes(startTime, endTime);
 
                             // 1. Calculate the total duration we are waiting for
@@ -1594,26 +1628,26 @@ namespace mrv
                             if (totalFrames == 0) totalFrames = 1; // Prevent division by zero
 
                             // Ensure we always have a valid range to compare against, regardless of direction
-                            otime::TimeRange targetRange = otime::TimeRange::range_from_start_end_time(
+                            OTIO_NS::TimeRange targetRange = opentime::TimeRange::range_from_start_end_time(
                                 std::min(startTime, endTime),
                                 std::max(startTime, endTime)
 );
                             // 3. Define the ranges to check
                             // We use a vector because in a wrap-around, there are two segments
-                            std::vector<otime::TimeRange> searchRanges;
+                            std::vector<OTIO_NS::TimeRange> searchRanges;
 
                             if (startTime <= endTime) {
                                 // Linear case (Forward or simple Reverse)
-                                searchRanges.push_back(otime::TimeRange::range_from_start_end_time(startTime, endTime));
+                                searchRanges.push_back(OTIO_NS::TimeRange::range_from_start_end_time(startTime, endTime));
                             } else {
                                 // Wrap-around case (Reverse playback hit the start and jumped to end)
                                 const auto& timeRange = p.player->inOutRange();
 
                                 // Segment A: from the start of the timeline to the current "end" (which is actually the playhead)
-                                searchRanges.push_back(otime::TimeRange::range_from_start_end_time(timeRange.start_time(), endTime));
+                                searchRanges.push_back(OTIO_NS::TimeRange::range_from_start_end_time(timeRange.start_time(), endTime));
 
                                 // Segment B: from the calculated "start" to the end of the timeline
-                                searchRanges.push_back(otime::TimeRange::range_from_start_end_time(startTime, timeRange.end_time_exclusive()));
+                                searchRanges.push_back(OTIO_NS::TimeRange::range_from_start_end_time(startTime, timeRange.end_time_exclusive()));
                             }
 
                             // 3. Count cached frames in all active segments
@@ -1648,12 +1682,13 @@ namespace mrv
                                 p.progress = nullptr;
                                 ui->uiView->setPlayback(playback);
                                 p.cacheInfoObserver.reset();
-                                tcp->unlock();
+                                if (!isLocked)
+                                    tcp->unlock();
                                 return;
                             }
                         });
         }
-        
+
     }
 
     int App::run()
@@ -1862,6 +1897,7 @@ namespace mrv
         TLRENDER_P();
 
         file::Path filePath(string::normalizePath(fileName));
+        file::Path audioFilePath(string::normalizePath(audioFileName));
 
         if (filePath.getExtension() == ".mrv2s")
         {
@@ -1869,6 +1905,7 @@ namespace mrv
             session::load(fileName);
             return;
         }
+
 
         file::PathOptions pathOptions;
         pathOptions.seqMaxDigits =
@@ -1886,24 +1923,14 @@ namespace mrv
             return;
         }
 
-
         for (const auto& path :
                  timeline::getPaths(filePath, pathOptions, _context) )
         {
             auto item = std::make_shared<FilesModelItem>();
             item->path = path;
-            item->audioPath = file::Path(string::normalizePath(audioFileName));
+            item->audioPath = audioFilePath;
 
             p.filesModel->add(item);
-        }
-
-        if (ui->uiPrefs->SendMedia->value())
-        {
-            Message msg;
-            msg["command"] = "Open File";
-            msg["fileName"] = fileName;
-            msg["audioFileName"] = audioFileName;
-            tcp->pushMessage(msg);
         }
     }
 
@@ -2051,6 +2078,10 @@ namespace mrv
             string::Format("{0}").arg(fastYUV420PConversion);
         out["FFmpeg/ThreadCount"] = string::Format("{0}").arg(
             p.settings->getValue<int>("Performance/FFmpegThreadCount"));
+        out["FFmpeg/HWAccel"] = string::Format("{0}").arg(
+            p.settings->getValue<int>("Performance/FFmpegHWAccel"));
+        out["FFmpeg/HWDriver"] = string::Format("{0}").arg(
+            p.settings->getValue<std::string>("Performance/FFmpegHWDriver"));
 
         TimelineClass* c = ui->uiTimeWindow;
         int idx = c->uiAudioTracks->current_track();
@@ -2164,35 +2195,35 @@ namespace mrv
         options.pathOptions.seqMaxDigits = std::min(
             p.settings->getValue<int>("Misc/MaxFileSequenceDigits"), 255);
 
-        otio::SerializableObject::Retainer<otio::Timeline> otioTimeline;
-        otime::RationalTime offsetTime;
+        OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline> otioTimeline;
         double value = ui->uiPrefs->uiStartTimeOffset->value();
-        offsetTime = otime::RationalTime(value, 24.0); // rate is not used.
 
         if (file::isUSD(item->path))
         {
 #ifdef MRV2_PYBIND11
-            if (!p.options.noPython)
-                py::gil_scoped_release release;
+            // Only release the GIL if this thread currently holds it
+            std::unique_ptr<py::gil_scoped_release> release;
+            if (PyGILState_Check() && !p.options.noPython)
+            {
+                release = std::make_unique<py::gil_scoped_release>();
+            }
 #endif
-            otioTimeline = item->audioPath.isEmpty()
-                               ? timeline::create(
-                                     item->path, _context, offsetTime, options)
-                               : timeline::create(
-                                     item->path, item->audioPath, _context,
-                                     offsetTime, options);
-        }
-        else
-        {
-            otioTimeline = item->audioPath.isEmpty()
-                               ? timeline::create(
-                                     item->path, _context, offsetTime, options)
-                               : timeline::create(
-                                     item->path, item->audioPath, _context,
-                                     offsetTime, options);
         }
 
-        auto out = timeline::Timeline::create(otioTimeline, _context, options);
+        auto out = item->audioPath.isEmpty()
+                   ? timeline::Timeline::create(
+                       _context, item->path, options)
+                   : timeline::Timeline::create(
+                       _context, item->path, item->audioPath, options);
+
+        if (ui->uiPrefs->SendMedia->value())
+        {
+            Message msg;
+            msg["command"] = "Open File";
+            msg["filePath"] = item->path;
+            msg["audioFilePath"] = item->audioPath;
+            tcp->pushMessage(msg);
+        }
 
 #ifdef MRV2_PYBIND11
         const std::string& path = item->path.get();
@@ -2202,6 +2233,8 @@ namespace mrv
             run_python_open_file_cb(pythonCb, path, audioPath);
         }
 #endif
+        // Store the timeline for fast thumbnail lookups.
+        item->timeline = out;
         return out;
     }
 
@@ -2318,7 +2351,14 @@ namespace mrv
                             if (!file::isTemporaryEDL(item->path) &&
                                 !file::isTemporaryNDI(item->path))
                             {
-                                const std::string& file = item->path.get();
+                                std::string file = item->path.get();
+                                auto frames = item->path.getFrames();
+                                if (frames.has_value())
+                                {
+                                    const math::Int64Range& range = frames.value();
+                                    const bool listdir = true;
+                                    file = item->path.getFrame(range.getMin(), listdir);
+                                }
                                 p.settings->addRecentFile(file);
                             }
                         }
@@ -2368,15 +2408,6 @@ namespace mrv
         if (p.mainControl)
         {
             p.mainControl->setPlayer(player.get());
-
-            auto view = ui->uiView;
-            if (view->hasFrameView())
-                view->frameView();
-
-            if (ui->uiSecondary && ui->uiSecondary->viewport())
-                view = ui->uiSecondary->viewport();
-            if (view->hasFrameView())
-                view->frameView();
         }
 
         p.activeFiles = activeFiles;
@@ -2460,18 +2491,18 @@ namespace mrv
 
     }
 
-    otime::RationalTime App::_cacheReadAhead() const
+    OTIO_NS::RationalTime App::_cacheReadAhead() const
     {
         TLRENDER_P();
         double value = p.settings->getValue<double>("Cache/ReadAhead");
-        return otime::RationalTime(value, 1.0);
+        return OTIO_NS::RationalTime(value, 1.0);
     }
 
-    otime::RationalTime App::_cacheReadBehind() const
+    OTIO_NS::RationalTime App::_cacheReadBehind() const
     {
         TLRENDER_P();
         double value = p.settings->getValue<double>("Cache/ReadBehind");
-        return otime::RationalTime(value, 1.0);
+        return OTIO_NS::RationalTime(value, 1.0);
     }
 
     void App::cacheUpdate()
@@ -2522,8 +2553,8 @@ namespace mrv
 
         if (file::isTemporaryNDI(p.player->path()) || movieIsLong)
         {
-            options.readAhead = otime::RationalTime(4.0, 1.0);
-            options.readBehind = otime::RationalTime(0.0, 1.0);
+            options.readAhead = OTIO_NS::RationalTime(4.0, 1.0);
+            options.readBehind = OTIO_NS::RationalTime(0.0, 1.0);
         }
         else if (Gbytes == 0)
         {
@@ -2596,8 +2627,8 @@ namespace mrv
                 if (readBehind < behind)
                     readBehind = behind;
 
-                options.readAhead = otime::RationalTime(readAhead, 1.0);
-                options.readBehind = otime::RationalTime(readBehind, 1.0);
+                options.readAhead = OTIO_NS::RationalTime(readAhead, 1.0);
+                options.readBehind = OTIO_NS::RationalTime(readBehind, 1.0);
             }
         }
 

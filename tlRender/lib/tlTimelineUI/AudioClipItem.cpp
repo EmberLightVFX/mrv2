@@ -34,11 +34,12 @@ namespace tl
 
             TIMELINEUI::InfoRequest infoRequest;
             std::shared_ptr<io::Info> ioInfo;
-            std::map<otime::RationalTime, TIMELINEUI::WaveformRequest> waveformRequests;
+            std::map<OTIO_NS::RationalTime, TIMELINEUI::WaveformRequest> waveformRequests;
         };
 
         void AudioClipItem::_init(
-            const otio::SerializableObject::Retainer<otio::Clip>& clip,
+            const std::shared_ptr<timeline::Timeline> timeline,
+            const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Clip>& clip,
             double scale, const ItemOptions& options,
             const DisplayOptions& displayOptions,
             const std::shared_ptr<ItemData>& itemData,
@@ -47,7 +48,7 @@ namespace tl
             const std::shared_ptr<IWidget>& parent)
         {
             const auto path = timeline::getPath(
-                clip->media_reference(), itemData->directory,
+                timeline->getMediaReference(clip), itemData->directory,
                 itemData->options.pathOptions);
             IBasicItem::_init(
                 !clip->name().empty() ? clip->name()
@@ -58,7 +59,7 @@ namespace tl
             TLRENDER_P();
 
             p.path = path;
-            p.memoryRead = timeline::getMemoryRead(clip->media_reference());
+            p.memoryRead = timeline->getMem(clip->media_reference());
             p.thumbnailGenerator = thumbnailGenerator;
 
             const std::string infoCacheKey =
@@ -82,7 +83,8 @@ namespace tl
         }
 
         std::shared_ptr<AudioClipItem> AudioClipItem::create(
-            const otio::SerializableObject::Retainer<otio::Clip>& clip,
+            const std::shared_ptr<timeline::Timeline> timeline,
+            const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Clip>& clip,
             double scale, const ItemOptions& options,
             const DisplayOptions& displayOptions,
             const std::shared_ptr<ItemData>& itemData,
@@ -92,7 +94,7 @@ namespace tl
         {
             auto out = std::shared_ptr<AudioClipItem>(new AudioClipItem);
             out->_init(
-                clip, scale, options, displayOptions, itemData,
+                timeline, clip, scale, options, displayOptions, itemData,
                 thumbnailGenerator, context, parent);
             return out;
         }
@@ -251,15 +253,15 @@ namespace tl
                         _displayOptions.waveformHeight);
                     if (math::intersects(box, clipRect))
                     {
-                        const otime::RationalTime time =
-                            otime::RationalTime(
+                        const OTIO_NS::RationalTime time =
+                            OTIO_NS::RationalTime(
                                 _timeRange.start_time().value() +
                                     (w > 0 ? (x / static_cast<double>(w)) : 0) *
                                 _timeRange.duration().rescaled_to(_timeRange.start_time()).value(),
                                 _timeRange.start_time().rate())
                                 .round();
-                        const otime::RationalTime time2 =
-                            otime::RationalTime(
+                        const OTIO_NS::RationalTime time2 =
+                            OTIO_NS::RationalTime(
                                 _timeRange.start_time().value() +
                                     (w > 0 ? ((x +
                                                _displayOptions.waveformWidth) /
@@ -268,19 +270,19 @@ namespace tl
                                 _timeRange.duration().rescaled_to(_timeRange.start_time()).value(),
                                 _timeRange.start_time().rate())
                                 .round();
-                        otime::TimeRange trimmedRange = _trimmedRange;
-                        if (trimmedRange.start_time() < p.ioInfo->audioTime.start_time())
+                        OTIO_NS::TimeRange trimmedRange = _trimmedRange;
+                        if (trimmedRange.start_time() < p.ioInfo->audioTime->start_time())
                         {
                             //! \bug If the trimmed range is less than the media time,
                             //! assume the media time is wrong (e.g., ALab trailer) and
                             //! compensate for it.
-                            trimmedRange = otime::TimeRange(
-                                p.ioInfo->audioTime.start_time() + trimmedRange.start_time(),
+                            trimmedRange = OTIO_NS::TimeRange(
+                                p.ioInfo->audioTime->start_time() + trimmedRange.start_time(),
                                 trimmedRange.duration());
                         }
-                        const otime::TimeRange mediaRange =
+                        const OTIO_NS::TimeRange mediaRange =
                             timeline::toAudioMediaTime(
-                                otime::TimeRange::range_from_start_end_time(
+                                OTIO_NS::TimeRange::range_from_start_end_time(
                                     time, time2),
                                 _timeRange, trimmedRange,
                                 p.ioInfo->audio.sampleRate);
@@ -306,7 +308,7 @@ namespace tl
                                 p.waveformRequests[mediaRange.start_time()] =
                                     p.thumbnailGenerator->getWaveform(
                                         p.path, p.memoryRead, box.getSize(),
-                                        mediaRange, _data->options.ioOptions);
+                                        mediaRange, "", _data->options.ioOptions);
                             }
                         }
                     }

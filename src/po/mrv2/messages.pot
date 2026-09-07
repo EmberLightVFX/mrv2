@@ -5,7 +5,7 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: mrv2 v1.6.5\n"
+"Project-Id-Version: mrv2 v1.7.5\n"
 "Report-Msgid-Bugs-To: ggarra13@gmail.com\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
@@ -415,280 +415,6 @@ msgstr ""
 msgid "Save current .otio file with relative paths."
 msgstr ""
 
-msgid "unsupported operand type(s) for {0}: RationalTime and {1}"
-msgstr ""
-
-msgid ""
-"\n"
-"The RationalTime class represents a measure of time of :math:`rt.value/rt."
-"rate` seconds.\n"
-"It can be rescaled into another :class:`~RationalTime`'s rate.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"Returns true if the time is invalid. The time is considered invalid if the "
-"value or the rate are a NaN value\n"
-"or if the rate is less than or equal to zero.\n"
-msgstr ""
-
-msgid "Returns the time value for time converted to new_rate."
-msgstr ""
-
-msgid "Returns the time for time converted to new_rate."
-msgstr ""
-
-msgid "Returns the time value for \"self\" converted to new_rate."
-msgstr ""
-
-msgid ""
-"\n"
-"Compute the duration of samples from first to last (excluding last). This is "
-"not the same as distance.\n"
-"\n"
-"For example, the duration of a clip from frame 10 to frame 15 is 5 frames. "
-"Result will be in the rate of start_time.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"Compute the duration of samples from first to last (including last). This is "
-"not the same as distance.\n"
-"\n"
-"For example, the duration of a clip from frame 10 to frame 15 is 6 frames. "
-"Result will be in the rate of start_time.\n"
-msgstr ""
-
-msgid ""
-"Returns the first valid timecode rate that has the least difference from the "
-"given value."
-msgstr ""
-
-msgid "Turn a frame number and rate into a :class:`~RationalTime` object."
-msgstr ""
-
-msgid "Returns the frame number based on the current rate."
-msgstr ""
-
-msgid "Returns the frame number based on the given rate."
-msgstr ""
-
-msgid "Convert to timecode (``HH:MM:SS;FRAME``)"
-msgstr ""
-
-msgid ""
-"Convert a timecode string (``HH:MM:SS;FRAME``) into a :class:`~RationalTime`."
-msgstr ""
-
-msgid ""
-"Convert a time with microseconds string (``HH:MM:ss`` where ``ss`` is an "
-"integer or a decimal number) into a :class:`~RationalTime`."
-msgstr ""
-
-msgid ""
-"\n"
-"The TimeRange class represents a range in time. It encodes the start time "
-"and the duration,\n"
-"meaning that :meth:`end_time_inclusive` (last portion of a sample in the "
-"time range) and\n"
-":meth:`end_time_exclusive` can be computed.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The time of the last sample containing data in the time range.\n"
-"\n"
-"If the time range starts at (0, 24) with duration (10, 24), this will be\n"
-"(9, 24)\n"
-"\n"
-"If the time range starts at (0, 24) with duration (10.5, 24):\n"
-"(10, 24)\n"
-"\n"
-"In other words, the last frame with data, even if the last frame is "
-"fractional.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"Time of the first sample outside the time range.\n"
-"\n"
-"If start frame is 10 and duration is 5, then end_time_exclusive is 15,\n"
-"because the last time with data in this range is 14.\n"
-"\n"
-"If start frame is 10 and duration is 5.5, then end_time_exclusive is\n"
-"15.5, because the last time with data in this range is 15.\n"
-msgstr ""
-
-msgid "Construct a new :class:`~TimeRange` that is this one extended by other."
-msgstr ""
-
-msgid ""
-"\n"
-"Clamp 'other' (:class:`~RationalTime`) according to\n"
-":attr:`start_time`/:attr:`end_time_exclusive` and bound arguments.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"Clamp 'other' (:class:`~TimeRange`) according to\n"
-":attr:`start_time`/:attr:`end_time_exclusive` and bound arguments.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` precedes `other`.\n"
-"`other` precedes the end of `this`.\n"
-"::\n"
-"\n"
-"         other\n"
-"           |\n"
-"           *\n"
-"   [      this      ]\n"
-"\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` precedes start of `other`.\n"
-"The end of `this` antecedes end of `other`.\n"
-"::\n"
-"\n"
-"        [ other ]\n"
-"   [      this      ]\n"
-"\n"
-"The converse would be ``other.contains(this)``\n"
-msgstr ""
-
-msgid ""
-"\n"
-"`this` contains `other`.\n"
-"::\n"
-"\n"
-"        other\n"
-"         |\n"
-"         *\n"
-"   [    this    ]\n"
-"\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` strictly precedes end of `other` by a value >= "
-"`epsilon_s`.\n"
-"The end of `this` strictly antecedes start of `other` by a value >= "
-"`epsilon_s`.\n"
-"::\n"
-"\n"
-"   [ this ]\n"
-"       [ other ]\n"
-"\n"
-"The converse would be ``other.overlaps(this)``\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The end of `this` strictly precedes `other` by a value >= `epsilon_s`.\n"
-"::\n"
-"\n"
-"             other\n"
-"               |\n"
-"   [ this ]    *\n"
-"\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The end of `this` strictly equals the start of `other` and\n"
-"the start of `this` strictly equals the end of `other`.\n"
-"::\n"
-"\n"
-"   [this][other]\n"
-"\n"
-"The converse would be ``other.meets(this)``\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` strictly equals `other`.\n"
-"::\n"
-"\n"
-"   other\n"
-"     |\n"
-"     *\n"
-"     [ this ]\n"
-"\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` strictly equals the start of `other`.\n"
-"The end of `this` strictly precedes the end of `other` by a value >= "
-"`epsilon_s`.\n"
-"::\n"
-"\n"
-"   [ this ]\n"
-"   [    other    ]\n"
-"\n"
-"The converse would be ``other.begins(this)``\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The end of `this` strictly equals `other`.\n"
-"::\n"
-"\n"
-"        other\n"
-"          |\n"
-"          *\n"
-"   [ this ]\n"
-"\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` strictly antecedes the start of `other` by a value >= "
-"`epsilon_s`.\n"
-"The end of `this` strictly equals the end of `other`.\n"
-"::\n"
-"\n"
-"           [ this ]\n"
-"   [     other    ]\n"
-"\n"
-"The converse would be ``other.finishes(this)``\n"
-msgstr ""
-
-msgid ""
-"\n"
-"The start of `this` precedes or equals the end of `other` by a value >= "
-"`epsilon_s`.\n"
-"The end of `this` antecedes or equals the start of `other` by a value >= "
-"`epsilon_s`.\n"
-"::\n"
-"\n"
-"   [    this    ]           OR      [    other    ]\n"
-"        [     other    ]                    [     this    ]\n"
-"\n"
-"The converse would be ``other.finishes(this)``\n"
-msgstr ""
-
-msgid ""
-"\n"
-"Creates a :class:`~TimeRange` from start and end :class:`~RationalTime`\\s "
-"(exclusive).\n"
-"\n"
-"For example, if start_time is 1 and end_time is 10, the returned will have a "
-"duration of 9.\n"
-msgstr ""
-
-msgid ""
-"\n"
-"Creates a :class:`~TimeRange` from start and end :class:`~RationalTime`\\s "
-"(inclusive).\n"
-"\n"
-"For example, if start_time is 1 and end_time is 10, the returned will have a "
-"duration of 10.\n"
-msgstr ""
-
 msgid ""
 "\n"
 "Media module.\n"
@@ -737,7 +463,7 @@ msgid ""
 "\n"
 "Image module.\n"
 "\n"
-"Contains all classes and enums related to image controls. \n"
+"Contains all classes and enums related to image controls.\n"
 msgstr ""
 
 msgid "Red Channel."
@@ -825,6 +551,12 @@ msgid "Enabled Soft Clip."
 msgstr ""
 
 msgid "Soft clip value."
+msgstr ""
+
+msgid "Aspect Ratio."
+msgstr ""
+
+msgid "Aspect Ratio Options."
 msgstr ""
 
 msgid "Minify filter :class:`mrv2.image.ImageFilter`."
@@ -1138,10 +870,6 @@ msgid ""
 "compare, LUT options.\n"
 msgstr ""
 
-msgid ""
-"Get command-line arguments passed as single quoted string to -pythonArgs."
-msgstr ""
-
 msgid "Open file with optional audio."
 msgstr ""
 
@@ -1161,6 +889,9 @@ msgid "Return the root path to the installation of mrv2."
 msgstr ""
 
 msgid "Return the path to preferences of mrv2."
+msgstr ""
+
+msgid "Return the path to studio preferences of mrv2."
 msgstr ""
 
 msgid "Return the display options."
@@ -1408,14 +1139,10 @@ msgstr ""
 msgid "Networking:"
 msgstr ""
 
-msgid "Start a server.  Use -port to specify a port number."
+msgid "Connect to a WebRTC project at <value>."
 msgstr ""
 
-msgid "Connect to a server at <value>.  Use -port to specify a port number."
-msgstr ""
-
-msgid ""
-"Port number for the server to listen to or for the client to connect to."
+msgid "Connect to a WebRTC room at <value>."
 msgstr ""
 
 msgid "Miscellaneous:"
@@ -1425,6 +1152,9 @@ msgid "Open the application as if no license was present."
 msgstr ""
 
 msgid "Return the version and exit."
+msgstr ""
+
+msgid "Return the system information and exit."
 msgstr ""
 
 msgid "Cannot create window"
@@ -1517,42 +1247,39 @@ msgstr ""
 msgid "Stereo 3D"
 msgstr ""
 
-msgid "Type"
+msgid "Project"
 msgstr ""
 
-msgid "Client"
+msgid "Project you are working on."
 msgstr ""
 
-msgid "Server"
+msgid "Room"
 msgstr ""
 
-msgid "Host"
-msgstr ""
-
-msgid "Host name or IP to connect to.  For example: 127.0.0.1"
-msgstr ""
-
-msgid "Previously used Hosts"
-msgstr ""
-
-msgid "Port"
-msgstr ""
-
-msgid ""
-"Port to connect to.  Make sure your firewall and router allows read/write "
-"through it."
+msgid "Room name to enter."
 msgstr ""
 
 msgid "Connect"
 msgstr ""
 
-msgid "Create"
+msgid ""
+"Please enter a Project.\n"
+"\n"
+msgstr ""
+
+msgid ""
+"Please enter a unique Room.\n"
+"\n"
+msgstr ""
+
+msgid ""
+"This feature is unlimited on the Pro and Pro+ tiers.\n"
+"\n"
+"On other tiers, it is limited to 2\n"
+"connections and 30 minutes of use."
 msgstr ""
 
 msgid "Disconnect"
-msgstr ""
-
-msgid "Shutdown"
 msgstr ""
 
 msgid "&File/&Open"
@@ -1698,28 +1425,7 @@ msgstr ""
 msgid "Stop streaming"
 msgstr ""
 
-msgid "Complexity"
-msgstr ""
-
-msgid "Draw Mode"
-msgstr ""
-
-msgid "Stage Cache"
-msgstr ""
-
-msgid "Disk Cache in GB"
-msgstr ""
-
-msgid "Room"
-msgstr ""
-
-msgid "Room name to enter."
-msgstr ""
-
-msgid ""
-"Share the room ID with the persons that will review the session with you.\n"
-"\n"
-"Note that this feature is only available in the Pro+ tier."
+msgid "Type"
 msgstr ""
 
 msgid "Type of Waveform Monitor."
@@ -1741,6 +1447,9 @@ msgid "Type of Vectorscope."
 msgstr ""
 
 msgid "Toggle other eye stereo image."
+msgstr ""
+
+msgid "Color"
 msgstr ""
 
 msgid "Image"
@@ -1841,6 +1550,23 @@ msgid ""
 "movies that have Color Space as 'unknown', at the cost of some performance."
 msgstr ""
 
+msgid "FFmpeg HW Accel"
+msgstr ""
+
+msgid ""
+"When this setting is on, the player will try to decode the movie in the GPU "
+"if possible."
+msgstr ""
+
+msgid "FFmpeg HW Driver"
+msgstr ""
+
+msgid "Default HW Driver"
+msgstr ""
+
+msgid "Select what driver to use for your GPU."
+msgstr ""
+
 msgid "FFmpeg I/O threads"
 msgstr ""
 
@@ -1859,20 +1585,19 @@ msgid ""
 "to continue?"
 msgstr ""
 
-msgid "Drop a clip here to create a playlist."
+msgid "Set the verbosity of the logs."
 msgstr ""
 
-msgid "Create an empty timeline with a video and audio track."
+msgid "Errors"
 msgstr ""
 
-msgid "Create a timeline from the selected clip."
+msgid "Warning"
 msgstr ""
 
-msgid ""
-"Save current EDL to a permanent location, making paths relative if possible."
+msgid "Status"
 msgstr ""
 
-msgid "Close current EDL."
+msgid "Info"
 msgstr ""
 
 msgid "Clear the messages"
@@ -2428,6 +2153,12 @@ msgstr ""
 msgid "Select between Relative or Absolute Compare Time Mode"
 msgstr ""
 
+msgid "Fit to A"
+msgstr ""
+
+msgid "Fit All clips to the size of the first clip."
+msgstr ""
+
 msgid "Compare A"
 msgstr ""
 
@@ -2465,6 +2196,11 @@ msgid "Add the A and B files"
 msgstr ""
 
 msgid "Multiply the A and B files"
+msgstr ""
+
+msgid ""
+"Show the halves of the A and B files,\n"
+"one of them mirrored"
 msgstr ""
 
 msgid "Wipe"
@@ -2646,25 +2382,31 @@ msgstr ""
 msgid "STUN server is {0}"
 msgstr ""
 
+msgid "TURN server is {0}"
+msgstr ""
+
+msgid "Incorrectly defined TURN server."
+msgstr ""
+
+msgid "Must match:"
+msgstr ""
+
+msgid "Cannot connect to WebRTC: User is not authorized or license expired"
+msgstr ""
+
+msgid "No Signaling server set.  Please update Preferences->WebRTC->Signaling"
+msgstr ""
+
+msgid "No Web RTC Studio set.  Please update Preferences->WebRTC->Studio"
+msgstr ""
+
 msgid "The room ID is: {0}"
 msgstr ""
 
 msgid "The player ID is: {0}"
 msgstr ""
 
-msgid "Server started at port {0}."
-msgstr ""
-
-msgid "Server stopped."
-msgstr ""
-
-msgid "A client connected from {0}"
-msgstr ""
-
-msgid "Client at {0} disconnected."
-msgstr ""
-
-msgid "Removing {0} from message publisher."
+msgid "Downloading {0}..."
 msgstr ""
 
 msgid "Server listening on port "
@@ -2673,22 +2415,39 @@ msgstr ""
 msgid "ComfyUI listening on port "
 msgstr ""
 
-msgid "Connected to server at {0}, port {1}"
-msgstr ""
-
-msgid "Server connection lost."
-msgstr ""
-
-msgid "Exception caught: "
-msgstr ""
-
 msgid "Server protocol version is {0}.  Client protocol version is {1}"
 msgstr ""
 
 msgid "Remote file {0} does not exist on local filesystem."
 msgstr ""
 
-msgid "Remote files are less than local files."
+msgid "Not connected via WebRTC; cannot fetch remote file."
+msgstr ""
+
+msgid "Peer not connected."
+msgstr ""
+
+msgid ""
+"{0} is only reachable via relay (TURN), which would consume VPS bandwidth. "
+"Skipping fetch to avoid unexpected costs."
+msgstr ""
+
+msgid "Already fetching {0} from another sync request; skipping duplicate."
+msgstr ""
+
+msgid "Transfers"
+msgstr ""
+
+msgid ""
+"The timeline downloaded, but the following referenced media could not be "
+"found on the server:\n"
+"\n"
+msgstr ""
+
+msgid "Download failed."
+msgstr ""
+
+msgid "Remote file {0} not found locally and no peer to fetch it from."
 msgstr ""
 
 msgid "Remote file {0} matches file name {1} but not path."
@@ -2697,10 +2456,10 @@ msgstr ""
 msgid "Remote file {0} does not match local filename."
 msgstr ""
 
-msgid "ERROR:\t"
+msgid "WARN:\t"
 msgstr ""
 
-msgid "WARN:\t"
+msgid "ERROR:\t"
 msgstr ""
 
 msgid ""
@@ -2785,6 +2544,12 @@ msgid "Setting OCIO config from OCIO environment variable."
 msgstr ""
 
 msgid "Path mappings have been loaded from \"{0}{1}\"."
+msgstr ""
+
+msgid "Error deleting directory: \"{0}\"."
+msgstr ""
+
+msgid "Cleaned directory: \"{0}\"."
 msgstr ""
 
 msgid "Loading hotkeys from \"{0}{1}.prefs\"."
@@ -3137,6 +2902,9 @@ msgstr ""
 msgid "Stop playback."
 msgstr ""
 
+msgid "Go forward one frame."
+msgstr ""
+
 msgid "Play sequence forwards."
 msgstr ""
 
@@ -3187,7 +2955,7 @@ msgstr ""
 msgid "Items selected must be on the same track."
 msgstr ""
 
-msgid "Items selected must be contiguous on the track. Left {0}.  Right {0}."
+msgid "Items selected must be contiguous on the track. Left {0}.  Right {1}."
 msgstr ""
 
 msgid "Please select two or four contiguous items.  Selected {0}."
@@ -3209,9 +2977,6 @@ msgid "Empty EDL file.  Not saving."
 msgstr ""
 
 msgid "Destination file is invalid."
-msgstr ""
-
-msgid "You can only add clips to an .otio EDL playlist."
 msgstr ""
 
 msgid "Unknown media reference"
@@ -3339,9 +3104,6 @@ msgid "Annotations"
 msgstr ""
 
 msgid "Background"
-msgstr ""
-
-msgid "Color"
 msgstr ""
 
 msgid "Color Area"
@@ -3480,15 +3242,6 @@ msgstr ""
 msgid "Could not read image data from view"
 msgstr ""
 
-msgid "Link/Open"
-msgstr ""
-
-msgid "Link/Edit"
-msgstr ""
-
-msgid "Link/Delete"
-msgstr ""
-
 msgid "Voice Over/Delete"
 msgstr ""
 
@@ -3498,10 +3251,13 @@ msgstr ""
 msgid "Audio/Append"
 msgstr ""
 
-msgid "Play"
+msgid "Link/Open"
 msgstr ""
 
-msgid "Stop"
+msgid "Link/Edit"
+msgstr ""
+
+msgid "Link/Delete"
 msgstr ""
 
 msgid "Really cancel voice over recording?"
@@ -3636,31 +3392,28 @@ msgstr ""
 msgid "New file {0} already exist!  Cannot overwrite it."
 msgstr ""
 
-msgid "Rotated image info: {0}"
-msgstr ""
-
-msgid "Scaled image info: {0}"
-msgstr ""
-
 msgid "{0}: Cannot open writer plugin."
 msgstr ""
 
 msgid "Image info: {0} {1}"
 msgstr ""
 
-msgid "Image too big for Save Annotations.  Will scale to the viewport size."
+msgid "Scaled image info: {0}"
 msgstr ""
 
 msgid "Writer plugin did not get output info.  Defaulting to {0}"
-msgstr ""
-
-msgid "Output info: {0} {1}"
 msgstr ""
 
 msgid "Using profile {0}, pixel format {1}."
 msgstr ""
 
 msgid "Using preset {0}."
+msgstr ""
+
+msgid "Offscreen Buffer info: {0}"
+msgstr ""
+
+msgid "Output info: {0} {1}"
 msgstr ""
 
 msgid "Saving Movie without Audio %<PRId64> - %<PRId64>"
@@ -3678,31 +3431,10 @@ msgstr ""
 msgid "Audio only in timeline, but not trying to save audio."
 msgstr ""
 
-msgid "{0}: Invalid OpenGL format and type"
-msgstr ""
-
-msgid "OpenGL info: {0}"
-msgstr ""
-
 msgid "Saving... {0}"
 msgstr ""
 
-msgid "Unsupported output format"
-msgstr ""
-
-msgid "Empty video data at time {0}.  Repeating frame."
-msgstr ""
-
 msgid "Render size: {0}"
-msgstr ""
-
-msgid "Image Layer '{0}' info: {1} {2}"
-msgstr ""
-
-msgid "Offscreen Buffer info: {0}"
-msgstr ""
-
-msgid "Unsupported output format: "
 msgstr ""
 
 msgid "2.35"
@@ -3720,22 +3452,37 @@ msgstr ""
 msgid "Cache: "
 msgstr ""
 
-msgid "    Used: %.2g of %zu Gb (%.2g %%)"
+msgid "HDR monitor min. nits = {0}"
 msgstr ""
 
-msgid "    Ahead    V: % 4<PRIu64>    A: % 4<PRIu64>"
+msgid "HDR monitor max. nits = {0}"
 msgstr ""
 
-msgid "    Behind   V: % 4<PRIu64>    A: % 4<PRIu64>"
+msgid "HDR monitor not found or not configured."
+msgstr ""
+
+msgid "HDR monitor not detected by Vulkan or Window Manager."
+msgstr ""
+
+msgid "Vulkan color space is {0}"
+msgstr ""
+
+msgid "Vulkan format is {0}"
+msgstr ""
+
+msgid "Changed to HDR active monitor at index {0}"
+msgstr ""
+
+msgid "Changed to HDR supported but inactive monitor at index {0}"
+msgstr ""
+
+msgid "Changed to SDR monitor at index {0}"
 msgstr ""
 
 msgid "Edit Text"
 msgstr ""
 
 msgid "'{0}' is not a file, directory or url."
-msgstr ""
-
-msgid "Invalid font for text drawing"
 msgstr ""
 
 msgid "Could not convert message to shape: "
@@ -3754,6 +3501,30 @@ msgid "Audio annotation file {0} is missing or not exists!"
 msgstr ""
 
 msgid "Unhandled buffer format: {0} for output: {1}"
+msgstr ""
+
+msgid ""
+"This feature needs a Solo donation or later.\n"
+"\n"
+"Do you want to upgrade?"
+msgstr ""
+
+msgid ""
+"This feature needs a Standard donation or later.\n"
+"\n"
+"Do you want to upgrade?"
+msgstr ""
+
+msgid ""
+"This feature needs an Edit donation or later.\n"
+"\n"
+"Do you want to upgrade?"
+msgstr ""
+
+msgid ""
+"This feature needs a Pro donation or later.\n"
+"\n"
+"Do you want to upgrade?"
 msgstr ""
 
 msgid "Open with Audio"
@@ -4089,6 +3860,12 @@ msgstr ""
 msgid "View/Compare/Difference"
 msgstr ""
 
+msgid "View/Compare/Add"
+msgstr ""
+
+msgid "View/Compare/Multiply"
+msgstr ""
+
 msgid "View/Compare/Horizontal"
 msgstr ""
 
@@ -4138,6 +3915,9 @@ msgid "Timeline/Markers"
 msgstr ""
 
 msgid "Timeline/Visible Tracks/{0}"
+msgstr ""
+
+msgid "Timeline/Media Reference/{0}"
 msgstr ""
 
 msgid "Image/Next"
@@ -4689,6 +4469,12 @@ msgstr ""
 msgid "mrv2 depends on:"
 msgstr ""
 
+msgid "Total Physical Memory: {0} Gb"
+msgstr ""
+
+msgid "Total Virtual Memory: {0} Gb"
+msgstr ""
+
 msgid "Vendor:\t"
 msgstr ""
 
@@ -4757,6 +4543,9 @@ msgid ""
 "below it.\n"
 "\n"
 "Give window focus to disable."
+msgstr ""
+
+msgid "Stop"
 msgstr ""
 
 msgid "Continue"
@@ -4845,28 +4634,64 @@ msgstr ""
 msgid "PC (Full Range)"
 msgstr ""
 
-msgid "BGR"
-msgstr ""
-
 msgid "bt709"
 msgstr ""
 
-msgid "FCC"
+msgid "HDR"
 msgstr ""
 
-msgid "SMPTE240m"
+msgid "gbr"
 msgstr ""
 
-msgid "bt601"
-msgstr ""
-
-msgid "bt2020"
-msgstr ""
-
-msgid "unspecified"
+msgid "unknown"
 msgstr ""
 
 msgid "reserved"
+msgstr ""
+
+msgid "fcc"
+msgstr ""
+
+msgid "bt601 (bt470bg)"
+msgstr ""
+
+msgid "smpte170m"
+msgstr ""
+
+msgid "smpte240m"
+msgstr ""
+
+msgid "ycgco"
+msgstr ""
+
+msgid "bt2020nc"
+msgstr ""
+
+msgid "bt2020c"
+msgstr ""
+
+msgid "smpte2085"
+msgstr ""
+
+msgid "chroma-derived-nc"
+msgstr ""
+
+msgid "chroma-derived-c"
+msgstr ""
+
+msgid "ictcp"
+msgstr ""
+
+msgid "ipt-c2"
+msgstr ""
+
+msgid "ycgco-re"
+msgstr ""
+
+msgid "ycgco-ro"
+msgstr ""
+
+msgid "unspecified"
 msgstr ""
 
 msgid "bt470m"
@@ -4875,7 +4700,13 @@ msgstr ""
 msgid "SMPTE170m"
 msgstr ""
 
+msgid "SMPTE240m"
+msgstr ""
+
 msgid "Film"
+msgstr ""
+
+msgid "bt2020"
 msgstr ""
 
 msgid "SMPTE428"
@@ -4896,7 +4727,7 @@ msgstr ""
 msgid "gamma28"
 msgstr ""
 
-msgid "smpte240m"
+msgid "bt601"
 msgstr ""
 
 msgid "linear"
@@ -4923,7 +4754,7 @@ msgstr ""
 msgid "bt2020-12"
 msgstr ""
 
-msgid "bt2100"
+msgid "bt2100 (smpte2084)"
 msgstr ""
 
 msgid "hlg"
@@ -5018,6 +4849,9 @@ msgid "Color Range"
 msgstr ""
 
 msgid "FFMpeg's Color Range for the codec selected"
+msgstr ""
+
+msgid "Presets"
 msgstr ""
 
 msgid "FFMpeg's Color Space for the codec selected"
@@ -5164,8 +4998,11 @@ msgid ""
 "  for example, if a set of 8-bit images were \n"
 "  bt709 or some other color space.\n"
 "\n"
+"  Currently the override comes with two presets:\n"
+"  bt709 for SDR work, and HDR for HDR work.\n"
+"\n"
 "  If you don't know what those settings do, \n"
-"  DON'T MESS WITH THEM!\n"
+"  leave it all at bt709.\n"
 "  "
 msgstr ""
 
@@ -5459,13 +5296,13 @@ msgstr ""
 msgid "Audio Volume"
 msgstr ""
 
-msgid "S"
+msgid "I"
 msgstr ""
 
 msgid "Allows you to set starting frame for timeline."
 msgstr ""
 
-msgid "E"
+msgid "O"
 msgstr ""
 
 msgid "Allows you to set the ending frame for timeline."
@@ -5508,6 +5345,9 @@ msgid "Gain"
 msgstr ""
 
 msgid "Gain image value.  A simple multiplier of the image pixel values."
+msgstr ""
+
+msgid "S"
 msgstr ""
 
 msgid "Toggle Saturation between current and previous setting."
@@ -5686,13 +5526,13 @@ msgstr ""
 msgid "OpenEXR Options"
 msgstr ""
 
-msgid "OpenEXR's Compression Type"
-msgstr ""
-
 msgid "Pixel Type"
 msgstr ""
 
 msgid "OpenEXR's Pixel Type"
+msgstr ""
+
+msgid "OpenEXR's Compression Type"
 msgstr ""
 
 msgid "ZIP Compression"
@@ -5833,6 +5673,9 @@ msgstr ""
 msgid "Nearest"
 msgstr ""
 
+msgid "Normal"
+msgstr ""
+
 msgid "Large"
 msgstr ""
 
@@ -5965,9 +5808,6 @@ msgstr ""
 msgid "GPU 0"
 msgstr ""
 
-msgid "Normal"
-msgstr ""
-
 msgid "X 2"
 msgstr ""
 
@@ -5975,6 +5815,21 @@ msgid "X 3"
 msgstr ""
 
 msgid "X 4"
+msgstr ""
+
+msgid "Internet"
+msgstr ""
+
+msgid "LAN"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
+msgid "Home Directory"
+msgstr ""
+
+msgid "Temp Directory"
 msgstr ""
 
 msgid "Do Nothing"
@@ -6040,6 +5895,9 @@ msgid ""
 "view window."
 msgstr ""
 
+msgid "Window at Start"
+msgstr ""
+
 msgid "When selected, mrv2 will resize its window to the first image."
 msgstr ""
 
@@ -6061,7 +5919,16 @@ msgstr ""
 msgid "When selected, mrv2 will start in a maximized window."
 msgstr ""
 
+msgid "User Interface Elements"
+msgstr ""
+
 msgid "UI Elements"
+msgstr ""
+
+msgid "Tooltips"
+msgstr ""
+
+msgid "Choose whether to show tooltips or not."
 msgstr ""
 
 msgid "Menu Bar"
@@ -6086,12 +5953,6 @@ msgstr ""
 msgid "When selected, mrv2 will start with the timeline shown."
 msgstr ""
 
-msgid "Status Bar"
-msgstr ""
-
-msgid "When selected, mrv2 will start with the status bar visible."
-msgstr ""
-
 msgid "macOS Menus"
 msgstr ""
 
@@ -6104,6 +5965,12 @@ msgid "Tool Dock"
 msgstr ""
 
 msgid "When selected, mrv2 will start with the action tool dock already open."
+msgstr ""
+
+msgid "Status Bar"
+msgstr ""
+
+msgid "When selected, mrv2 will start with the status bar visible."
 msgstr ""
 
 msgid "Only One Panel"
@@ -6338,6 +6205,30 @@ msgstr ""
 msgid "Thumbnails"
 msgstr ""
 
+msgid "Files Panel"
+msgstr ""
+
+msgid "How to display timeline thumbnails in Files Panel."
+msgstr ""
+
+msgid "Compare Panel"
+msgstr ""
+
+msgid "How to display timeline thumbnails in Compare Panel."
+msgstr ""
+
+msgid "Playlist Panel"
+msgstr ""
+
+msgid "How to display timeline thumbnails in Playlist Panel."
+msgstr ""
+
+msgid "Stereo Panel"
+msgstr ""
+
+msgid "How to display timeline thumbnails in Stereo Panel."
+msgstr ""
+
 msgid "Edit Viewport"
 msgstr ""
 
@@ -6356,12 +6247,6 @@ msgstr ""
 msgid ""
 "When this option is on, thumbnails in panels won't be refreshed "
 "automatically.  You will have to use RMB->Update Thumbnail on the Thumbnail."
-msgstr ""
-
-msgid "Preview Thumbnails on Panels"
-msgstr ""
-
-msgid "Preview Thumbnails in Panels"
 msgstr ""
 
 msgid "Display"
@@ -6388,9 +6273,6 @@ msgid "Video Start Frame"
 msgstr ""
 
 msgid "Start value in the timeline where video starts."
-msgstr ""
-
-msgid "HDR"
 msgstr ""
 
 msgid "Prefer RGB (Vulkan)"
@@ -6777,7 +6659,49 @@ msgid ""
 "This setting opens a pipe to communicate with ComfyUI's mrv2_save_exr_node.py"
 msgstr ""
 
-msgid "Errors"
+msgid "WebRTC settings"
+msgstr ""
+
+msgid "WebRTC Presets"
+msgstr ""
+
+msgid "WebRTC presets"
+msgstr ""
+
+msgid "Signaling"
+msgstr ""
+
+msgid "WebRTC signaling server to sync the connections."
+msgstr ""
+
+msgid "Stun Server"
+msgstr ""
+
+msgid "WebRTC STUN Server.  Leave blank to use Google's."
+msgstr ""
+
+msgid "Turn Server"
+msgstr ""
+
+msgid "Studio name to prefix to all Room connections.  Use some unique name."
+msgstr ""
+
+msgid "Clean directory at Start up"
+msgstr ""
+
+msgid "Clean the WebRTC cache directory on start of the viewer."
+msgstr ""
+
+msgid "WebRTC Cache"
+msgstr ""
+
+msgid "Cache Directory presets."
+msgstr ""
+
+msgid "Cache Directory"
+msgstr ""
+
+msgid "Directory where WebRTC downloads will reside."
 msgstr ""
 
 msgid "On FFmpeg Error"
@@ -6820,6 +6744,9 @@ msgid ""
 msgstr ""
 
 msgid "Module"
+msgstr ""
+
+msgid "User Interface/Elements"
 msgstr ""
 
 msgid "User Interface/View Window"
@@ -6943,6 +6870,9 @@ msgid "Codecs"
 msgstr ""
 
 msgid "Subtitles"
+msgstr ""
+
+msgid "HW decoders"
 msgstr ""
 
 msgid "Protocols"
@@ -7161,6 +7091,9 @@ msgstr ""
 msgid "{0} Active Licenses from {1}."
 msgstr ""
 
+msgid "Valid license for {0}"
+msgstr ""
+
 msgid "Could not release floating license"
 msgstr ""
 
@@ -7291,6 +7224,12 @@ msgid "Compare Overlay"
 msgstr ""
 
 msgid "Compare Difference"
+msgstr ""
+
+msgid "Compare Add"
+msgstr ""
+
+msgid "Compare Multiply"
 msgstr ""
 
 msgid "Compare Horizontal"
@@ -7566,9 +7505,6 @@ msgstr ""
 msgid "Toggle NDI"
 msgstr ""
 
-msgid "Toggle Network"
-msgstr ""
-
 msgid "Toggle WebRTC"
 msgstr ""
 
@@ -7650,6 +7586,9 @@ msgstr ""
 msgid "Area Selection Mode"
 msgstr ""
 
+msgid "Draw Mode"
+msgstr ""
+
 msgid "Erase Mode"
 msgstr ""
 
@@ -7705,9 +7644,6 @@ msgid "Toggle Color Area Info Panel"
 msgstr ""
 
 msgid "Toggle Color Controls Panel"
-msgstr ""
-
-msgid "Toggle Playlist Panel"
 msgstr ""
 
 msgid "Toggle Compare Panel"

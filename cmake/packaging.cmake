@@ -108,6 +108,7 @@ set( CPACK_INSTALL_SCRIPT ${MRV2_ROOT}/cmake/dummy.cmake )
 #
 set( CPACK_PRE_BUILD_SCRIPTS ${MRV2_ROOT}/cmake/prepackage.cmake )
 
+
 if(APPLE)
     ##############################
     # New Method using Dragndrop #
@@ -127,30 +128,60 @@ if(APPLE)
     configure_file(${MRV2_DIR}/etc/macOS/mrv2.icns
 	${MRV2_BUNDLE_DIR}/Contents/Resources/${mrv2_NAME}.icns COPYONLY)
     
-    # Copy the shell script into the bundles' MacOS as 'launcher.sh'
-    # and make them executable
-    configure_file(${MRV2_DIR}/etc/macOS/mrv2.sh
-	${MRV2_BUNDLE_DIR}/Contents/MacOS/launcher.sh 
-	FILE_PERMISSIONS
-	OWNER_READ OWNER_EXECUTE
-	GROUP_READ GROUP_EXECUTE
-	WORLD_READ WORLD_EXECUTE
-	COPYONLY)
-
     # Copy the Info.plist modifying its variables
     configure_file(
      	${MRV2_DIR}/etc/macOS/mrv2.plist.in
      	${MRV2_BUNDLE_DIR}/Contents/Info.plist )
 
+    # Copy the shell script into the MacOS bundle and make them executable
+    configure_file(${MRV2_DIR}/etc/macOS/mrv2.sh
+	${MRV2_BUNDLE_DIR}/Contents/MacOS/${mrv2_NAME}
+	FILE_PERMISSIONS
+	OWNER_READ OWNER_EXECUTE
+	GROUP_READ GROUP_EXECUTE
+	WORLD_READ WORLD_EXECUTE
+	COPYONLY)
     
+    # Install mrv2.app / vmrv2.app bundle dir
     install(DIRECTORY ${MRV2_BUNDLE_DIR}
 	DESTINATION .
 	USE_SOURCE_PERMISSIONS
 	COMPONENT applications
     )
     
+    # Configure README.md
+    configure_file(${MRV2_DIR}/etc/macOS/README.md.in
+	${CMAKE_BINARY_DIR}/README.md @ONLY
+    FILE_PERMISSIONS
+    OWNER_READ OWNER_WRITE 
+    GROUP_READ OWNER_WRITE 
+    WORLD_READ)
 
+    # Install README.md file at root of .dmg
+    install(FILES "${CMAKE_BINARY_DIR}/README.md"
+        DESTINATION .
+        COMPONENT applications
+    )
     
+    # Configure runme.sh.in
+    configure_file(${MRV2_DIR}/etc/macOS/installation_script.command.in
+	${CMAKE_BINARY_DIR}/installation.command @ONLY
+    FILE_PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ OWNER_WRITE OWNER_EXECUTE
+    WORLD_READ OWNER_EXECUTE)
+
+    # Install README.md file at root of .dmg
+    install(FILES "${CMAKE_BINARY_DIR}/installation.command"
+        DESTINATION .
+        COMPONENT applications
+	PERMISSIONS
+	OWNER_READ OWNER_EXECUTE
+	GROUP_READ OWNER_EXECUTE
+	WORLD_READ OWNER_EXECUTE
+    )
+
+
     if (EXISTS ${CMAKE_INSTALL_PREFIX}/bin/hdr)
 	
 	set(HDR_BUNDLE_DIR ${CMAKE_BINARY_DIR}/hdr.app)
@@ -197,9 +228,19 @@ if(APPLE)
     set(CPACK_DMG_VOLUME_ICON ${MRV2_DIR}/etc/macOS/mrv2.icns)
     
     
-    
-    set(CPACK_COMPONENTS_ALL "macos_bundles")
-    set(CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${mrv2_NAME};applications;/")
+    # 1. Always install the core applications component flat to the root directory
+    set(CPACK_INSTALL_CMAKE_PROJECTS 
+	"${CMAKE_BINARY_DIR}" "${mrv2_NAME}" "applications" "/"
+    )
+
+    # 2. If Python is enabled, append those components directly to the list
+    if(BUILD_PYTHON)
+	list(APPEND CPACK_INSTALL_CMAKE_PROJECTS 
+            "${CMAKE_BINARY_DIR}" "${mrv2_NAME}" "python_plugins" "/"
+            "${CMAKE_BINARY_DIR}" "${mrv2_NAME}" "python_demos" "/"
+	)
+    endif()
+
     set(CPACK_INSTALLED_DIRECTORIES "${CMAKE_BINARY_DIR}/install;.")
 
 elseif(UNIX)
@@ -345,8 +386,8 @@ else()
     #
     # Set the MUI Installer icon
     #
-    set(CPACK_NSIS_MUI_ICON "${MRV2_DIR}/main/app.ico")
-    set(CPACK_NSIS_MUI_UNICON "${MRV2_DIR}/main/app.ico")
+    set(CPACK_NSIS_MUI_ICON "${MRV2_DIR}/mrv2/app.ico")
+    set(CPACK_NSIS_MUI_UNICON "${MRV2_DIR}/mrv2/app.ico")
 
     #
     # Set the MUI banner to use a custom mrv2 one.
@@ -417,6 +458,7 @@ if(BUILD_PYTHON)
     list(APPEND mrv2_COMPONENTS 
 	python_demos
 	python_tk
+	python_plugins
     )
 endif()
 
@@ -425,6 +467,7 @@ set(CPACK_COMPONENT_APPLICATIONS_DISPLAY_NAME "${mrv2_NAME} Application")
 set(CPACK_COMPONENT_DOCUMENTATION_DISPLAY_NAME "${mrv2_NAME} Documentation")
 if(BUILD_PYTHON)
     set(CPACK_COMPONENT_PYTHON_DEMOS_DISPLAY_NAME "${mrv2_NAME} Python Demos")
+    set(CPACK_COMPONENT_PYTHON_PLUGINS_DISPLAY_NAME "${mrv2_NAME} Python FLTK Plugins")
     set(CPACK_COMPONENT_PYTHON_TK_DISPLAY_NAME "Python TK Libraries")
     set(CPACK_COMPONENT_PYTHON_TK_DISABLED TRUE)
 endif()

@@ -61,6 +61,72 @@ namespace tl
             return offset;
         }
 
+        ReadOptions getReadOptions(const io::Options& options)
+        {
+            ReadOptions out;
+            if (auto i = options.find("FFmpeg/YUVToRGBConversion"); i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.yuvToRGBConversion;
+            }
+            if (auto i = options.find("FFmpeg/FastYUV420PConversion"); i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.fastYUV420PConversion;
+            }
+            if (auto i = options.find("FFmpeg/HWAccel"); i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.hwAccel;
+            }
+            if (auto i = options.find("FFmpeg/HWDriver"); i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.hwDriver;
+            }
+            if (auto i = options.find("FFmpeg/AudioChannelCount");
+                i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.audioConvertInfo.channelCount;
+            }
+            if (auto i = options.find("FFmpeg/AudioType"); i != options.end())
+            {
+                from_string(i->second, out.audioConvertInfo.dataType);
+            }
+            if (auto i = options.find("FFmpeg/AudioSampleRate");
+                i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.audioConvertInfo.sampleRate;
+            }
+            if (auto i = options.find("FFmpeg/ThreadCount");
+                i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.threadCount;
+            }
+            if (auto i = options.find("FFmpeg/VideoBufferSize");
+                i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.videoBufferSize;
+            }
+            if (auto i = options.find("FFmpeg/AudioBufferSize");
+                i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.audioBufferSize;
+            }
+            if (auto i = options.find("FFmpeg/AudioTrack");
+                i != options.end())
+            {
+                std::stringstream ss(i->second);
+                ss >> out.audioTrack;
+            }
+            return out;
+        }
+
         void Read::_init(
             const file::Path& path, const std::vector<file::MemoryRead>& memory,
             const io::Options& options, const std::shared_ptr<io::Cache>& cache,
@@ -69,67 +135,8 @@ namespace tl
             IRead::_init(path, memory, options, cache, logSystem);
 
             TLRENDER_P();
-            
-            auto i = options.find("FFmpeg/YUVToRGBConversion");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.yuvToRGBConversion;
-            }
-            i = options.find("FFmpeg/FastYUV420PConversion");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.fastYUV420PConversion;
-            }
-            i = options.find("FFmpeg/AudioChannelCount");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.audioConvertInfo.channelCount;
-            }
-            i = options.find("FFmpeg/AudioDataType");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.audioConvertInfo.dataType;
-            }
-            i = options.find("FFmpeg/AudioSampleRate");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.audioConvertInfo.sampleRate;
-            }
-            i = options.find("FFmpeg/AudioTrack");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.audioTrack;
-            }
-            i = options.find("FFmpeg/ThreadCount");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.threadCount;
-            }
-            i = options.find("FFmpeg/RequestTimeout");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.requestTimeout;
-            }
-            i = options.find("FFmpeg/VideoBufferSize");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.videoBufferSize;
-            }
-            i = options.find("FFmpeg/AudioBufferSize");
-            if (i != options.end())
-            {
-                std::stringstream ss(i->second);
-                ss >> p.options.audioBufferSize;
-            }
+
+            p.options = getReadOptions(options);
 
             p.videoThread.running = true;
             p.audioThread.running = true;
@@ -156,7 +163,7 @@ namespace tl
                             p.readAudio = std::make_shared<ReadAudio>(
                                 path.hasProtocol() ?
                                 path.get() : path.getFileName(true),
-                                _memory, p.info.videoTime.duration().rate(),
+                                _memory, p.info.videoTime->duration().rate(),
                                 p.options);
                             p.info.audio = p.readAudio->getInfo();
                             p.info.audioTime = p.readAudio->getTimeRange();
@@ -276,7 +283,7 @@ namespace tl
                 p.audioThread.thread.join();
             }
         }
-        
+
         std::shared_ptr<Read> Read::create(
             const file::Path& path, const io::Options& options,
             const std::shared_ptr<io::Cache>& cache,
@@ -323,7 +330,7 @@ namespace tl
         }
 
         std::future<io::VideoData> Read::readVideo(
-            const otime::RationalTime& time, const io::Options& options)
+            const OTIO_NS::RationalTime& time, const io::Options& options)
         {
             TLRENDER_P();
             auto request = std::make_shared<Private::VideoRequest>();
@@ -351,7 +358,7 @@ namespace tl
         }
 
         std::future<io::AudioData> Read::readAudio(
-            const otime::TimeRange& timeRange, const io::Options& options)
+            const OTIO_NS::TimeRange& timeRange, const io::Options& options)
         {
             TLRENDER_P();
             auto request = std::make_shared<Private::AudioRequest>();
@@ -385,7 +392,7 @@ namespace tl
         }
 
         void Read::_addToCache(
-            io::VideoData& data, const otime::RationalTime& time,
+            io::VideoData& data, const OTIO_NS::RationalTime& time,
             const io::Options& options)
         {
             TLRENDER_P();
@@ -403,7 +410,7 @@ namespace tl
         void Read::_videoThread()
         {
             TLRENDER_P();
-            p.videoThread.currentTime = p.info.videoTime.start_time();
+            p.videoThread.currentTime = p.info.videoTime->start_time();
             p.readVideo->start();
             p.videoThread.logTimer = std::chrono::steady_clock::now();
             while (p.videoThread.running)
@@ -424,7 +431,7 @@ namespace tl
                     // Check if we woke up to stop
                     if (!p.videoThread.running)
                         return;
-                    
+
                     infoRequests = std::move(p.videoMutex.infoRequests);
                     if (!p.videoMutex.videoRequests.empty())
                     {
@@ -500,8 +507,8 @@ namespace tl
                     _addToCache(
                         data, videoRequest->time, videoRequest->options);
                     videoRequest->promise.set_value(data);
-                    p.videoThread.currentTime += otime::RationalTime(
-                        1.0, p.info.videoTime.duration().rate());
+                    p.videoThread.currentTime += OTIO_NS::RationalTime(
+                        1.0, p.info.videoTime->duration().rate());
                 }
 
                 // Logging.
@@ -539,7 +546,7 @@ namespace tl
         void Read::_audioThread()
         {
             TLRENDER_P();
-            p.audioThread.currentTime = p.info.audioTime.start_time();
+            p.audioThread.currentTime = p.info.audioTime->start_time();
             p.readAudio->start();
             p.audioThread.logTimer = std::chrono::steady_clock::now();
             while (p.audioThread.running)
@@ -558,11 +565,11 @@ namespace tl
                     // Check if we woke up to stop
                     if (!p.audioThread.running)
                         return;
-                    
+
                     // Check for spurious wakeup
                     if (p.audioMutex.requests.empty())
                         continue;
-                                        
+
                     request = p.audioMutex.requests.front();
                     p.audioMutex.requests.pop_front();
                     requestSampleCount =
@@ -602,21 +609,21 @@ namespace tl
                 if (request)
                 {
                     intersects =
-                        request->timeRange.intersects(p.info.audioTime);
+                        request->timeRange.intersects(p.info.audioTime.value());
                 }
                 while (request && intersects &&
                        p.readAudio->getBufferSize() <
-                           request->timeRange.duration()
-                               .rescaled_to(p.info.audio.sampleRate)
-                               .value() &&
+                       request->timeRange.duration()
+                       .rescaled_to(p.info.audio.sampleRate)
+                       .value() &&
                        p.readAudio->isValid() &&
                        p.readAudio->process(
                            p.audioThread.currentTime,
                            requestSampleCount
-                               ? requestSampleCount
-                               : p.options.audioBufferSize
-                                     .rescaled_to(p.info.audio.sampleRate)
-                                     .value()))
+                           ? requestSampleCount
+                           : p.options.audioBufferSize
+                           .rescaled_to(p.info.audio.sampleRate)
+                           .value()))
                     ;
 
                 // Handle request.
@@ -630,11 +637,11 @@ namespace tl
                     if (intersects)
                     {
                         size_t offset = 0;
-                        if (audioData.time < p.info.audioTime.start_time())
+                        if (audioData.time < p.info.audioTime->start_time())
                         {
                             offset =
-                                (p.info.audioTime.start_time() - audioData.time)
-                                    .value();
+                                (p.info.audioTime->start_time() -
+                                 audioData.time).value();
                         }
                         p.readAudio->bufferCopy(
                             audioData.audio->getData() +

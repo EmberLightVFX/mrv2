@@ -44,7 +44,7 @@ namespace tl
         void
         DeviceSystem::_init(const std::shared_ptr<system::Context>& context)
         {
-            ISystem::_init("tl::device::System", context);
+            ISystem::_init(context, "tl::device::System");
             TLRENDER_P();
 
             p.context = context;
@@ -112,7 +112,7 @@ namespace tl
                                             BMDTimeValue frameDuration;
                                             BMDTimeScale frameTimescale;
                                             dlDisplayMode->GetFrameRate(&frameDuration, &frameTimescale);
-                                            displayMode.frameRate = otime::RationalTime(frameDuration, frameTimescale);
+                                            displayMode.frameRate = OTIO_NS::RationalTime(frameDuration, frameTimescale);
 
                                             dlDisplayMode->Release();
 
@@ -151,7 +151,7 @@ namespace tl
                                 dlProfileAttributes->Release();
 
                                 dl->Release();
-                                
+
 
                                 deviceInfo.pixelTypes.push_back(PixelType::_8BitBGRA);
                                 deviceInfo.pixelTypes.push_back(PixelType::_8BitYUV);

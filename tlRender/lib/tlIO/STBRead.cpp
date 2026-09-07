@@ -104,7 +104,7 @@ namespace tl
 
                 io::VideoData read(
                     const std::string& fileName,
-                    const otime::RationalTime& time)
+                    const OTIO_NS::RationalTime& time)
                 {
                     io::VideoData out;
                     out.time = time;
@@ -117,7 +117,7 @@ namespace tl
                     const size_t bytes =
                         image::getBitDepth(imageInfo.pixelType) / 8;
 
-                    
+
                     stbi_set_flip_vertically_on_load(1);
 
                     int x = 0, y = 0, n = 1;
@@ -173,12 +173,7 @@ namespace tl
 #endif
                         }
 
-                        _info.tags["otioClipName"] = fileName;
-                        {
-                            std::stringstream ss;
-                            ss << time;
-                            _info.tags["otioClipTime"] = ss.str();
-                        }
+                        io::addOtioTags(_info.tags, fileName, time);
                         out.image->setTags(_info.tags);
                     }
 
@@ -239,15 +234,15 @@ namespace tl
         {
             io::Info out = File(fileName, memory, false).getInfo();
             out.videoTime =
-                otime::TimeRange::range_from_start_end_time_inclusive(
-                    otime::RationalTime(_startFrame, _defaultSpeed),
-                    otime::RationalTime(_endFrame, _defaultSpeed));
+                OTIO_NS::TimeRange::range_from_start_end_time_inclusive(
+                    OTIO_NS::RationalTime(_startFrame, _defaultSpeed),
+                    OTIO_NS::RationalTime(_endFrame, _defaultSpeed));
             return out;
         }
 
         io::VideoData Read::_readVideo(
             const std::string& fileName, const file::MemoryRead* memory,
-            const otime::RationalTime& time, const io::Options&)
+            const OTIO_NS::RationalTime& time, const io::Options&)
         {
             return File(fileName, memory, _autoNormalize).read(fileName, time);
         }

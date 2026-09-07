@@ -28,6 +28,31 @@ echo "PATH is now set now to ${PATH}"
 echo "It has:"
 mkdir -p $PWD/${BUILD_DIR}/install/bin/
 
+#
+# Create Windows certificate file
+#
+if [[ $KERNEL == *Windows* ]]; then
+    if [[ ! -e certificates/mrv2.pfx ]]; then
+	cd certificates
+	./create_windows_cert.sh
+	cd -
+    fi
+elif [[ $KERNEL == *Darwin* ]]; then
+    true
+    # echo "Global secrets"
+    # echo "--------------"
+    # echo "MACOS_CERTIFICATE_BASE64=$MACOS_CERTIFICATE_BASE64"
+    # echo "P12_PASSWORD=$P12_PASSWORD"
+    # echo "DEVELOPER_ID=$DEVELOPER_ID"
+    # echo "APPLE_ID=$APPLE_ID"
+    # echo "TEAM_ID=$TEAM_ID"
+    # echo "NOTARYTOOL_PROFILE=$NOTARYTOOL_PROFILE"
+    # echo
+    # echo "Local secrets"
+    # echo "-------------"
+    # echo "APP_PASSWORD=$APP_PASSWORD"
+fi
+
 if [[ $INSTALL_CMAKE == 1 ]]; then
     . etc/install_cmake.sh
 fi
@@ -48,10 +73,20 @@ get_git_version
 get_compilers
 
 #
+# Create the certs certificate
+#
+. etc/update_cacert.sh
+update_cacert
+
+#
 # These are some of the expensive mrv2 options
 #
 if [ -z "$MSYS2_INSTALL" ]; then
     export MSYS2_INSTALL=ON
+fi
+
+if [ -z "$USE_SYSTEM_LIBS" ]; then
+    export USE_SYSTEM_LIBS=OFF
 fi
 
 if [ -z "$BUILD_VCPKG" ]; then
@@ -157,6 +192,10 @@ fi
 
 if [ -z "$TLRENDER_GL" ]; then
     export TLRENDER_GL=ON
+fi
+
+if [ -z "$TLRENDER_GLFW" ]; then
+    export TLRENDER_GLFW=ON
 fi
 
 if [ -z "$TLRENDER_HAP" ]; then
@@ -293,7 +332,6 @@ if [ -z "$VULKAN_SDK" ]; then
 	echo "Coukd not guess VULKAN_SDK, last guess ${VULKAN_SDK}"
 	unset VULKAN_SDK
 	export TLRENDER_VK=OFF
-	export MRV2_HDR=OFF
     fi
 else
     echo "Using VULKAN_SDK from environment: ${VULKAN_SDK}"
@@ -341,14 +379,6 @@ if [ -z "$FLTK_BUILD_SHARED" ]; then
     fi
 fi
 
-export GITHUB_OWNER="${GITHUB_REPOSITORY%%/*}"
-if [ -n "$GITHUB_REPOSITORY" ]; then
-    export GITHUB_REPO="${GITHUB_REPOSITORY##*/}"
-else
-    export GITHUB_REPO=$(basename -s .git "$(git config --get remote.origin.url)")
-fi
-
-
     
 #
 # Clean python path to avoid clashes, mainly, with macOS meson
@@ -359,6 +389,16 @@ unset PYTHONPATH
 # For Windows mainly, make sure we use UTF8 encoding.
 #
 #  export PYTHONUTF8=1  USD needs it, meson fails.
+
+#
+# Verification checks...
+#
+if [[ $KERNEL == *Windows* ]]; then
+    if [[ "${GNU_C_COMPILER_NAME}" == "" ]]; then
+	echo "Cannot compile litbplacebo on $ARCH"
+	exit 1
+    fi
+fi
 
 echo
 echo
@@ -402,6 +442,8 @@ echo "GNU arhiver ${GNU_ARCHIVER_NAME} version ${GNU_ARCHIVER_VERSION}"
 echo
 
 
+export CMAKE_INSTALL_PREFIX=$PWD/$BUILD_DIR/install
+export CMAKE_PREFIX_PATH=$PWD/$BUILD_DIR/install
 
 echo "CMake at: ${CMAKE_LOCATION} ${CMAKE_VERSION}"
 echo "Git at: ${GIT_LOCATION} ${GIT_VERSION}"
@@ -421,6 +463,53 @@ if [[ $KERNEL == *Windows* ]]; then
     else
 	echo "NSIS not found"
     fi
+fi
+
+if command -v ninja > /dev/null 2>&1; then
+    which ninja
+    ninja --version
+else
+    echo
+    echo "ninja NOT found!!! Cannot compile mrv2/vmrv2."
+    echo
+    exit 1
+fi
+
+build_swig=0
+if command -v swig > /dev/null 2>&1; then
+    swig -version
+    if check_broken_swig_version; then
+	echo
+	echo "swig broken!!! Trying to compile from source."
+	echo
+	build_swig=1
+    fi
+else
+    build_swig=1
+    echo
+    echo "swig NOT found!!! Trying to compile from source."
+    echo
+fi
+
+if [[ "$build_swig" == "1" ]]; then
+    . etc/common/build_swig.sh
+    if command -v swig > /dev/null 2>&1; then
+	swig -version
+    else
+	echo
+	echo "swig NOT found!!! Cannot compile pyFLTK."
+	echo
+	exit 1
+    fi
+fi
+
+if command -v perl > /dev/null 2>&1; then
+    perl -version
+else
+    echo
+    echo "Perl NOT found!!! Cannot compile OpenSSL."
+    echo
+    exit 1
 fi
 
 
@@ -503,15 +592,6 @@ if [[ $KERNEL == *Windows* ]]; then
     . $PWD/etc/windows/compile_dlls.sh
 fi
 
-if command -v swig > /dev/null 2>&1; then
-    swig -version
-else
-    echo
-    echo "swig NOT found!!! Cannot compile pyFLTK."
-    echo
-    exit 1
-fi
-
 #
 # Work-around FLTK's CMakeLists.txt bug
 #
@@ -525,16 +605,18 @@ cd $BUILD_DIR
 unset  VCPKG_ROOT
 export VCPKG_INSTALL_PREFIX=$PWD/install
 
+
 cmd="cmake -G 'Ninja'
 	   -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
            -D CMAKE_VERBOSE_MAKEFILE=${CMAKE_VERBOSE_MAKEFILE}
-	   -D CMAKE_INSTALL_PREFIX=$PWD/install
-	   -D CMAKE_PREFIX_PATH=$PWD/install
+	   -D CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
+	   -D CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
            -D CMAKE_OSX_ARCHITECTURES=\"${CMAKE_OSX_ARCHITECTURES}\"
            -D CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
 
 	   -D BUILD_VCPKG=${BUILD_VCPKG}
 	   -D BUILD_PYTHON=${BUILD_PYTHON}
+	   -D USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS}
 	   -D BUILD_X11=${BUILD_X11}
 	   -D BUILD_WAYLAND=${BUILD_WAYLAND}
 	   -D BUILD_GETTEXT=${BUILD_GETTEXT}
@@ -558,6 +640,7 @@ cmd="cmake -G 'Ninja'
            -D TLRENDER_FFMPEG=${TLRENDER_FFMPEG}
            -D TLRENDER_FFMPEG_MINIMAL=${TLRENDER_FFMPEG_MINIMAL}
 	   -D TLRENDER_GL=${TLRENDER_GL}
+	   -D TLRENDER_GLFW=${TLRENDER_GLFW}
            -D TLRENDER_HAP=${TLRENDER_HAP}
            -D TLRENDER_JPEG=${TLRENDER_JPEG}
 	   -D TLRENDER_LIBDOVI=${TLRENDER_LIBDOVI}

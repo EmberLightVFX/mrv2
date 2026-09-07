@@ -54,27 +54,26 @@ namespace
 namespace mrv
 {
     void waitForFrame(
-        const mrv::TimelinePlayer* player, const otime::RationalTime& startTime)
+        const mrv::TimelinePlayer* player, const OTIO_NS::RationalTime& startTime)
     {
         using namespace tl;
 
         bool found = false;
-            
-        auto cacheInfoObserver =
-            observer::ValueObserver<timeline::PlayerCacheInfo>::create(
-                player->player()->observeCacheInfo(),
-                [&player, &startTime, &found](const timeline::PlayerCacheInfo& value)
-                {
-                    for (const auto& t : value.videoFrames)
+
+        auto videoDataObserver =
+            observer::ListObserver<timeline::VideoFrame>::create(
+                player->player()->observeCurrentVideo(),
+                [&found, &player, &startTime]
+                (const std::vector<timeline::VideoFrame>& videoFrames)
                     {
-                        if (startTime >= t.start_time() &&
-                            startTime <= t.end_time_exclusive())
+                        if (videoFrames.empty()) return;
+                        for (auto videoFrame : videoFrames)
                         {
-                            found = true;
-                            break;
+                            if (videoFrame.time == startTime)
+                                found = true;
                         }
-                    }
-                });
+                    },
+                observer::CallbackAction::Trigger);
 
         while (!found)
         {
@@ -127,11 +126,11 @@ namespace mrv
         const std::string& directory = path.getDirectory();
         const std::string& baseName = path.getBaseName();
         const std::string& suffix = path.getSuffix();
-        
+
         std::string number = path.getNumber();
         if (!number.empty()) number = std::to_string(startTime.to_frames());
 
-        const std::string& extension = path.getExtension();
+        const std::string extension = string::toLower(path.getExtension());
 
         std::string newFile = directory + baseName + number + suffix + extension;
 
@@ -144,14 +143,15 @@ namespace mrv
             ioOptions["FFmpeg/WriteProfile"] = getLabel(options.ffmpegProfile);
             ioOptions["FFmpeg/AudioCodec"] = getLabel(options.ffmpegAudioCodec);
             ioOptions["FFmpeg/ThreadCount"] =
-                string::Format("{0}").arg(ffmpeg::threadCount);
+                string::Format("{0}").arg(ffmpeg::Options().threadCount);
 
-            // If we are not saving a movie, take speed from the player's
+            // If we are saving a movie, take speed from the player's
             // current speed.
             {
                 const auto& model = ui->app->filesModel();
                 const auto& Aitem = model->observeA()->get();
-                const auto& extension = Aitem->path.getExtension();
+                const auto& extension =
+                    string::toLower(Aitem->path.getExtension());
                 if (!file::isMovie(extension))
                 {
                     ioOptions["FFmpeg/Speed"] =
@@ -245,16 +245,19 @@ namespace mrv
             // Render information.
             const auto& info = player->ioInfo();
 
-            auto videoTime = info.videoTime;
+
+            OTIO_NS::TimeRange videoTime = time::invalidTimeRange;
+            if (info.videoTime.has_value())
+                videoTime = info.videoTime.value();
 
             const bool hasVideo = (!info.video.empty()) && options.saveVideo;
 
             if (player->timeRange() != timeRange ||
-                info.videoTime.start_time() != timeRange.start_time() ||
-                info.videoTime.duration() != timeRange.duration())
+                videoTime.start_time() != timeRange.start_time() ||
+                videoTime.duration() != timeRange.duration())
             {
-                double videoRate = info.videoTime.duration().rate();
-                videoTime = otime::TimeRange(
+                double videoRate = videoTime.duration().rate();
+                videoTime = OTIO_NS::TimeRange(
                     timeRange.start_time().rescaled_to(videoRate),
                     timeRange.duration().rescaled_to(videoRate));
             }
@@ -264,25 +267,25 @@ namespace mrv
             bool hasAudio = info.audio.isValid();
             if (hasAudio)
             {
-                audioTime = info.audioTime;
+                audioTime = info.audioTime.value();
                 if (player->timeRange() != timeRange ||
                     audioTime.start_time() !=
-                        timeRange.start_time().rescaled_to(sampleRate))
+                    timeRange.start_time().rescaled_to(sampleRate) ||
+                    audioTime.duration() !=
+                    timeRange.duration().rescaled_to(sampleRate))
                 {
-                    audioTime = otime::TimeRange(
+                    audioTime = OTIO_NS::TimeRange(
                         timeRange.start_time().rescaled_to(sampleRate),
                         timeRange.duration().rescaled_to(sampleRate));
                 }
             }
-
 #ifdef TLRENDER_FFMPEG
             const std::string& profile = getLabel(options.ffmpegProfile);
 
             std::string newExtension = extension;
             if (profile.substr(0, 6) == "ProRes")
             {
-                if (!string::compare(
-                        extension, ".mov", string::Compare::CaseInsensitive))
+                if (!(extension == ".mov"))
                 {
                     LOG_WARNING(_("ProRes profiles need a .mov movie "
                                   "extension.  Changing it to .mov."));
@@ -291,12 +294,8 @@ namespace mrv
             }
             else if (profile == "VP9")
             {
-                if (!string::compare(
-                        extension, ".mp4", string::Compare::CaseInsensitive) &&
-                    !string::compare(
-                        extension, ".webm", string::Compare::CaseInsensitive) &&
-                    !string::compare(
-                        extension, ".mkv", string::Compare::CaseInsensitive))
+                if (extension != ".mp4" && extension != ".webm" &&
+                    extension != ".mkv")
                 {
                     LOG_WARNING(
                         _("VP9 profile needs a .mp4, .mkv or .webm movie "
@@ -306,10 +305,7 @@ namespace mrv
             }
             else if (profile == "AV1")
             {
-                if (!string::compare(
-                        extension, ".mp4", string::Compare::CaseInsensitive) &&
-                    !string::compare(
-                        extension, ".mkv", string::Compare::CaseInsensitive))
+                if (extension != ".mp4" && extension != ".mkv")
                 {
                     LOG_WARNING(_("AV1 profile needs a .mp4 or .mkv movie "
                                   "extension.  Changing it to .mp4"));
@@ -318,8 +314,7 @@ namespace mrv
             }
             else if (profile == "Cineform")
             {
-                if (!string::compare(
-                        extension, ".mkv", string::Compare::CaseInsensitive))
+                if (extension != ".mkv")
                 {
                     LOG_WARNING(_("GoPro Cineform profile needs a .mkv movie "
                                   "extension.  Changing it to .mkv"));
@@ -328,8 +323,7 @@ namespace mrv
             }
             else if (profile == "HAP")
             {
-                if (!string::compare(
-                        extension, ".mov", string::Compare::CaseInsensitive))
+                if (extension != ".mov")
                 {
                     LOG_WARNING(
                         _("HAP profile needs a .mov extension.  Changing "
@@ -354,16 +348,10 @@ namespace mrv
             path = file::Path(newFile);
 #endif
 
-            bool saveEXR = string::compare(
-                extension, ".exr", string::Compare::CaseInsensitive);
-            bool saveHDR = string::compare(
-                extension, ".hdr", string::Compare::CaseInsensitive);
-            bool saveJPEG = (string::compare(
-                                 extension, ".jpg",
-                                 string::Compare::CaseInsensitive) ||
-                             string::compare(
-                                 extension, ".jpeg",
-                                 string::Compare::CaseInsensitive));
+            bool saveEXR = (extension == ".exr" ||
+                            extension == ".sxr");
+            bool saveHDR = (extension == ".hdr");
+            bool saveJPEG = (extension == ".jpg" || extension == ".jpeg");
 
             if (time::compareExact(videoTime, time::invalidTimeRange))
                 videoTime = audioTime;
@@ -380,11 +368,21 @@ namespace mrv
                     string::Format("{0}: Saving over same file being played!")
                         .arg(file));
             }
-            
-            vlk::OffscreenBufferOptions offscreenBufferOptions;
-            std::shared_ptr<timeline_vlk::Render> render;
 
+            vlk::OffscreenBufferOptions offscreenBufferOptions;
             image::Size renderSize;
+
+            player->start();
+            waitForFrame(player, startTime);
+
+            bool interactive = view->visible_r();
+            if (interactive)
+            {
+                view->redraw();
+                Fl::flush();
+                view->flush();
+            }
+
             int layerId = ui->uiColorChannel->value();
             if (layerId < 0)
                 layerId = 0;
@@ -396,9 +394,9 @@ namespace mrv
                 renderSize.w = compareSize.w;
                 renderSize.h = compareSize.h;
 
-                
+
                 // \@todo: rotated images not yet supported.
-                
+
                 // auto rotation = view->getRotation();
                 // if (options.annotations && rotationSign(rotation) != 0)
                 // {
@@ -411,11 +409,6 @@ namespace mrv
                 //     LOG_STATUS(msg);
                 // }
             }
-
-            bool interactive = view->visible_r();
-            
-            auto ctx = ui->uiView->getContext();
-            render = timeline_vlk::Render::create(ctx, context);
 
             offscreenBufferOptions.colorType = image::PixelType::RGBA_F32;
             offscreenBufferOptions.pbo = true;
@@ -430,8 +423,6 @@ namespace mrv
                         .arg(file));
             }
 
-            auto tags = ui->uiView->getTags();
-            
             io::Info ioInfo;
             image::Info outputInfo, scaleInfo, bufferInfo;
 
@@ -458,7 +449,7 @@ namespace mrv
                           .arg(scaleInfo.pixelType);
                     LOG_STATUS(msg);
                 }
-            
+
                 else if (resolution == SaveResolution::kHalfSize)
                 {
                     renderSize.w /= 2;
@@ -478,7 +469,7 @@ namespace mrv
 
                 outputInfo.size = renderSize;
                 outputInfo = writerPlugin->getWriteInfo(outputInfo);
-                
+
                 if (image::PixelType::kNone == outputInfo.pixelType)
                 {
                     outputInfo.pixelType = image::PixelType::RGBA_U8;
@@ -511,7 +502,7 @@ namespace mrv
                     offscreenBufferOptions.colorType =
                         image::PixelType::RGB_F32;
                 }
-                
+
                 if (saveJPEG)
                 {
                     outputInfo.pixelType = image::PixelType::RGB_U8;
@@ -524,7 +515,7 @@ namespace mrv
                 // Create output image
                 //
                 outputImage = image::Image::create(outputInfo);
-            
+
                 ioInfo.videoTime = videoTime;
                 ioInfo.video.push_back(outputInfo);
 
@@ -563,20 +554,44 @@ namespace mrv
                     string::Format("{0}: Cannot open").arg(file));
             }
 
+            const auto videoFrame = view->getVideoFrame();
+            if (!videoFrame.empty() &&
+                !videoFrame[0].layers.empty() &&
+                videoFrame[0].layers[0].image)
+            {
+                auto hdrData = videoFrame[0].layers[0].image->getHDR();
+                if (hdrData)
+                {
+                    writer->setHDR(*hdrData);
+                }
+                writer->writeHeader();
+            }
 
             //
             // Create image buffer (main FBO).
-            // 
+            //
             math::Size2i offscreenBufferSize(renderSize.w, renderSize.h);
             std::shared_ptr<vlk::OffscreenBuffer> buffer;
             if (hasVideo)
             {
+                if (!interactive)
+                {
+                    Fl::check();
+                    view->render_offscreen();
+                }
+
                 buffer = view->getVideoFBO();
+                if (!buffer)
+                {
+                    LOG_ERROR("Error: No video FBO for buffer options");
+                    return;
+                }
+
                 offscreenBufferOptions = buffer->getOptions();
-                    
+
                 if (options.annotations)
                 {
-                    
+
                     if (!annotationImage)
                     {
                         image::Info annotationInfo = outputInfo;
@@ -587,13 +602,13 @@ namespace mrv
 
                 const size_t width = buffer->getWidth();
                 const size_t height = buffer->getHeight();
-                
+
                 bufferInfo = outputInfo;
                 bufferInfo.pixelType = offscreenBufferOptions.colorType;
                 bufferInfo.size.w = width;
                 bufferInfo.size.h = height;
                 bufferImage = image::Image::create(bufferInfo);
-                        
+
                 msg = tl::string::Format(_("Offscreen Buffer info: {0}"))
                       .arg(offscreenBufferOptions.colorType);
                 LOG_STATUS(msg);
@@ -605,9 +620,12 @@ namespace mrv
                   .arg(outputInfo.pixelType);
             LOG_STATUS(msg);
 
-                
+
             // Turn off hud so it does not get captured by readPixels.
             view->setHudActive(false);
+
+            // Turn off tonemapping so libplacebo does not get used.
+            view->setToneMapping(false);
 
             // Prepare annotations without HUD, cursors, and overlay with
             // a centered and frame image for easier checking.
@@ -633,12 +651,6 @@ namespace mrv
             size_t currentSampleCount =
                 startTime.rescaled_to(sampleRate).value();
 
-
-            player->start();
-            
-            waitForFrame(player, startTime);
-
-            int32_t frameIndex = 0;
 
             //
             // Create and show Progress window
@@ -687,6 +699,11 @@ namespace mrv
                 return;
             }
 
+            if (!interactive)
+            {
+                LOG_STATUS(title);
+            }
+
             ProgressReport progress(ui->uiMain, startFrame, endFrame, title);
             if (interactive)
                 progress.show();
@@ -711,7 +728,10 @@ namespace mrv
                 }
                 else
                 {
-                    msg = string::Format(_("Saving... {0}")).arg(currentTime);
+                    auto playerTime = player->currentTime();
+                    msg = string::Format(_("Saving... {0}"))
+                          .arg(currentTime)
+                          .arg(playerTime);
                     LOG_STATUS(msg);
                 }
 
@@ -723,16 +743,16 @@ namespace mrv
                     if (!audioData.layers.empty())
                     {
                         bool skip = false;
-                        otime::TimeRange range;
+                        OTIO_NS::TimeRange range;
 
                         if (hasVideo)
-                            range = otime::TimeRange(
+                            range = OTIO_NS::TimeRange(
                                 currentTime,
-                                otime::RationalTime(1.0, currentTime.rate()));
+                                OTIO_NS::RationalTime(1.0, currentTime.rate()));
                         else
-                            range = otime::TimeRange(
-                                otime::RationalTime(seconds, 1.0),
-                                otime::RationalTime(1.0, 1.0));
+                            range = OTIO_NS::TimeRange(
+                                OTIO_NS::RationalTime(seconds, 1.0),
+                                OTIO_NS::RationalTime(1.0, 1.0));
                         auto audio = audioData.layers[0].audio;
                         if (!audio)
                         {
@@ -797,7 +817,7 @@ namespace mrv
                 }
 
                 if (hasVideo)
-                { 
+                {
                     if (options.annotations)
                     {
                         view->setSaveOverlay(true);
@@ -806,30 +826,42 @@ namespace mrv
                     {
                         view->setSaveOverlay(false);
                     }
-                        
-                    view->redraw();
-                    view->flush(); // needed
-                    Fl::flush();
-                        
-                    auto buffer = view->getVideoFBO();
+
+                    if (interactive)
+                    {
+                        view->redraw();
+                        view->flush(); // needed
+                    }
+                    else
+                    {
+                        Fl::check();
+                        view->render_offscreen();
+                    }
+
+                    buffer = view->getVideoFBO();
+                    if (!buffer)
+                    {
+                        LOG_ERROR("Error - No video FBO after draw");
+                        return;
+                    }
                     auto bufferOptions = buffer->getOptions();
-                    
+
                     VkDevice device = view->device();
                     VkCommandPool commandPool = view->commandPool();
 
                     // Read Main Image Viewport
                     VkCommandBuffer cmd = beginSingleTimeCommands(device,
                                                                   commandPool);
-            
+
                     const size_t width = buffer->getWidth();
                     const size_t height = buffer->getHeight();
-                    
+
                     buffer->readPixels(cmd, 0, 0, width, height);
-                    
+
                     vkEndCommandBuffer(cmd);
-                    
+
                     buffer->submitReadback(cmd);
-                    
+
                     view->wait_queue();
 
                     VkResult result = VK_NOT_READY;
@@ -838,9 +870,9 @@ namespace mrv
                     {
                         result = buffer->getLatestReadPixels(imageData);
                     }
-                    
+
                     if (imageData)
-                    {                            
+                    {
                         std::memcpy(bufferImage->getData(), imageData,
                                     bufferImage->getDataByteCount());
                     }
@@ -852,27 +884,28 @@ namespace mrv
                     vkFreeCommandBuffers(device, commandPool, 1, &cmd);
 
                     flipImageInY(bufferImage);
-                        
-                        
+
+
                     //
                     // Read Annotation Image
                     //
                     if (options.annotations)
-                    {    
+                    {
                         auto overlayBuffer = view->getAnnotationFBO();
                         if (overlayBuffer)
                         {
-                            VkCommandBuffer cmd = beginSingleTimeCommands(device,
-                                                                          commandPool);
+                            VkCommandBuffer cmd =
+                                beginSingleTimeCommands(device,
+                                                        commandPool);
 
                             overlayBuffer->readPixels(cmd, 0, 0, width, height);
-            
+
                             vkEndCommandBuffer(cmd);
-            
+
                             overlayBuffer->submitReadback(cmd);
 
                             view->wait_queue();
-            
+
                             VkResult result = VK_NOT_READY;
                             void* imageData = nullptr;
                             while (result == VK_NOT_READY)
@@ -893,18 +926,18 @@ namespace mrv
                             // Composite annotation image over buffer image.
                             //
                             composite_RGBA_U8(bufferImage, annotationImage);
-                        
+
                             vkFreeCommandBuffers(device, commandPool, 1, &cmd);
                         }
                         else
                         {
                             annotationImage->zero();
                         }
-                        
+
                         view->setSaveOverlay(false);
                     }
-                
-                
+
+
                     if (bufferImage != scaleImage)
                     {
                         if (!scaleImage)
@@ -914,7 +947,7 @@ namespace mrv
 
                         convertImage(scaleImage, bufferImage);
                     }
-                    
+
                     //
                     // Scale down result.
                     //
@@ -942,19 +975,37 @@ namespace mrv
                     {
                         outputImage = bufferImage;
                     }
-            
+
                     if (videoTime.contains(currentTime))
                     {
-                        const auto& tags = ui->uiView->getTags();
+
+                        const auto videoFrame = view->getVideoFrame();
+                        if (!videoFrame.empty() &&
+                            !videoFrame[0].layers.empty() &&
+                            videoFrame[0].layers[0].image)
+                        {
+                            auto hdrData = videoFrame[0].layers[0].image->getHDR();
+                            if (hdrData)
+                            {
+                                outputImage->setHDR(*hdrData);
+                            }
+                        }
+
+                        const auto& tags = view->getTags();
                         outputImage->setTags(tags);
+
                         writer->writeVideo(currentTime, outputImage);
+                    }
+                    else
+                    {
+                        LOG_ERROR("videoTime does not contain " << currentTime);
                     }
                 }
 
                 if (hasVideo)
-                    currentTime += otime::RationalTime(1, currentTime.rate());
+                    currentTime += OTIO_NS::RationalTime(1, currentTime.rate());
                 else
-                    currentTime += otime::RationalTime(
+                    currentTime += OTIO_NS::RationalTime(
                         currentTime.rate(), currentTime.rate());
 
                 if (currentTime > endTime)
@@ -971,12 +1022,10 @@ namespace mrv
                         player->frameNext();
                     else
                         player->seek(currentTime);
-                    
+
                     // We wait for the frame to arrive in cache.
                     waitForFrame(player, currentTime);
                 }
-
-                frameIndex = (frameIndex + 1) % vlk::MAX_FRAMES_IN_FLIGHT;
             }
         }
         catch (const std::exception& e)
@@ -988,7 +1037,8 @@ namespace mrv
         view->setHudActive(hud);
         view->setShowVideo(true);
         view->setSaveOverlay(false);
-                        
+        view->setToneMapping(true);
+
         player->seek(currentTime);
         player->setMute(mute);
         ui->uiTimeline->valid(0); // needed
@@ -1003,7 +1053,7 @@ namespace mrv
         }
 
         App::unsaved_annotations = false;
-        
+
         cache->setMax(oldCacheSize);
     }
 

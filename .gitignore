@@ -42,11 +42,15 @@ docs/Doxygen
 mrv2/bin/environment.sh
 mrv2/share/locale
 mrv2/po/messages.pot
+src/docs/en
+src/docs/es
 docs/sphinx/doctrees
 docs/sphinx/*/_images
 docs/sphinx/*/_sources
 docs/sphinx/*/conf.py
 docs/sphinx/*/document.py
+certificates/mrv2.p12
+certificates/mrv2.pfx
 packages*
 releases*
 talks*
@@ -75,3 +79,8 @@ src/etc/Linux/packaging/snap/snapcraft.yaml
 src/etc/Linux/packaging/snap/gui/mrv2.desktop
 src/etc/Linux/packaging/snap/gui/mrv2.png
 src/lib/mrvWidgets/mrViewer.new.fl.txt
+
+#
+# Certificate files
+# 
+src/certs/*

@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 1
@@ -34,7 +34,7 @@ jobs:
           echo "CCACHE_DATE=$(date +'%Y-%m')" >> $GITHUB_ENV
           ccache --max-size=500M
           
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/.ccache
           key: ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-${{ env.CCACHE_DATE }}
@@ -48,7 +48,7 @@ jobs:
           components: clippy,rustfmt
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -77,46 +77,65 @@ jobs:
           sudo add-apt-repository universe -y
           sudo apt-get update || { echo "apt-get update failed"; exit 1; }
 
+      - name: Install coreutils
+        run: |
+          sudo apt-get install coreutils
+          
       - name: Install build tools
         run: |
           sudo apt-get install autoconf automake
           
       - name: Install OpenGL dev
-        run: sudo apt-get install -y xorg-dev libglu1-mesa-dev mesa-common-dev
+        run: |
+          sudo apt-get install -y xorg-dev libglu1-mesa-dev mesa-common-dev
 
       - name: Install X11 dev
-        run: sudo apt-get install -y libx11-dev libxcursor-dev libxinerama-dev
+        run: |
+          sudo apt-get install -y libx11-dev libxcursor-dev libxinerama-dev
 
       - name: Install ALSA dev
-        run: sudo apt-get install -y libasound2-dev
+        run: |
+          sudo apt-get install -y libasound2-dev
 
       - name: Install PulseAudio dev
-        run: sudo apt-get install -y libpulse-dev
+        run: |
+          sudo apt-get install -y libpulse-dev
 
       - name: Install Pango dev
-        run: sudo apt-get install -y libpango1.0-dev
+        run: |
+          sudo apt-get install -y libpango1.0-dev
 
       - name: Install Wayland
-        run: sudo apt-get install -y libwayland-dev wayland-protocols libdbus-1-dev libxkbcommon-dev libegl-dev libgtk-3-dev libglu-dev libdrm-dev
+        run: |
+          sudo apt-get install -y libwayland-dev wayland-protocols libdbus-1-dev libxkbcommon-dev libgtk-3-dev libdrm-dev
 
       - name: Install curl and openssl
-        run: sudo apt-get install -y curl openssl rsync libunistring-dev
+        run: |
+          sudo apt-get install -y curl openssl rsync libunistring-dev
 
       - name: Install ninja-build
-        run: sudo apt-get install -y ninja-build
+        run: |
+          sudo apt-get install -y ninja-build
 
       - name: Install gettext
-        run: sudo apt-get install -y gettext
+        run: |
+          sudo apt-get install -y gettext
 
       - name: Install python dependencies
-        run: sudo apt-get install -y libssl-dev libffi-dev python3
+        run: |
+          sudo apt-get install -y libssl-dev libffi-dev python3
 
+      - name: Install pyFLTK's dependencies
+        run: |
+          sudo apt-get install -y libegl-dev swig bison libpcre2-dev
+          
       - name: Install Vulkan drivers
-        run: sudo apt install -y mesa-vulkan-drivers
-
+        run: |
+          sudo apt install -y mesa-vulkan-drivers libvulkan-dev      
+          
       - name: Cache Vulkan SDK
         id: cache-vulkan-sdk
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: VulkanSDK-*
           key: ${{ runner.os }}-${{ runner.arch }}-vulkan-sdk-${{ hashFiles('etc/vulkan_version.sh', 'etc/linux/install_vulkan.sh') }}
@@ -211,6 +230,7 @@ jobs:
 
       - name: Build vmrv2
         env:
+          INSTALL_CMAKE: ON
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON

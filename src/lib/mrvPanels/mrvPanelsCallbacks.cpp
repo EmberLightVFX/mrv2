@@ -15,7 +15,6 @@ namespace mrv
         ColorPanel* colorPanel = nullptr;
         FilesPanel* filesPanel = nullptr;
         ComparePanel* comparePanel = nullptr;
-        PlaylistPanel* playlistPanel = nullptr;
         SettingsPanel* settingsPanel = nullptr;
         EnvironmentMapPanel* environmentMapPanel = nullptr;
         LogsPanel* logsPanel = nullptr;
@@ -31,9 +30,6 @@ namespace mrv
         BackgroundPanel* backgroundPanel = nullptr;
 #ifdef MRV2_PYBIND11
         PythonPanel* pythonPanel = nullptr;
-#endif
-#ifdef MRV2_NETWORK
-        NetworkPanel* networkPanel = nullptr;
 #endif
 #ifdef MRV2_NETWORK
         WebRTCPanel* webrtcPanel = nullptr;
@@ -81,17 +77,12 @@ namespace mrv
                 if (clearCache) stereo3DPanel->clearCache();
                 stereo3DPanel->redraw();
             }
-            if (playlistPanel)
-            {
-                if (clearCache) playlistPanel->clearCache();
-                playlistPanel->redraw();
-            }
             bool send = App::ui->uiPrefs->SendTimeline->value();
             if (send)
                 tcp->pushMessage("Redraw Panel Thumbnails", clearCache);
         }
 
-        
+
         void refreshThumbnails()
         {
             using namespace panel;
@@ -101,15 +92,13 @@ namespace mrv
                 comparePanel->refresh();
             if (stereo3DPanel)
                 stereo3DPanel->refresh();
-            if (playlistPanel)
-                playlistPanel->refresh();
         }
 
         void redraw_thumbnails_cb(Fl_Widget* w, void* data)
         {
             redrawThumbnails(true, true);
         }
-        
+
         void removePanels(ViewerUI* ui)
         {
             using namespace panel;
@@ -119,8 +108,6 @@ namespace mrv
                 files_panel_cb(nullptr, ui);
             if (comparePanel && comparePanel->is_panel())
                 compare_panel_cb(nullptr, ui);
-            if (playlistPanel && playlistPanel->is_panel())
-                playlist_panel_cb(nullptr, ui);
             if (settingsPanel && settingsPanel->is_panel())
                 settings_panel_cb(nullptr, ui);
             if (logsPanel && logsPanel->is_panel())
@@ -146,10 +133,6 @@ namespace mrv
             if (backgroundPanel && backgroundPanel->is_panel())
                 background_panel_cb(nullptr, ui);
 #ifdef MRV2_NETWORK
-            if (networkPanel && networkPanel->is_panel())
-                network_panel_cb(nullptr, ui);
-#endif
-#ifdef MRV2_NETWORK
             if (webrtcPanel && webrtcPanel->is_panel())
                 webrtc_panel_cb(nullptr, ui);
 #endif
@@ -173,8 +156,6 @@ namespace mrv
                 files_panel_cb(nullptr, ui);
             if (comparePanel && !comparePanel->is_panel())
                 compare_panel_cb(nullptr, ui);
-            if (playlistPanel && !playlistPanel->is_panel())
-                playlist_panel_cb(nullptr, ui);
             if (settingsPanel && !settingsPanel->is_panel())
                 settings_panel_cb(nullptr, ui);
             if (logsPanel && !logsPanel->is_panel())
@@ -201,10 +182,6 @@ namespace mrv
                 stats_panel_cb(nullptr, ui);
             if (backgroundPanel && !backgroundPanel->is_panel())
                 background_panel_cb(nullptr, ui);
-#ifdef MRV2_NETWORK
-            if (networkPanel && !networkPanel->is_panel())
-                network_panel_cb(nullptr, ui);
-#endif
 #ifdef MRV2_NETWORK
             if (webrtcPanel && !webrtcPanel->is_panel())
                 webrtc_panel_cb(nullptr, ui);
@@ -273,26 +250,6 @@ namespace mrv
                 return;
             }
             comparePanel = new ComparePanel(ui);
-            ui->uiMain->fill_menu(ui->uiMenuBar);
-        }
-
-        void playlist_panel_cb(Fl_Widget* w, ViewerUI* ui)
-        {
-            bool send = ui->uiPrefs->SendUI->value();
-            if (send)
-            {
-                tcp->pushMessage(
-                    "Playlist Panel", static_cast<bool>(!playlistPanel));
-            }
-
-            if (playlistPanel)
-            {
-                delete playlistPanel;
-                playlistPanel = nullptr;
-                ui->uiMain->fill_menu(ui->uiMenuBar);
-                return;
-            }
-            playlistPanel = new PlaylistPanel(ui);
             ui->uiMain->fill_menu(ui->uiMenuBar);
         }
 
@@ -513,7 +470,7 @@ namespace mrv
             waveformPanel = new WaveformPanel(ui);
             ui->uiMain->fill_menu(ui->uiMenuBar);
         }
-        
+
         void environment_map_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
             bool send = ui->uiPrefs->SendUI->value();
@@ -554,27 +511,6 @@ namespace mrv
 #endif
         }
 
-        void network_panel_cb(Fl_Widget* w, ViewerUI* ui)
-        {
-#ifdef MRV2_NETWORK
-            bool send = ui->uiPrefs->SendUI->value();
-            if (send)
-            {
-                tcp->pushMessage(
-                    "Network Panel", static_cast<bool>(!networkPanel));
-            }
-            if (networkPanel)
-            {
-                delete networkPanel;
-                networkPanel = nullptr;
-                ui->uiMain->fill_menu(ui->uiMenuBar);
-                return;
-            }
-            networkPanel = new NetworkPanel(ui);
-            ui->uiMain->fill_menu(ui->uiMenuBar);
-#endif
-        }
-
         void webrtc_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
 #ifdef MRV2_NETWORK
@@ -596,7 +532,7 @@ namespace mrv
 #endif
         }
 
-        
+
         void usd_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
 #ifdef TLRENDER_USD
@@ -623,7 +559,7 @@ namespace mrv
             if (send)
             {
                 tcp->pushMessage(
-                    "Stereo 3D Panel", static_cast<bool>(!statsPanel));
+                    "Stats Panel", static_cast<bool>(!statsPanel));
             }
             if (statsPanel)
             {
@@ -635,7 +571,7 @@ namespace mrv
             statsPanel = new StatsPanel(ui);
             ui->uiMain->fill_menu(ui->uiMenuBar);
         }
-        
+
         void stereo3D_panel_cb(Fl_Widget* w, ViewerUI* ui)
         {
             bool send = ui->uiPrefs->SendUI->value();
@@ -655,58 +591,92 @@ namespace mrv
             ui->uiMain->fill_menu(ui->uiMenuBar);
         }
 
-        void syncPanels()
+        void syncPanels(const std::string& peerId)
         {
             bool send = App::ui->uiPrefs->SendUI->value();
-            if (send)
-            {
-                onlyOne(onlyOne()); // send one panel only setting first
-                tcp->pushMessage("Files Panel", static_cast<bool>(filesPanel));
-                tcp->pushMessage("Color Panel", static_cast<bool>(colorPanel));
-                tcp->pushMessage(
-                    "Compare Panel", static_cast<bool>(comparePanel));
-                tcp->pushMessage(
-                    "Color Area Panel", static_cast<bool>(colorAreaPanel));
-                tcp->pushMessage(
-                    "Playlist Panel", static_cast<bool>(playlistPanel));
-                tcp->pushMessage(
-                    "Media Info Panel", static_cast<bool>(imageInfoPanel));
-                tcp->pushMessage(
-                    "Annotations Panel", static_cast<bool>(annotationsPanel));
-                tcp->pushMessage(
-                    "Background Panel", static_cast<bool>(backgroundPanel));
+            if (!send)
+                return;
+
+            Message msg;
+
+            // Send one panel only setting first
+            msg["command"] = "One Panel Only";
+            msg["value"] = onlyOne();
+            tcp->pushToPeer(peerId, msg);
+
+            onlyOne(onlyOne());
+
+            msg["command"] = "Files Panel";
+            msg["value"] = static_cast<bool>(filesPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Color Panel";
+            msg["value"] = static_cast<bool>(colorPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Compare Panel";
+            msg["value"] = static_cast<bool>(comparePanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Color Area Panel";
+            msg["value"] = static_cast<bool>(colorAreaPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Media Info Panel";
+            msg["value"] = static_cast<bool>(imageInfoPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Annotations Panel";
+            msg["value"] = static_cast<bool>(annotationsPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Background Panel";
+            msg["value"] = static_cast<bool>(backgroundPanel);
+            tcp->pushToPeer(peerId, msg);
+
 #ifdef TLRENDER_BMD
-                tcp->pushMessage(
-                    "Devices Panel", static_cast<bool>(devicesPanel));
+            msg["command"] = "Devices Panel";
+            msg["value"] = static_cast<bool>(devicesPanel);
+            tcp->pushToPeer(peerId, msg);
 #endif
-                tcp->pushMessage(
-                    "Environment Map Panel",
-                    static_cast<bool>(environmentMapPanel));
-                tcp->pushMessage(
-                    "Stereo 3D Panel", static_cast<bool>(stereo3DPanel));
-                tcp->pushMessage(
-                    "Settings Panel", static_cast<bool>(settingsPanel));
+
+            msg["command"] = "Environment Map Panel";
+            msg["value"] = static_cast<bool>(environmentMapPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Stereo 3D Panel";
+            msg["value"] = static_cast<bool>(stereo3DPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Settings Panel";
+            msg["value"] = static_cast<bool>(settingsPanel);
+            tcp->pushToPeer(peerId, msg);
+
 #ifdef MRV2_PYBIND11
-                tcp->pushMessage(
-                    "Python Panel", static_cast<bool>(pythonPanel));
+            msg["command"] = "Python Panel";
+            msg["value"] = static_cast<bool>(pythonPanel);
+            tcp->pushToPeer(peerId, msg);
 #endif
 #ifdef MRV2_NETWORK
-                tcp->pushMessage(
-                    "Network Panel", static_cast<bool>(networkPanel));
+            msg["command"] = "WebRTC Panel";
+            msg["value"] = static_cast<bool>(webrtcPanel);
+            tcp->pushToPeer(peerId, msg);
 #endif
-#ifdef MRV2_NETWORK
-                tcp->pushMessage(
-                    "WebRTC Panel", static_cast<bool>(webrtcPanel));
-#endif
-                tcp->pushMessage(
-                    "Histogram Panel", static_cast<bool>(histogramPanel));
-                tcp->pushMessage(
-                    "Vectorscope Panel", static_cast<bool>(vectorscopePanel));
-                tcp->pushMessage(
-                    "Waveform Panel", static_cast<bool>(waveformPanel));
-                tcp->pushMessage(
-                    "Stats Panel", static_cast<bool>(statsPanel));
-            }
+            msg["command"] = "Histogram Panel";
+            msg["value"] = static_cast<bool>(histogramPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Vectorscope Panel";
+            msg["value"] = static_cast<bool>(vectorscopePanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Waveform Panel";
+            msg["value"] = static_cast<bool>(waveformPanel);
+            tcp->pushToPeer(peerId, msg);
+
+            msg["command"] = "Stats Panel";
+            msg["value"] = static_cast<bool>(statsPanel);
+            tcp->pushToPeer(peerId, msg);
         }
 
     } // namespace panel

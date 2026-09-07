@@ -49,13 +49,13 @@ namespace mrv
     {
 
         typedef std::map< FileButton*, size_t > WidgetIndices;
-        
+
         struct FilesPanel::Private
         {
             std::weak_ptr<system::Context> context;
 
             Sort sort = Sort::Loaded;
-            
+
             std::map< size_t, FileButton* > map;
             WidgetIndices indices;
 
@@ -75,7 +75,7 @@ namespace mrv
             ThumbnailPanel(ui)
         {
             add_group("Files");
-            
+
             g->bind_image(MRV2_LOAD_SVG(Files));
 
             g->callback(
@@ -136,7 +136,7 @@ namespace mrv
 
             const auto player = p.ui->uiView->getTimelinePlayer();
 
-            otio::RationalTime time = otio::RationalTime(0.0, 1.0);
+            OTIO_NS::RationalTime time = OTIO_NS::RationalTime(0.0, 1.0);
             if (player)
                 time = player->currentTime();
 
@@ -148,7 +148,7 @@ namespace mrv
                 for (size_t i = 0; i < numFiles; ++i)
                 {
                     ordered.push_back(i);
-                } 
+                }
             }
             else if (r.sort == Sort::FileName ||
                      r.sort == Sort::Directory ||
@@ -192,9 +192,10 @@ namespace mrv
                 }
             }
 
-            size = panel::calculateImageSize();
+            int thumbnailType = p.ui->uiPrefs->uiPrefsFilesPanelThumbnails->value();
+            size = panel::calculateImageSize(thumbnailType);
 
-                            
+
             for (const auto i : ordered)
             {
                 const auto& media = files->getItem(i);
@@ -254,8 +255,7 @@ namespace mrv
                 }
 
                 std::string label;
-                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
-                    kThumbnailNormal)
+                if (thumbnailType == kThumbnailNormal)
                 {
                     const std::string layer = getLayerName(media, layerId);
                     label = protocol + dir + "\n" + file + layer;
@@ -266,7 +266,14 @@ namespace mrv
                 }
                 b->copy_label(label.c_str());
 
-                _createThumbnail(b, path, time, layerId);
+                if (thumbnailType == kThumbnailNone)
+                {
+                    b->bind_image(nullptr);
+                    continue;
+                }
+
+                _createThumbnail(b, media, time, layerId,
+                                 media->mediaReferenceKey);
             }
 
             int Y = g->y() + 20 + numFiles * 64;
@@ -337,7 +344,7 @@ namespace mrv
             TLRENDER_P();
             MRV2_R();
 
-            otio::RationalTime time = otio::RationalTime(0.0, 1.0);
+            OTIO_NS::RationalTime time = OTIO_NS::RationalTime(0.0, 1.0);
 
             const auto player = p.ui->uiView->getTimelinePlayer();
             if (!player)
@@ -346,7 +353,10 @@ namespace mrv
             const auto& model = App::app->filesModel();
             auto Aindex = model->observeAIndex()->get();
             const auto files = model->observeFiles();
-            
+
+            int thumbnailType = p.ui->uiPrefs->uiPrefsFilesPanelThumbnails->value();
+            image::Size size = panel::calculateImageSize(thumbnailType);
+
             for (auto& m : r.map)
             {
                 size_t i = m.first;
@@ -357,11 +367,11 @@ namespace mrv
                 const std::string dir = path.getDirectory();
                 const bool listdir = false;
                 const std::string file = path.getFileName(listdir);
-                
+
                 FileButton* b = m.second;
                 uint16_t layerId;
 
-                b->labelcolor(FL_WHITE);
+                b->labelcolor(FL_FOREGROUND_COLOR);
                 WidgetIndices::iterator it = r.indices.find(b);
                 time = media->currentTime;
                 if (Aindex != i)
@@ -377,8 +387,7 @@ namespace mrv
                 }
 
                 std::string label;
-                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
-                    kThumbnailNormal)
+                if (thumbnailType == kThumbnailNormal)
                 {
                     const std::string layer = getLayerName(media, layerId);
                     label = protocol + dir + "\n" + file + layer;
@@ -388,23 +397,30 @@ namespace mrv
                     label = file;
                 }
                 b->copy_label(label.c_str());
-                
-                _createThumbnail(b, path, time, layerId);
+
+                if (thumbnailType == kThumbnailNone)
+                {
+                    b->bind_image(nullptr);
+                    continue;
+                }
+
+                _createThumbnail(b, media, time, layerId,
+                                 media->mediaReferenceKey);
             }
         }
 
         void FilesPanel::setSort(Sort value)
         {
             MRV2_R();
-            
+
             if (r.sort == value)
                 return;
 
             r.sort = value;
-            
+
             refresh();
         }
-        
+
         void FilesPanel::setFilesPanelOptions(const FilesPanelOptions& value)
         {
             refresh();

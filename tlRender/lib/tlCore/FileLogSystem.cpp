@@ -46,7 +46,7 @@ namespace tl
             const std::string& fileName,
             const std::shared_ptr<system::Context>& context)
         {
-            ICoreSystem::_init("tl::file:::FileLogSystem", context);
+            ICoreSystem::_init(context, "tl::file:::FileLogSystem");
             TLRENDER_P();
 
             p.fileName = fileName;
@@ -81,7 +81,7 @@ namespace tl
                         {
                             auto io = file::FileIO::create(
                                 p.fileName, file::Mode::Append);
-                            io->seek(io->getSize());
+                            io->seek(io->getSize(), SeekMode::Set);
                             const size_t options =
                                 static_cast<size_t>(log::StringConvert::Time) |
                                 static_cast<size_t>(log::StringConvert::Prefix);
@@ -102,7 +102,7 @@ namespace tl
                     {
                         auto io = file::FileIO::create(
                             p.fileName, file::Mode::Append);
-                        io->seek(io->getSize());
+                        io->seek(io->getSize(), file::SeekMode::Set);
                         const size_t options =
                             static_cast<size_t>(log::StringConvert::Time) |
                             static_cast<size_t>(log::StringConvert::Prefix);

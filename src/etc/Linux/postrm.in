@@ -2,7 +2,18 @@
 # Debian package post-removal script for mrv2/vmrv2
 # Handles proper uninstall with symlink fallback to closest version
 
-set -e
+#
+# We set +e to avoid exiting in case of errors.
+# 
+set +e
+
+# dpkg -i handling of overwriting (upgrade)
+# Check why the script is being called.
+# We only want to delete things if the package is actually being removed or purged.
+if [ "$1" = "upgrade" ]; then
+    # Do nothing during an upgrade, let dpkg handle file replacement
+    exit 0
+fi
 
 # Constants
 ICON_SIZES='16 32 48 64 128 256'
@@ -93,10 +104,16 @@ full_dir=$(xdg-user-dir DESKTOP 2>/dev/null || echo "${HOME}/Desktop")
 desktop_dir=${full_dir#/root/}
 
 # If fulldir had /root/ in it, then rearrange to copy to /home/user directory
-if [[ $full_dir != $desktop_dir ]]; then
+if [[ $full_dir != "$desktop_dir" ]]; then
     # Get name and Desktop directory of actual user.
     name=`logname`
-    desktop_dir=/home/${name}/${desktop_dir}
+    if [[ -z "$name" ]]; then
+	name=$LOGNAME
+    fi
+    if [[ -z "$name" ]]; then
+	name=$(id -un)
+    fi
+    desktop_dir="/home/${name}/${desktop_dir}"
 fi
 
 if [[ -d "$desktop_dir" ]]; then

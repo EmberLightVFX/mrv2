@@ -42,13 +42,14 @@
 #include <FL/Fl_Sys_Menu_Bar.H> // for macOS menus
 
 #include <algorithm>
+#include <system_error>
 #include <filesystem>
 namespace fs = std::filesystem;
 
 namespace
 {
     const char* kModule = "pref";
-    const int kPreferencesVersion = 9;
+    const int kPreferencesVersion = 10;
 } // namespace
 
 extern float kCrops[];
@@ -66,8 +67,6 @@ namespace mrv
     bool Preferences::native_file_chooser;
 
     std::string Preferences::root;
-    int Preferences::debug = 0;
-    int Preferences::logLevel = 0;
     std::string Preferences::hotkeys_file = "mrv2.keys";
 
     int Preferences::language_index = 0; // English
@@ -100,7 +99,7 @@ namespace mrv
         std::string userprefspath = studiopath();
         if (!file::isReadable(userprefspath + "/mrv2.prefs"))
             userprefspath = prefspath();
-        
+
         /* xgettext:c++-format */
         std::string msg =
             tl::string::Format(_("Reading preferences from \"{0}{1}\"."))
@@ -251,6 +250,9 @@ namespace mrv
         gui.get("single_instance", tmp, 0);
         uiPrefs->uiPrefsSingleInstance->value((bool)tmp);
 
+        gui.get("tooltips", tmp, 1);
+        uiPrefs->uiPrefsTooltips->value((bool)tmp);
+
         gui.get("menubar", tmp, 1);
         uiPrefs->uiPrefsMenuBar->value((bool)tmp);
 
@@ -287,13 +289,26 @@ namespace mrv
         gui.get("timeline_thumbnails", tmp, 0);
         uiPrefs->uiPrefsTimelineThumbnails->value(tmp);
 
+        gui.get("panel_thumbnails", tmp, 1);
+
 #ifdef __APPLE__
-        // On macOS, since users usually a laptop, default to Small thumbnail size.
-        gui.get("panel_thumbnails_size", tmp, 1);
+        int default_panel_thumbnails = 1; // Small as macOS users use laptops
 #else
-        gui.get("panel_thumbnails_size", tmp, 2);
+        int default_panel_thumbnails = 2; // Normal thumbnail size
 #endif
-        uiPrefs->uiPrefsPanelThumbnails->value(tmp);
+        // If old panel thumbnails preferences was off, set size to None
+        if (tmp == 0)
+            default_panel_thumbnails = 0;
+        gui.get("panel_thumbnails_size", tmp, default_panel_thumbnails);
+
+        gui.get("files_panel_thumbnails_size", tmp, default_panel_thumbnails);
+        uiPrefs->uiPrefsFilesPanelThumbnails->value(tmp);
+
+        gui.get("compare_panel_thumbnails_size", tmp, default_panel_thumbnails);
+        uiPrefs->uiPrefsComparePanelThumbnails->value(tmp);
+
+        gui.get("stereo3D_panel_thumbnails_size", tmp, default_panel_thumbnails);
+        uiPrefs->uiPrefsStereo3DPanelThumbnails->value(tmp);
 
         gui.get("panel_thumbnails_manually", tmp, 0);
         uiPrefs->uiPrefsManualPanelThumbnails->value(tmp);
@@ -390,9 +405,9 @@ namespace mrv
             LOG_WARNING(_("Debanding is not set to None.  This can make images show blurred"));
         }
 #endif
-        
+
         uiPrefs->uiPrefsDebanding->value(tmp);
-        
+
         view.get("video_levels", tmp, 0);
         uiPrefs->uiPrefsVideoLevels->value(tmp);
 
@@ -415,41 +430,41 @@ namespace mrv
         // HDR
         //
         Fl_Preferences hdr(gui, "hdr");
-        
+
         hdr.get("vulkan_use_rgb", tmp, 0);
         uiPrefs->uiPrefsVulkanUseRGB->value(tmp);
 
         hdr.get("chromaticities", tmp, 0);
         uiPrefs->uiPrefsChromaticities->value(tmp);
-        
+
 
         //
         // HDR Peak Detection
         //
         hdr.get("peak_detection", tmp, 0);
         uiPrefs->uiPrefsHDRPeakDetection->value(tmp);
-        
+
         hdr.get("peak_detection_percentile", tmpF, 100.F);
         uiPrefs->uiPrefsHDRPeakPercentile->value(tmpF);
-        
+
         hdr.get("peak_detection_smoothing_period", tmpF, 20.F);
         uiPrefs->uiPrefsHDRPeakSmoothingPeriod->value(tmpF);
-        
+
         hdr.get("peak_detection_low_limit", tmpF, 1.F);
         uiPrefs->uiPrefsHDRPeakLowLimit->value(tmpF);
-        
+
         hdr.get("peak_detection_high_limit", tmpF, 3.F);
         uiPrefs->uiPrefsHDRPeakHighLimit->value(tmpF);
-        
+
         hdr.get("hdr_data", tmp, 0);
         uiPrefs->uiPrefsHDRInfo->value(tmp);
-        
+
         hdr.get("tonemap_algorithm", tmp, 5);  // spline is default as libplacebo and mpv
         uiPrefs->uiPrefsTonemapAlgorithm->value(tmp);
-        
+
         hdr.get("gamut_mapping", tmp, 0);  // Auto is default
         uiPrefs->uiPrefsGamutMapping->value(tmp);
-        
+
         DBG3;
         //
         // ui/colors
@@ -468,13 +483,12 @@ namespace mrv
         colors.get("scheme", tmpS, "gtk+", 4096);
 
         Fl::scheme(tmpS);
-        
+
         bool loaded = false;
 
         std::string colorname = prefspath() + "mrv2.colors";
         if (!(loaded = schemes.read_themes(colorname.c_str())))
         {
-
             colorname = root + "/colors/mrv2.colors";
             if (!(loaded = schemes.read_themes(colorname.c_str())))
             {
@@ -615,7 +629,7 @@ namespace mrv
         const char* var = fl_getenv("OCIO");
         {
             const char* kModule = "ocio";
-            
+
             if (!var || strlen(var) == 0)
             {
                 ocio.get("config", tmpS, "", 4096);
@@ -647,7 +661,7 @@ namespace mrv
 
         ocio.get("use_active_views", tmp, 1);
         uiPrefs->uiOCIOUseActiveViews->value(tmp);
-        
+
         ocio.get("not_on_videos", tmp, 1);
         uiPrefs->uiOCIONotOnVideos->value(tmp);
 
@@ -707,7 +721,7 @@ namespace mrv
 
         hud.get("font_size", tmp, 12);
         uiPrefs->uiPrefsHudFontSize->value(tmp);
-        
+
         Fl_Preferences win(view, "window");
 
         win.get("always_save_on_exit", tmp, 0);
@@ -733,7 +747,7 @@ namespace mrv
 
         win.get("x_size", tmp, 640);
         uiPrefs->uiWindowXSize->value(tmp);
-        
+
         win.get("y_size", tmp, 530);
         uiPrefs->uiWindowYSize->value(tmp);
 
@@ -784,13 +798,15 @@ namespace mrv
         playback.get("scrubbing_loop_mode", tmp, 0);
         uiPrefs->uiPrefsScrubbingLoopMode->value(tmp);
 
-            
+
         Fl_Preferences pixel_toolbar(base, "pixel_toolbar");
 
         pixel_toolbar.get("RGBA_pixel", tmp, 0);
         uiPrefs->uiPrefsPixelRGBA->value(tmp);
 
         pixel_toolbar.get("pixel_values", tmp, 0);
+        if (version < kPreferencesVersion)
+            tmp += 2;
         uiPrefs->uiPrefsPixelValues->value(tmp);
 
         pixel_toolbar.get("HSV_pixel", tmp, 0);
@@ -831,12 +847,20 @@ namespace mrv
             mappingpath.c_str(), "filmaura", "mrv2.paths",
             (Fl_Preferences::Root)0);
         num = path_mapping.entries();
+
+        std::map<std::string, std::string> mapped;
+        uiPrefs->PathMappings->clear();
         for (int i = 0; i < num; ++i)
         {
             snprintf(key, 2048, "Path #%d", i + 1);
             path_mapping.get(key, tmpS, "", 4096);
             if (strlen(tmpS) == 0)
                 continue;
+            const std::string line = tmpS;
+            auto splitArray = string::split(line, '\t');
+            if (mapped.find(splitArray[0]) != mapped.end())
+                continue;
+            mapped[splitArray[0]] = splitArray[1];
             uiPrefs->PathMappings->add(tmpS);
         }
         /* xgettext:c++-format */
@@ -915,26 +939,26 @@ namespace mrv
         video.get("blit_viewports", tmp, 0);
         uiPrefs->uiPrefsBlitMainViewport->value(tmp);
         uiPrefs->uiPrefsBlitSecondaryViewport->value(tmp);
-        
+
         video.get("blit_main_viewport", tmp, 0);
         uiPrefs->uiPrefsBlitMainViewport->value(tmp);
-        
+
         video.get("blit_secondary_viewport", tmp, 0);
         uiPrefs->uiPrefsBlitSecondaryViewport->value(tmp);
 
         video.get("blit_timeline", tmp, 0);
         uiPrefs->uiPrefsBlitTimeline->value(tmp);
 
-        // 
+        //
         // Vulkan
-        // 
+        //
         Fl_Preferences vulkan(base, "vulkan");
         vulkan.get("gpu_main_viewport", tmp, 0);
         uiPrefs->uiPrefsMainViewportGPU->value(tmp);
-        
+
         vulkan.get("gpu_secondary_viewport", tmp, 0);
         uiPrefs->uiPrefsSecondaryViewportGPU->value(tmp);
-    
+
         vulkan.get("gpu_timeline", tmp, 0);
         uiPrefs->uiPrefsTimelineGPU->value(tmp);
 
@@ -953,19 +977,19 @@ namespace mrv
         // Voice Overs
         //
         Fl_Preferences voice(base, "voice");
-        
+
         voice.get("path", tmpS, tmppath().c_str(), 4096);
         uiPrefs->uiPrefsVoiceOverPath->value(tmpS);
-        
+
         voice.get("speed", tmp, 0);
         uiPrefs->uiPrefsVoiceOverSpeed->value(tmp);
-        
+
         voice.get("microphone", tmp, 0);
         uiPrefs->uiPrefsVoiceOverMicrophone->value(tmp);
-        
+
         voice.get("volume", tmpF, 100.F);
         uiPrefs->uiPrefsVoiceOverSpeed->value(tmpF);
-        
+
         //
         // ComfyUI
         //
@@ -974,6 +998,68 @@ namespace mrv
         ComfyUI.get("input_pipe", tmp, 0);
         uiPrefs->uiPrefsUseComfyUIPipe->value((bool)tmp);
 
+        //
+        // WebRTC
+        //
+        Fl_Preferences WebRTC(base, "WebRTC") ;
+
+        WebRTC.get("stun_server", tmpS, "stun:stun.l.google.com:19302", 4096);
+        uiPrefs->uiPrefsWebRTCStunServer->value(tmpS);
+
+        WebRTC.get("turn_server", tmpS, "", 4096);
+        uiPrefs->uiPrefsWebRTCTurnServer->value(tmpS);
+
+        std::string webrtc_signaling = "wss://sync.filmaura.cloud/sync";
+        WebRTC.get("webrtc_signaling", tmpS, webrtc_signaling.c_str(), 4096);
+        if (strlen(tmpS) != 0)
+            webrtc_signaling = tmpS;
+        uiPrefs->uiPrefsWebRTCSignalingServer->value(webrtc_signaling.c_str());
+
+
+
+        WebRTC.get("webrtc_studio", tmpS, "", 4096);
+        uiPrefs->uiPrefsWebRTCStudio->value(tmpS);
+
+
+        WebRTC.get("clean_directory", tmp, 1);
+        uiPrefs->uiPrefsWebRTCCleanDirectory->value(tmp);
+
+        WebRTC.get("choice", tmp, 0);
+        uiPrefs->uiPrefsWebRTCCacheSetting->value(tmp);
+
+        std::string defaultValue = mrv::homepath() +
+                                   "/.config/mrv2/cache/remote";
+        WebRTC.get("cache_directory", tmpS, defaultValue.c_str(), 4096);
+        uiPrefs->uiPrefsWebRTCCacheDirectory->value(tmpS);
+
+        if (uiPrefs->uiPrefsWebRTCCleanDirectory->value())
+        {
+            std::string dir = uiPrefs->uiPrefsWebRTCCacheDirectory->value();
+            // Make sure path is > 5 letters long for safety.
+            if (dir.size() > 5)
+            {
+                fs::path path = dir;
+                std::error_code ec;
+
+                fs::remove_all(path, ec);
+                if (ec)
+                {
+                    std::string msg =
+                        tl::string::Format(_("Error deleting directory: "
+                                             "\"{0}\".")).
+                                           arg(ec.message());
+                    LOG_ERROR(msg);
+                }
+                else
+                {
+                    std::string msg =
+                        tl::string::Format(_("Cleaned directory: "
+                                             "\"{0}\".")).
+                                           arg(dir);
+                    LOG_STATUS(msg);
+                }
+            }
+        }
 
         //
         // Behavior
@@ -985,8 +1071,8 @@ namespace mrv
 
         behavior.get("allow_screen_saver", tmp, 0);
         uiPrefs->uiPrefsAllowScreenSaver->value(tmp);
-        
-        
+
+
         //
         // Hotkeys
         //
@@ -1006,7 +1092,7 @@ namespace mrv
                 msg = tl::string::Format(_("Loading hotkeys from \"{0}{1}.prefs\"."))
                       .arg(hotkeyPath)
                       .arg(hotkeys_file);
-                    
+
                 load_hotkeys(hotkeyPath);
                 LOG_STATUS(msg);
             }
@@ -1087,7 +1173,7 @@ namespace mrv
         shaderOptions.debanding =
             static_cast<timeline::Debanding>(uiPrefs->uiPrefsDebanding->value());
         ui->uiView->setShaderOptions(shaderOptions);
-        
+
         // Handle Dockgroup size (based on percentage)
         float pct = settings->getValue<float>("gui/DockGroup/Width");
         if (pct < 0.2F)
@@ -1101,7 +1187,7 @@ namespace mrv
         // Set a minimum size for dockgroup
         if (width < 270)
             width = 270;
-            
+
         ui->uiViewGroup->fixed(ui->uiDockGroup, width);
     }
 
@@ -1116,7 +1202,7 @@ namespace mrv
         std::string userprefspath = studiopath();
         if (!file::isReadable(userprefspath + "/mrv2.prefs"))
             userprefspath = prefspath();
-        
+
         if (!ui->uiView->getPresentationMode())
         {
             // Handle panels
@@ -1201,7 +1287,7 @@ namespace mrv
         std::string userprefspath = studiopath();
         if (!file::isReadable(userprefspath + "/mrv2.prefs"))
             userprefspath = prefspath();
-        
+
         Fl_Preferences base(
             userprefspath.c_str(), "filmaura", "mrv2",
             (Fl_Preferences::Root)(int)Fl_Preferences::CLEAR);
@@ -1362,6 +1448,7 @@ namespace mrv
             gui.set("language_code", language);
         }
 
+        gui.set("tooltips", (int)uiPrefs->uiPrefsTooltips->value());
         gui.set("menubar", (int)uiPrefs->uiPrefsMenuBar->value());
         gui.set("topbar", (int)uiPrefs->uiPrefsTopbar->value());
         gui.set(
@@ -1378,7 +1465,15 @@ namespace mrv
         gui.set("timeline_video_offset", uiPrefs->uiStartTimeOffset->value());
         gui.set(
             "timeline_thumbnails", uiPrefs->uiPrefsTimelineThumbnails->value());
-        gui.set("panel_thumbnails_size", uiPrefs->uiPrefsPanelThumbnails->value());
+
+        // Thumbnails sizes on all panels
+        gui.set("files_panel_thumbnails_size",
+                uiPrefs->uiPrefsFilesPanelThumbnails->value());
+        gui.set("compare_panel_thumbnails_size",
+                uiPrefs->uiPrefsComparePanelThumbnails->value());
+        gui.set("stereo3D_panel_thumbnails_size",
+                uiPrefs->uiPrefsStereo3DPanelThumbnails->value());
+
         gui.set("panel_thumbnails_manually",
                 uiPrefs->uiPrefsManualPanelThumbnails->value());
         gui.set("remove_edls", uiPrefs->uiPrefsRemoveEDLs->value());
@@ -1422,21 +1517,21 @@ namespace mrv
         // HDR Peak detection
         hdr.set("peak_detection", uiPrefs->uiPrefsHDRPeakDetection->value());
 
-        
+
         hdr.set("peak_detection_percentile",
                 uiPrefs->uiPrefsHDRPeakPercentile->value());
         hdr.set("peak_detection_smoothing_period",
                 uiPrefs->uiPrefsHDRPeakSmoothingPeriod->value());
         hdr.set("peak_detection_low_limit",
                 uiPrefs->uiPrefsHDRPeakLowLimit->value());
-        hdr.set("peak_detection_high_limit", 
+        hdr.set("peak_detection_high_limit",
                 uiPrefs->uiPrefsHDRPeakHighLimit->value());
-        
+
         hdr.set("hdr_data", uiPrefs->uiPrefsHDRInfo->value());
         hdr.set("tonemap_algorithm",
                 uiPrefs->uiPrefsTonemapAlgorithm->value());
         hdr.set("gamut_mapping", uiPrefs->uiPrefsGamutMapping->value());
-        
+
         //
         // view/colors prefs
         //
@@ -1581,7 +1676,7 @@ namespace mrv
         playback.set(
             "scrub_auto_playback", uiPrefs->uiPrefsScrubAutoPlay->value());
 
-        playback.set("scrubbing_loop_mode", 
+        playback.set("scrubbing_loop_mode",
                      uiPrefs->uiPrefsScrubbingLoopMode->value());
 
         Fl_Preferences pixel_toolbar(base, "pixel_toolbar");
@@ -1608,17 +1703,17 @@ namespace mrv
         userprefspath = studiopath();
         if (!file::isReadable(userprefspath + "/mrv2.paths.prefs"))
             userprefspath = prefspath();
-        
+
         Fl_Preferences path_mapping(
             userprefspath.c_str(), "filmaura", "mrv2.paths",
             (Fl_Preferences::Root)((int)Fl_Preferences::CLEAR));
         path_mapping.clear();
-        for (int i = 2; i <= uiPrefs->PathMappings->size(); ++i)
+        for (int i = 1; i <= uiPrefs->PathMappings->size(); ++i)
         {
-            snprintf(key, 256, "Path #%d", i - 1);
+            snprintf(key, 256, "Path #%d", i);
             path_mapping.set(key, uiPrefs->PathMappings->text(i));
         }
-        
+
         /* xgettext:c++-format */
         std::string msg =
             tl::string::Format(_("Path mappings have been saved to "
@@ -1672,7 +1767,7 @@ namespace mrv
         video.set(
             "blit_secondary_viewport", (int)uiPrefs->uiPrefsBlitSecondaryViewport->value());
         video.set("blit_timeline", (int)uiPrefs->uiPrefsBlitTimeline->value());
-        
+
         Fl_Preferences vulkan(base, "vulkan");
         vulkan.set(
             "gpu_main_viewport",
@@ -1687,15 +1782,31 @@ namespace mrv
         // Voice Overs
         //
         Fl_Preferences voice(base, "voice");
-        
+
         voice.set("path", uiPrefs->uiPrefsVoiceOverPath->value());
         voice.set("speed", uiPrefs->uiPrefsVoiceOverSpeed->value());
         voice.set("microphone", uiPrefs->uiPrefsVoiceOverMicrophone->value());
         voice.set("volume", uiPrefs->uiPrefsVoiceOverSpeed->value());
 
-        
+
         Fl_Preferences ComfyUI(base, "comfyUI");
         ComfyUI.set("input_pipe", (int)uiPrefs->uiPrefsUseComfyUIPipe->value());
+
+        Fl_Preferences WebRTC(base, "WebRTC");
+
+        WebRTC.set("stun_server", uiPrefs->uiPrefsWebRTCStunServer->value());
+        WebRTC.set("turn_server", uiPrefs->uiPrefsWebRTCTurnServer->value());
+
+        WebRTC.set("webrtc_signaling", uiPrefs->uiPrefsWebRTCSignalingServer->value());
+
+        WebRTC.set("webrtc_studio", uiPrefs->uiPrefsWebRTCStudio->value());
+
+        WebRTC.set("choice",
+                   (int)uiPrefs->uiPrefsWebRTCCacheSetting->value());
+        WebRTC.set("clean_directory",
+                   (int)uiPrefs->uiPrefsWebRTCCleanDirectory->value());
+        WebRTC.set("cache_directory",
+                   uiPrefs->uiPrefsWebRTCCacheDirectory->value());
 
         Fl_Preferences audio(base, "audio");
 
@@ -1709,10 +1820,10 @@ namespace mrv
 
         behavior.set("allow_screen_saver",
                      (int)uiPrefs->uiPrefsAllowScreenSaver->value());
-        
+
         {
             userprefspath = prefspath();
-        
+
             Fl_Preferences keys(
                 userprefspath.c_str(), "filmaura", hotkeys_file.c_str(),
                 (Fl_Preferences::Root)((int)Fl_Preferences::CLEAR));
@@ -1926,7 +2037,7 @@ namespace mrv
             ui->uiViewGroup->init_sizes();
 
             ui->uiRegion->layout();
-         }
+        }
 
         panel::onlyOne((bool)uiPrefs->uiPrefsOnePanelOnly->value());
 
@@ -1988,6 +2099,15 @@ namespace mrv
         c->uiLType->do_callback();
         c->uiLType->redraw();
 
+        if (uiPrefs->uiPrefsTooltips->value())
+        {
+            Fl::option(Fl::OPTION_SHOW_TOOLTIPS, true);
+        }
+        else
+        {
+            Fl::option(Fl::OPTION_SHOW_TOOLTIPS, false);
+        }
+
         //
         // Handle crop area (masking)
         //
@@ -2034,7 +2154,7 @@ namespace mrv
             static_cast<timeline::HDRInformation>(
                 uiPrefs->uiPrefsHDRInfo->value());
         app->setDisplayOptions(displayOptions);
-        
+
         timeline::HDROptions hdrOptions = ui->uiView->getHDROptions();
         hdrOptions.algorithm =
             static_cast<timeline::HDRTonemapAlgorithm>(uiPrefs->uiPrefsTonemapAlgorithm->value());
@@ -2118,7 +2238,7 @@ namespace mrv
             ui->uiMain->show();
             view->setFullScreenMode(true);
         }
-        
+
         r = (Fl_Round_Button*)uiPrefs->uiPrefsOpenMode->child(2);
         int presentation = r->value();
         if (presentation)
@@ -2126,9 +2246,18 @@ namespace mrv
             ui->uiMain->show();
             view->setPresentationMode(true);
         }
-        
+
         if (normal)
-            view->setFullScreenMode(false);
+        {
+            if (view->getPresentationMode())
+            {
+                view->setPresentationMode(false);
+            }
+            else
+            {
+                view->setFullScreenMode(false);
+            }
+        }
 
         r = (Fl_Round_Button*)uiPrefs->uiPrefsOpenMode->child(3);
         int maximized = r->value();
@@ -2155,7 +2284,7 @@ namespace mrv
                 window->always_on_top(value);
             }
         }
-        
+
         int vsync = ui->uiPrefs->uiPrefsOpenGLVsync->value();
         if (vsync == MonitorVSync::kVSyncPresentationOnly ||
             vsync == MonitorVSync::kVSyncNone)
@@ -2233,7 +2362,7 @@ namespace mrv
         std::string userprefspath = studiopath();
         if (!file::isReadable(userprefspath + "/mrv2.prefs"))
             userprefspath = prefspath();
-        
+
         Fl_Preferences base(
             userprefspath.c_str(), "filmaura", "mrv2", (Fl_Preferences::Root)0);
         Fl_Preferences gui(base, "ui");

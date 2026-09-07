@@ -17,18 +17,65 @@ jobs:
   windows-vulkan-full-build:
     runs-on: windows-2022
 
+    env:
+      MRV2_WINDOWS_SIGNING_PASSWORD: ${{ secrets.MRV2_WINDOWS_SIGNING_PASSWORD }}
+
     defaults:
       run:
         shell: msys2 {0}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Setup environment
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install MSVC
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: amd64
+
+      # - name: Setup Native MSVC AMD64 Environment
+      #   shell: powershell
+      #   run: |
+      #     # Locate vcvarsall.bat dynamically using vswhere
+      #     $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+      #     $vcvarsPath = Join-Path $vsPath "VC\Auxiliary\Build\vcvarsall.bat"
+
+      #     # Run vcvarsall natively for amd64 and export variables to the GitHub environment
+      #     cmd.exe /c " `"$vcvarsPath`" amd64 && set " | Foreach-Object {
+      #     if ($_ -match '^([^=]+)=(.*)$') {
+      #       $name = $Matches[1]
+      #       $value = $Matches[2]
+      #       # Only import paths and compiler-critical flags to avoid polluting the env
+      #       if ($name -match '^(PATH|INCLUDE|LIB|LIBPATH|VCTools.*)$' -and $value) {
+      #           if ($name -eq 'PATH') {
+      #               # Append paths safely to GITHUB_PATH
+      #               $value -split ';' | ForEach-Object {
+      #                   if ($_) { $_ | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+      #               }
+      #           } else {
+      #               # Export variables safely to GITHUB_ENV
+      #               "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      #               }
+      #           }
+      #       }
+      #     }
+
+      - name: Setup MSYS
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          path-type: inherit
+
+      - name: Fix linker shadowing
+        run: mv /usr/bin/link.exe /usr/bin/link_msys.exe
+
+      - name: Verify compilers
+        run: |
+          which cl
+          which clang-cl
+          clang-cl --version
 
       - name: Install Visual C++ Redistributable 2022
         run: |
@@ -36,26 +83,6 @@ jobs:
           Invoke-WebRequest -Uri $vc_redist_url_2022 -OutFile vc_redist_2022.x64.exe
           Start-Process vc_redist_2022.x64.exe -ArgumentList "/install", "/quiet", "/norestart" -Wait
         shell: powershell
-
-      # - name: Install specific MSVC toolset (in case build breaks)
-      #   shell: powershell
-      #   run: |
-      #     Invoke-WebRequest `
-      #     -Uri https://aka.ms/vs/17/release/vs_BuildTools.exe `
-      #     -OutFile vs_BuildTools.exe
-
-      #     Start-Process .\vs_BuildTools.exe `
-      #     -ArgumentList `
-      #     "--quiet", "--wait",
-      #     "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-      #     "--includeRecommended",
-      #     "--installPath C:\VS2022Custom" `
-      #     -NoNewWindow -Wait- name: Activate MSVC
-
-      # - name: Activate MSVC
-      #   uses: ilammy/msvc-dev-cmd@v1
-      #   with:
-      #     path: 'C:\VS2022Custom'
 
       - name: Install ccache
         shell: pwsh
@@ -90,21 +117,21 @@ jobs:
           # 1. Use runner.temp for a guaranteed, shared absolute path across Windows/Node/MSYS2
           $ccache_dir = "$env:RUNNER_TEMP\.ccache"
           echo "CCACHE_DIR=$ccache_dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          
+
           # 2. Normalize Workspace path for MSYS2 compatibility
           $workspace = "${{ github.workspace }}".Replace('\', '/')
           echo "CCACHE_BASEDIR=$workspace" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          
+
           echo "CCACHE_COMPILERCHECK=content" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           # Match the exact absolute path defined in the previous step
           path: ${{ runner.temp }}/.ccache
           key: ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-${{ github.sha }}
           restore-keys: |
-              ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-
-          
+            ${{ runner.os }}-${{ runner.arch }}-Vulkan-ccache-
+
       - name: Synchronize clock
         shell: cmd
         run: |
@@ -113,33 +140,24 @@ jobs:
           net start w32time
           w32tm /resync /rediscover
 
-      - name: Setup MSYS
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          path-type: inherit
-
-      - name: Fix linker shadowing
-        run: mv /usr/bin/link.exe /usr/bin/link_msys.exe
-          
       - name: Configure and Reset ccache
         # We can now safely use the msys2 shell since paths are absolute and environment is set
         run: |
           ccache --max-size=500M
           ccache -z # Zero out the stats so you can see the cache hit rate for *this* specific run at the end
-          
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy,rustfmt
-        
+
       - name: Install cargo-c if needed
         run: |
           if ! command -v cargo-cinstall >/dev/null 2>&1; then
               cargo install cargo-c --locked
           fi
-          
+
       - name: Verify Rust and Cargo
         run: |
           rustc -Vv
@@ -149,7 +167,7 @@ jobs:
           which cargo
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -158,7 +176,7 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-
-    
+
       - name: Get machine name
         run: |
           echo "Machine name: $RUNNER_NAME"
@@ -166,7 +184,7 @@ jobs:
       # Install Vulkan SDK
       - name: Install Vulkan SDK
         env:
-          BUILD_VULKAN: OFF  # optional
+          BUILD_VULKAN: OFF # optional
         run: |
           . ./etc/windows/install_vulkan.sh
 
@@ -229,22 +247,12 @@ jobs:
               exit 1
           }
 
-      # - name: Verify Vulkan
-      #   run: ${VULKAN_SDK}/Bin/vulkaninfoSDK.exe
-
       - name: Setup environment
         run: mkdir -p ssh
 
       - name: Decode SSH key
         run: echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > ssh/id_rsa
         shell: bash
-
-      # - name: Decode FLTK SSH key
-      #   run: |
-      #       mkdir -p ~/.ssh
-      #       echo "${{ secrets.FLTK_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
-      #       chmod 600 ~/.ssh/id_ed25519
-      #       ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Set permissions on SSH key
         shell: cmd
@@ -259,14 +267,15 @@ jobs:
 
       - name: Set executable permissions
         run: |
-          chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh
+          chmod +x ./*.sh ./bin/*.sh ./etc/*.sh ./bin/release/*.sh ./certificates/*.sh
 
       - name: Install MSYS2 Dependencies
         run: |
-          pacman -S --noconfirm rsync
+          pacman -S --noconfirm rsync coreutils
 
       - name: Build vmrv2
         env:
+          INSTALL_CMAKE: ON
           BUILD_PYTHON: ON
           MRV2_PYFLTK: ON
           MRV2_PYBIND11: ON

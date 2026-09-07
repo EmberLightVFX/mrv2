@@ -61,7 +61,7 @@ namespace tl
         {
             io::Info out;
             auto io = memory ? file::FileIO::create(fileName, *memory)
-                             : file::FileIO::create(fileName, file::Mode::Read);
+                      : file::FileIO::create(fileName, file::Mode::Read);
             Transfer transfer = Transfer::User;
             const auto header = read(io, out, transfer);
             float speed = _defaultSpeed;
@@ -84,21 +84,21 @@ namespace tl
             if (speed <= 0.F)
                 speed = _defaultSpeed;
             out.videoTime =
-                otime::TimeRange::range_from_start_end_time_inclusive(
-                    otime::RationalTime(_startFrame, speed),
-                    otime::RationalTime(_endFrame, speed));
+                OTIO_NS::TimeRange::range_from_start_end_time_inclusive(
+                    OTIO_NS::RationalTime(_startFrame, speed),
+                    OTIO_NS::RationalTime(_endFrame, speed));
             return out;
         }
 
         io::VideoData Read::_readVideo(
             const std::string& fileName, const file::MemoryRead* memory,
-            const otime::RationalTime& time, const io::Options&)
+            const OTIO_NS::RationalTime& time, const io::Options&)
         {
             io::VideoData out;
             out.time = time;
 
             auto io = memory ? file::FileIO::create(fileName, *memory)
-                             : file::FileIO::create(fileName, file::Mode::Read);
+                      : file::FileIO::create(fileName, file::Mode::Read);
             io::Info info;
             Transfer transfer = Transfer::User;
             read(io, info, transfer);
@@ -117,8 +117,7 @@ namespace tl
                 info.tags["Autonormalize Maximum"] = io::serialize(maximum);
             }
 
-            _addOtioTags(info.tags, fileName, time);
-
+            io::addOtioTags(info.tags, fileName, time);
             out.image->setTags(info.tags);
             return out;
         }

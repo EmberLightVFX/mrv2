@@ -59,7 +59,7 @@ namespace mrv
         ///@{
 
         //! Get the time range.
-        const otime::TimeRange& timeRange() const;
+        const OTIO_NS::TimeRange& timeRange() const;
 
         //! Get the I/O information. This information is retrieved from
         //! the first clip in the timeline.
@@ -91,7 +91,7 @@ namespace mrv
         ///@{
 
         //! Get the current time.
-        const otime::RationalTime& currentTime() const;
+        const OTIO_NS::RationalTime& currentTime() const;
 
         ///@}
 
@@ -99,7 +99,7 @@ namespace mrv
         ///@{
 
         //! Get the in/out points range.
-        const otime::TimeRange& inOutRange() const;
+        const OTIO_NS::TimeRange& inOutRange() const;
 
         ///@}
 
@@ -115,7 +115,7 @@ namespace mrv
         int videoLayer() const;
 
         //! Get the video.
-        const std::vector<timeline::VideoData>& currentVideo() const;
+        const std::vector<timeline::VideoFrame>& currentVideo() const;
 
         ///@}
 
@@ -132,8 +132,8 @@ namespace mrv
         void clearCache();
 
         //! Update video cache.
-        void updateVideoCache(const otime::RationalTime& time);
-        
+        void updateVideoCache(const OTIO_NS::RationalTime& time);
+
         ///@}
 
         //! \name Audio
@@ -148,7 +148,7 @@ namespace mrv
         //! Get the audio sync offset (in seconds).
         double audioOffset() const;
 
-        const std::vector<timeline::AudioData>& currentAudio() const;
+        const std::vector<timeline::AudioFrame>& currentAudio() const;
 
         ///@}
 
@@ -182,7 +182,7 @@ namespace mrv
         ///@{
 
         //! Seek to the given time.
-        void seek(const otime::RationalTime&);
+        void seek(const OTIO_NS::RationalTime&);
 
         //! Time action.
         void timeAction(tl::timeline::TimeAction);
@@ -205,7 +205,7 @@ namespace mrv
         ///@{
 
         //! Set the in/out points range.
-        void setInOutRange(const otime::TimeRange&);
+        void setInOutRange(const OTIO_NS::TimeRange&);
 
         //! Set the in point to the current time.
         void setInPoint();
@@ -287,10 +287,10 @@ namespace mrv
         void loopChanged(tl::timeline::Loop);
 
         //! This signal is emitted when the current time is changed.
-        void currentTimeChanged(const otime::RationalTime&);
+        void currentTimeChanged(const OTIO_NS::RationalTime&);
 
         //! This signal is emitted when the in/out points range is changed.
-        void inOutRangeChanged(const otime::TimeRange&);
+        void inOutRangeChanged(const OTIO_NS::TimeRange&);
 
         ///@}
 
@@ -319,12 +319,12 @@ namespace mrv
 
         ///@}
 
-        const otio::SerializableObject::Retainer<otio::Timeline>&
+        const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&
         getTimeline() const;
 
         //! Set the timeline.
         void
-        setTimeline(const otio::SerializableObject::Retainer<otio::Timeline>&);
+        setTimeline(const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&);
 
         //! \name Viewport link
         ///@{
@@ -340,13 +340,13 @@ namespace mrv
         bool hasVoiceAnnotations() const;
 
         //! Return a list of annotation times
-        const std::vector< otime::RationalTime > getAnnotationTimes() const;
+        const std::vector< OTIO_NS::RationalTime > getAnnotationTimes() const;
 
         //! @{
-        
+
         //! Get annotation for current time
         std::shared_ptr< draw::Annotation > getAnnotation() const;
-        
+
         //! Get undo annotation for current time
         std::shared_ptr< draw::Annotation > getUndoAnnotation() const;
 
@@ -366,6 +366,10 @@ namespace mrv
         //! Set frame annotations in timeline player for current frame (time).
         void setFrameAnnotation(const std::shared_ptr< draw::Annotation >&);
 
+        //! Merge all annotations in timeline player with a new list.
+        void mergeAllAnnotations(
+            const std::vector< std::shared_ptr< draw::Annotation >>&);
+
         //! Set all annotations in timeline player.
         void setAllAnnotations(
             const std::vector< std::shared_ptr< draw::Annotation >>&);
@@ -380,7 +384,7 @@ namespace mrv
 #ifdef TLRENDER_FFMPEG
         //! Get annotation for current time
         std::shared_ptr< voice::Annotation > getVoiceAnnotation() const;
-        
+
         //! Get undo annotation for current time
         std::shared_ptr< voice::Annotation > getUndoVoiceAnnotation() const;
 
@@ -408,15 +412,15 @@ namespace mrv
         //! Remove an annotation from list.
         void removeAnnotation(const std::shared_ptr< voice::Annotation >&);
 #endif
-        
+
         //! @}
-        
+
         //! Clear all annotations in timeline player for current frame (time).
         void clearFrameAnnotation();
 
         //! Clear all annotations in timeline player.
         void clearAllAnnotations();
-        
+
         //! Undo the last annotation.
         void undoAnnotation();
 
@@ -431,7 +435,7 @@ namespace mrv
 
         //! @}
 
-        
+
     protected:
         template < typename T >
         void pushMessage(const std::string& command, const T& value);

@@ -14,7 +14,15 @@ set(CMAKE_SKIP_RPATH FALSE)
 
 # Avoid warnings of overshadowing system libraries.
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH "@executable_path/../lib;${CMAKE_INSTALL_PREFIX}/lib;/usr/local/lib")
+if(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        set(_HOMEBREW_LIB "/opt/homebrew/lib")
+    else()
+        set(_HOMEBREW_LIB "/usr/local/lib")
+    endif()
+    set(CMAKE_INSTALL_RPATH
+        "@executable_path/../lib;${_HOMEBREW_LIB}")
+endif()
 
 # Build the executable with the final CMAKE_INSTALL_RPATH from the very beginning.
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
@@ -45,7 +53,10 @@ if ( UNIX )
 endif()
 
 if (MRV2_BACKEND STREQUAL "VK" OR MRV2_BACKEND STREQUAL "BOTH")
+    set(mrv2_NAME vmrv2)
     find_package(Vulkan OPTIONAL_COMPONENTS glslang shaderc_combined SPIRV-Tools)
+else()
+    set(mrv2_NAME mrv2)
 endif()
 
 find_package(FLTK CONFIG REQUIRED)
@@ -92,7 +103,7 @@ else()
     if (WIN32)
 	find_package(Iconv REQUIRED)
 	find_package(Intl REQUIRED)
-	set(Intl_LIBRARIES Iconv::Iconv Intl::Intl)
+	set(Intl_LIBRARIES Iconv::Iconv Intl::Intl) # new method
     else()
 	find_package(Intl REQUIRED)  # old method
     endif()
@@ -102,7 +113,6 @@ endif()
 # path to their version.h file or similar.
 find_package(tlRender REQUIRED)
 find_package(nlohmann_json REQUIRED)
-find_package(glfw3 REQUIRED)
 find_package(minizip REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -122,18 +132,18 @@ elseif(MRV2_BACKEND STREQUAL "BOTH")
 endif()
 
 if(MRV2_CPPTRACE)
-    add_definitions( -D MRV2_CPPTRACE )
+    add_definitions(-D MRV2_CPPTRACE)
 endif()
 
 if(MRV2_NETWORK)
     find_package(Poco REQUIRED
 	COMPONENTS Net NetSSL Foundation
 	CONFIG)
-    add_definitions( -DMRV2_NETWORK )
+    add_definitions( -D MRV2_NETWORK )
 endif()
 
 if(MRV2_PDF)
-    add_definitions( -DMRV2_PDF )
+    add_definitions( -D MRV2_PDF )
 endif()
 
 # Pass flags for CMAKE_BUILD_TYPE
@@ -173,6 +183,11 @@ endif()
 
 if(TLRENDER_GL)
     add_definitions(-DTLRENDER_GL)
+endif()
+
+if(TLRENDER_GLFW)
+    find_package(glfw3 REQUIRED)
+    add_definitions(-DTLRENDER_GLFW)
 endif()
 
 if(TLRENDER_HAP)
@@ -258,7 +273,23 @@ endif()
 
 
 if(MRV2_PYBIND11 OR BUILD_PYTHON)
-    message(STATUS "PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE}")
+    # Derive these from your Python build variables
+    set(_Python_ROOT ${CMAKE_INSTALL_PREFIX})
+    set(_Python_EXE ${PYTHON_EXECUTABLE})
+
+    set(Python_ROOT_DIR ${_Python_ROOT})
+    set(Python_EXECUTABLE ${_Python_EXE})
+    set(Python3_ROOT_DIR ${_Python_ROOT})
+    set(Python3_EXECUTABLE ${_Python_EXE})
+    
+    set(Python3_FIND_REGISTRY "NEVER" CACHE STRING "")
+    set(Python_FIND_REGISTRY "NEVER" CACHE STRING "")
+
+    set(Python_FIND_STRATEGY "LOCATION")
+    set(Python3_FIND_STRATEGY "LOCATION")
+
+    message(STATUS "Python_ROOT_DIR=${Python_ROOT_DIR}")
+    message(STATUS "Python_EXECUTABLE=${Python_EXECUTABLE}")    
     find_package(Python REQUIRED COMPONENTS Interpreter Development)
 endif()
 
@@ -332,7 +363,7 @@ if (UNIX AND NOT APPLE)
 	DESTINATION icons
 	COMPONENT applications )
 elseif(WIN32)
-    install( FILES icons/mrv2.png
+    install( FILES icons/mrv2.png icons/crosshair.png
 	DESTINATION icons
 	COMPONENT applications )
 endif()
@@ -348,13 +379,18 @@ install( DIRECTORY share/locale
 # Install update-mrv2 plugin
 #
 if (MRV2_PYBIND11)
-    install( FILES python/plug-ins/update-mrv2.py
+    install(FILES
+	python/plug-ins/demos/flow-bridge.py
+	DESTINATION python/plug-ins/demos
+	COMPONENT python_plugins)
+    install(FILES
+	python/plug-ins/AUTODESK_FLOW.md
 	DESTINATION python/plug-ins
-	COMPONENT applications )
+	COMPONENT python_plugins)
     
-    install( DIRECTORY ${CMAKE_INSTALL_PREFIX}/python/opentimelineio
-	DESTINATION python/
-	COMPONENT applications )
+    install(FILES python/plug-ins/update-mrv2.py
+	DESTINATION python/plug-ins
+	COMPONENT python_plugins)
     
     #
     # Install mrv2's python demos
@@ -371,7 +407,7 @@ endif()
 #
 # Install mrv2's documentation
 #
-install( DIRECTORY docs
+install( DIRECTORY docs/Legal
     DESTINATION .
     COMPONENT documentation )
 
@@ -438,24 +474,19 @@ add_subdirectory(license_helper)
 # Add hdr source
 #
 if (TLRENDER_NDI AND TLRENDER_VK AND MRV2_HDR)
+    message(STATUS "Will build hdr utility")
     add_subdirectory(hdr)
+else()
+    message(STATUS "Will NOT build hdr utility due to one of these being OFF")
+    message(STATUS "TLRENDER_NDI=${TLRENDER_NDI}")
+    message(STATUS "TLRENDER_VK=${TLRENDER_VK}")
+    message(STATUS "MRV2_HDR=${MRV2_HDR}")
 endif()
-
-# Policy check commented out to allow builds in forks.
-# Signing is already handled by signing_installer.sh which checks authorization.
-# if ( NOT "$ENV{GITHUB_OWNER}" STREQUAL "" AND
-#	NOT "$ENV{GITHUB_OWNER}" STREQUAL "ggarra13")
-#    message(FATAL_ERROR "Build configuration rejected by policy checks.")
-# endif()
 
 #
 # Add main source
 #
-add_subdirectory(main)
-
-if (APPLE)
-    add_subdirectory(launcher)
-endif()
+add_subdirectory(mrv2)
 
 if (MRV2_BACKEND STREQUAL "VK" OR MRV2_BACKEND STREQUAL "BOTH")
     add_subdirectory(tests)

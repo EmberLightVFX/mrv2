@@ -74,11 +74,11 @@ namespace mrv
     Hotkey kAutoNormalize(false, false, false, false, 0);
     Hotkey kInvalidValues(false, false, false, false, 0);
 
-    
+
     Hotkey kHDRDataFromFile(false, false, false, false, 0);
     Hotkey kHDRDataFalse(false, false, false, false, 0);
     Hotkey kHDRDataTrue(false, false, false, false, 0);
-    
+
     Hotkey kToggleHDRTonemap(false, false, false, false, 0);
 
     Hotkey kToggleHDRPeakDetection(false, false, false, false, 0);
@@ -90,6 +90,8 @@ namespace mrv
     Hotkey kCompareWipe(false, false, true, false, 'w');
     Hotkey kCompareOverlay(false, false, false, false, 0);
     Hotkey kCompareDifference(false, false, false, false, 0);
+    Hotkey kCompareAdd(false, false, false, false, 0);
+    Hotkey kCompareMultiply(false, false, false, false, 0);
     Hotkey kCompareHorizontal(false, false, false, false, 0);
     Hotkey kCompareVertical(false, false, false, false, 0);
     Hotkey kCompareTile(false, false, false, false, 0);
@@ -207,7 +209,7 @@ namespace mrv
     Hotkey kHudToggle(true, false, false, false, 'h');
 
     Hotkey kToggleMuteAudio(false, false, false, false, 'm');
-    
+
     Hotkey kOCIOPresetsToggle(false, false, false, false, 0);
     Hotkey kOCIOInTopBarToggle(false, false, false, false, 't');
     Hotkey kOCIOInputColorSpace(false, false, false, false, 0);
@@ -219,7 +221,6 @@ namespace mrv
     Hotkey kToggleMediaInfo(false, false, false, false, FL_F + 5);
     Hotkey kToggleColorControls(false, false, false, false, FL_F + 6);
     Hotkey kToggleColorInfo(false, false, false, false, FL_F + 7);
-    Hotkey kTogglePlaylist(true, false, false, false, 'p');
     Hotkey kToggleCompare(false, false, false, false, FL_F + 8);
     Hotkey kToggleDevices(false, false, false, false, 0);
     Hotkey kToggleAnnotation(true, false, false, false, 'a');
@@ -234,14 +235,13 @@ namespace mrv
     Hotkey kToggleLogs(false, false, false, false, 0);
     Hotkey kToggleAbout(false, false, false, false, 0);
     Hotkey kToggleNDI(false, false, false, false, 0);
-    Hotkey kToggleNetwork(false, false, false, false, 'n');
     Hotkey kToggleUSD(false, false, false, true, 'u');
     Hotkey kToggleStereo3D(false, false, false, false, 0);
     Hotkey kToggleEditMode(false, false, false, false, 'e');
     Hotkey kToggleTimelineThumbnails(false, false, false, false, 0);
     Hotkey kToggleTimelineTransitions(false, false, false, false, 0);
     Hotkey kToggleTimelineMarkers(false, false, false, false, 0);
-    Hotkey kToggleWebRTC(false, false, false, true, 'n');
+    Hotkey kToggleWebRTC(false, false, false, false, 'n');
 
     // Hotkey to allow mouse click handling to pass through the FLTK window to
     // the OS windows behind it.
@@ -282,7 +282,7 @@ namespace mrv
     Hotkey kEditSlice(false, false, false, false, 0);
     Hotkey kEditSlide(false, false, false, false, 0);
     Hotkey kEditSlip(false, false, false, false, 0);
-    
+
     Hotkey kEditUndo(false, false, false, false, ';');
     Hotkey kEditRedo(false, false, false, false, ':');
 
@@ -301,7 +301,7 @@ namespace mrv
     Hotkey kAlphaBlendNone(false, false, false, false, 0);
     Hotkey kAlphaBlendStraight(false, false, false, false, 0);
     Hotkey kAlphaBlendPremultiplied(false, false, false, false, 0);
-    
+
     inline bool has_shift(unsigned rawkey)
     {
         return Fl::event_key(FL_Shift_L) || Fl::event_key(FL_Shift_R);
@@ -436,7 +436,7 @@ namespace mrv
         HotkeyEntry(_("Close All"), &kCloseAll),
 
         HotkeyEntry(_("Reload Session"), &kReloadSession),
-        
+
         HotkeyEntry(_("Quit Program"), &kQuitProgram),
 
         HotkeyEntry(_("Zoom Minimum"), &kZoomMin),
@@ -470,6 +470,8 @@ namespace mrv
         HotkeyEntry(_("Compare Wipe"), &kCompareWipe),
         HotkeyEntry(_("Compare Overlay"), &kCompareOverlay),
         HotkeyEntry(_("Compare Difference"), &kCompareDifference),
+        HotkeyEntry(_("Compare Add"), &kCompareAdd),
+        HotkeyEntry(_("Compare Multiply"), &kCompareMultiply),
         HotkeyEntry(_("Compare Horizontal"), &kCompareHorizontal),
         HotkeyEntry(_("Compare Vertical"), &kCompareVertical),
         HotkeyEntry(_("Compare Tile"), &kCompareTile),
@@ -557,11 +559,11 @@ namespace mrv
         HotkeyEntry(_("Insert Audio Gap"), &kEditInsertAudioGap),
         HotkeyEntry(_("Remove Audio Gap"), &kEditRemoveAudioGap),
         HotkeyEntry(_("Remove Selected"), &kEditRemoveSelected),
-        
+
         HotkeyEntry(_("Edit - Add Transition"), &kEditAddTransition),
 
         HotkeyEntry(_("Edit - Fill Tool"), &kEditFill),
-        
+
         HotkeyEntry(_("Edit - Move Tool"), &kEditMove),
         HotkeyEntry(_("Edit - Trim Tool"), &kEditTrim),
         HotkeyEntry(_("Edit - Ripple Tool"), &kEditRipple),
@@ -569,7 +571,7 @@ namespace mrv
         HotkeyEntry(_("Edit - Slice Tool"), &kEditSlice),
         HotkeyEntry(_("Edit - Slide Tool"), &kEditSlide),
         HotkeyEntry(_("Edit - Slip Tool"), &kEditSlip),
-        
+
         HotkeyEntry(_("Edit - Undo"), &kEditUndo),
         HotkeyEntry(_("Edit - Redo"), &kEditRedo),
 
@@ -586,7 +588,6 @@ namespace mrv
         HotkeyEntry(
             _("Toggle Secondary Float On Top"), &kToggleSecondaryFloatOnTop),
         HotkeyEntry(_("Toggle NDI"), &kToggleNDI),
-        HotkeyEntry(_("Toggle Network"), &kToggleNetwork),
         HotkeyEntry(_("Toggle WebRTC"), &kToggleWebRTC),
         HotkeyEntry(_("Toggle USD"), &kToggleUSD),
         HotkeyEntry(_("Toggle Stereo 3D"), &kToggleStereo3D),
@@ -643,7 +644,7 @@ namespace mrv
 
         // \@todo: instead of Clear In/Out Point it should be a toggle
         HotkeyEntry(_("Clear In/Out Point"), &kToggleInOutPoint),
-        
+
         HotkeyEntry(_("Toggle In/Out Point on .otio clip"),
                     &kToggleOtioClipInOut),
 
@@ -654,7 +655,6 @@ namespace mrv
         HotkeyEntry(_("Toggle Media Info Panel"), &kToggleMediaInfo),
         HotkeyEntry(_("Toggle Color Area Info Panel"), &kToggleColorInfo),
         HotkeyEntry(_("Toggle Color Controls Panel"), &kToggleColorControls),
-        HotkeyEntry(_("Toggle Playlist Panel"), &kTogglePlaylist, true),
         HotkeyEntry(_("Toggle Compare Panel"), &kToggleCompare),
         HotkeyEntry(_("Toggle Devices Panel"), &kToggleDevices),
         HotkeyEntry(_("Toggle Annotation Panel"), &kToggleAnnotation),

@@ -71,14 +71,23 @@ namespace tl
 
             //! Read video data.
             virtual std::future<VideoData>
-            readVideo(const otime::RationalTime&, const Options& = Options());
+            readVideo(const OTIO_NS::RationalTime&, const Options& = Options());
 
             //! Read audio data.
             virtual std::future<AudioData>
-            readAudio(const otime::TimeRange&, const Options& = Options());
+            readAudio(const OTIO_NS::TimeRange&, const Options& = Options());
 
             //! Cancel pending requests.
             virtual void cancelRequests() = 0;
+
+            //! Get the first error encountered while reading, or an empty
+            //! string. Errors are also sent to the log. The default
+            //! implementation returns an empty string.
+            virtual std::string getError() const;
+
+            //! Get the number of errors encountered while reading. The
+            //! default implementation returns zero.
+            virtual size_t getErrorCount() const;
 
         protected:
             std::vector<file::MemoryRead> _memory;
@@ -97,15 +106,21 @@ namespace tl
         public:
             virtual ~IWrite();
 
+            //! Set video header metadata.
+            virtual void setHDR(const image::HDRData&) {};
+
+            //! Write the header.
+            virtual void writeHeader() {};
+
             //! Write video data.
             virtual void writeVideo(
-                const otime::RationalTime&,
+                const OTIO_NS::RationalTime&,
                 const std::shared_ptr<image::Image>&,
                 const Options& = Options()) = 0;
 
             //! Write video data.
             virtual void writeAudio(
-                const otime::TimeRange&, const std::shared_ptr<audio::Audio>&,
+                const OTIO_NS::TimeRange&, const std::shared_ptr<audio::Audio>&,
                 const Options& = Options()) {};
 
         protected:

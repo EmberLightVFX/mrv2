@@ -52,7 +52,7 @@ namespace
 namespace mrv
 {
     void waitForFrame(
-        const mrv::TimelinePlayer* player, const otime::RationalTime& startTime)
+        const mrv::TimelinePlayer* player, const OTIO_NS::RationalTime& startTime)
     {
         using namespace tl;
 
@@ -126,7 +126,7 @@ namespace mrv
         const std::string& baseName = path.getBaseName();
         const std::string& number = path.getNumber();
         const std::string& suffix = path.getSuffix();
-        const std::string& extension = path.getExtension();
+        const std::string extension = string::toLower(path.getExtension());
 
         std::string newFile = directory + baseName + number + suffix + extension;
 
@@ -139,14 +139,15 @@ namespace mrv
             ioOptions["FFmpeg/WriteProfile"] = getLabel(options.ffmpegProfile);
             ioOptions["FFmpeg/AudioCodec"] = getLabel(options.ffmpegAudioCodec);
             ioOptions["FFmpeg/ThreadCount"] =
-                string::Format("{0}").arg(ffmpeg::threadCount);
+                string::Format("{0}").arg(ffmpeg::Options().threadCount);
 
-            // If we are not saving a movie, take speed from the player's
+            // If we are saving a movie, take speed from the player's
             // current speed.
             {
                 const auto& model = ui->app->filesModel();
                 const auto& Aitem = model->observeA()->get();
-                const auto& extension = Aitem->path.getExtension();
+                const auto& extension =
+                    string::toLower(Aitem->path.getExtension());
                 if (!file::isMovie(extension))
                 {
                     ioOptions["FFmpeg/Speed"] =
@@ -240,16 +241,18 @@ namespace mrv
             // Render information.
             const auto& info = player->ioInfo();
 
-            auto videoTime = info.videoTime;
+            OTIO_NS::TimeRange videoTime = time::invalidTimeRange;
+            if (info.videoTime.has_value())
+                videoTime = info.videoTime.value();
 
             const bool hasVideo = (!info.video.empty()) && options.saveVideo;
 
             if (player->timeRange() != timeRange ||
-                info.videoTime.start_time() != timeRange.start_time() ||
-                info.videoTime.duration() != timeRange.duration())
+                videoTime.start_time() != timeRange.start_time() ||
+                videoTime.duration() != timeRange.duration())
             {
-                double videoRate = info.videoTime.duration().rate();
-                videoTime = otime::TimeRange(
+                double videoRate = videoTime.duration().rate();
+                videoTime = OTIO_NS::TimeRange(
                     timeRange.start_time().rescaled_to(videoRate),
                     timeRange.duration().rescaled_to(videoRate));
             }
@@ -259,12 +262,14 @@ namespace mrv
             bool hasAudio = info.audio.isValid();
             if (hasAudio)
             {
-                audioTime = info.audioTime;
+                audioTime = info.audioTime.value();
                 if (player->timeRange() != timeRange ||
                     audioTime.start_time() !=
-                        timeRange.start_time().rescaled_to(sampleRate))
+                    timeRange.start_time().rescaled_to(sampleRate) ||
+                    audioTime.duration() !=
+                    timeRange.duration().rescaled_to(sampleRate))
                 {
-                    audioTime = otime::TimeRange(
+                    audioTime = OTIO_NS::TimeRange(
                         timeRange.start_time().rescaled_to(sampleRate),
                         timeRange.duration().rescaled_to(sampleRate));
                 }
@@ -276,8 +281,7 @@ namespace mrv
             std::string newExtension = extension;
             if (profile.substr(0, 6) == "ProRes")
             {
-                if (!string::compare(
-                        extension, ".mov", string::Compare::CaseInsensitive))
+                if (extension != ".mov")
                 {
                     LOG_WARNING(_("ProRes profiles need a .mov movie "
                                   "extension.  Changing it to .mov."));
@@ -286,12 +290,8 @@ namespace mrv
             }
             else if (profile == "VP9")
             {
-                if (!string::compare(
-                        extension, ".mp4", string::Compare::CaseInsensitive) &&
-                    !string::compare(
-                        extension, ".webm", string::Compare::CaseInsensitive) &&
-                    !string::compare(
-                        extension, ".mkv", string::Compare::CaseInsensitive))
+                if (extension != ".mp4" && extension != ".webm" &&
+                    extension != ".mkv")
                 {
                     LOG_WARNING(
                         _("VP9 profile needs a .mp4, .mkv or .webm movie "
@@ -301,10 +301,7 @@ namespace mrv
             }
             else if (profile == "AV1")
             {
-                if (!string::compare(
-                        extension, ".mp4", string::Compare::CaseInsensitive) &&
-                    !string::compare(
-                        extension, ".mkv", string::Compare::CaseInsensitive))
+                if (extension != ".mp4" && extension != ".mkv")
                 {
                     LOG_WARNING(_("AV1 profile needs a .mp4 or .mkv movie "
                                   "extension.  Changing it to .mp4"));
@@ -313,8 +310,7 @@ namespace mrv
             }
             else if (profile == "Cineform")
             {
-                if (!string::compare(
-                        extension, ".mkv", string::Compare::CaseInsensitive))
+                if (extension != ".mkv")
                 {
                     LOG_WARNING(_("GoPro Cineform profile needs a .mkv movie "
                                   "extension.  Changing it to .mkv"));
@@ -323,8 +319,7 @@ namespace mrv
             }
             else if (profile == "HAP")
             {
-                if (!string::compare(
-                        extension, ".mov", string::Compare::CaseInsensitive))
+                if (extension != ".mov")
                 {
                     LOG_WARNING(
                         _("HAP profile needs a .mov extension.  Changing "
@@ -350,10 +345,10 @@ namespace mrv
             path = file::Path(newFile);
 #endif
 
-            bool saveEXR = string::compare(
-                extension, ".exr", string::Compare::CaseInsensitive);
-            bool saveHDR = string::compare(
-                extension, ".hdr", string::Compare::CaseInsensitive);
+            bool saveEXR = (extension == ".exr" ||
+                            extension == ".sxr");
+            bool saveHDR = (extension == ".hdr");
+            bool saveJPEG = (extension == ".jpg" || extension == ".jpeg");
 
             if (time::compareExact(videoTime, time::invalidTimeRange))
                 videoTime = audioTime;
@@ -371,7 +366,7 @@ namespace mrv
                     string::Format("{0}: Saving over same file being played!")
                         .arg(file));
             }
-            
+
 
             gl::OffscreenBufferOptions offscreenBufferOptions;
             std::shared_ptr<timeline_gl::Render> render;
@@ -428,7 +423,7 @@ namespace mrv
             }
 
             bool interactive = view->visible_r();
-            
+
             std::shared_ptr<gl::GLFWWindow> window;
             if (!interactive)
             {
@@ -634,7 +629,7 @@ namespace mrv
                     auto entries = tl::ffmpeg::getProfileLabels();
                     std::string profileName =
                         entries[(int)options.ffmpegProfile];
-                    
+
                     /* xgettext:c++-format */
                     msg = tl::string::Format(
                               _("Using profile {0}, pixel format {1}."))
@@ -663,6 +658,19 @@ namespace mrv
             {
                 throw std::runtime_error(
                     string::Format("{0}: Cannot open").arg(file));
+            }
+
+            const auto videoFrame = view->getVideoFrame();
+            if (!videoFrame.empty() &&
+                !videoFrame[0].layers.empty() &&
+                videoFrame[0].layers[0].image)
+            {
+                auto hdrData = videoFrame[0].layers[0].image->getHDR();
+                if (hdrData)
+                {
+                    writer->setHDR(*hdrData);
+                }
+                writer->writeHeader();
             }
 
             int64_t startFrame = startTime.to_frames();
@@ -765,7 +773,7 @@ namespace mrv
             waitForFrame(player, startTime);
 
             int32_t frameIndex = 0;
-            
+
             while (running)
             {
                 context->tick();
@@ -792,16 +800,16 @@ namespace mrv
                     if (!audioData.layers.empty())
                     {
                         bool skip = false;
-                        otime::TimeRange range;
+                        OTIO_NS::TimeRange range;
 
                         if (hasVideo)
-                            range = otime::TimeRange(
+                            range = OTIO_NS::TimeRange(
                                 currentTime,
-                                otime::RationalTime(1.0, currentTime.rate()));
+                                OTIO_NS::RationalTime(1.0, currentTime.rate()));
                         else
-                            range = otime::TimeRange(
-                                otime::RationalTime(seconds, 1.0),
-                                otime::RationalTime(1.0, 1.0));
+                            range = OTIO_NS::TimeRange(
+                                OTIO_NS::RationalTime(seconds, 1.0),
+                                OTIO_NS::RationalTime(1.0, 1.0));
                         auto audio = audioData.layers[0].audio;
                         if (!audio)
                         {
@@ -912,7 +920,7 @@ namespace mrv
 
                         delete rgb;
 #else
-                        
+
 #  ifdef VULKAN_BACKEND
 #  else
                         GLenum imageBuffer = GL_FRONT;
@@ -932,7 +940,7 @@ namespace mrv
                             X, Y, outputInfo.size.w, outputInfo.size.h, format,
                             type, outputImage->getData());
 #  endif
-                        
+
 #endif
                     }
                     else
@@ -965,7 +973,7 @@ namespace mrv
 #ifdef VULKAN_BACKEND
                             VkDevice device = ctx.device;
                             VkCommandPool commandPool = ctx.commandPool;
-                
+
                             VkCommandBuffer cmd = beginSingleTimeCommands(device, commandPool);
                             buffer->transitionToColorAttachment(cmd);
 
@@ -983,7 +991,7 @@ namespace mrv
                                 render->setTransform(ortho);
                                 render->setOCIOOptions(view->getOCIOOptions());
                                 render->setLUTOptions(view->lutOptions());
-                    
+
                                 render->drawVideo(
                                     {videoData},
                                     {math::Box2i(0, 0,
@@ -992,34 +1000,34 @@ namespace mrv
                                     {timeline::DisplayOptions()},
                                     timeline::CompareOptions(),
                                     ui->uiView->getBackgroundOptions());
-                    
+
                                 render->end();
                             }
 
                             buffer->transitionToColorAttachment(cmd);
-                
+
                             buffer->readPixels(cmd, 0, 0,
                                                renderSize.w, renderSize.h);
-                                    
+
                             vkEndCommandBuffer(cmd);
-                
+
                             buffer->submitReadback(cmd);
 
                             {
                                 std::lock_guard<std::mutex> lock(ctx.queue_mutex());
                                 vkQueueWaitIdle(ctx.queue());
                             }
-                                    
+
                             void* imageData = buffer->getLatestReadPixels();
                             if (imageData)
                             {
                                 std::memcpy(outputImage->getData(), imageData,
                                             outputImage->getDataByteCount());
-                                    
+
                                 vkFreeCommandBuffers(device, commandPool, 1,
-                                                     &cmd);    
+                                                     &cmd);
                             }
-                                    
+
 #else
                             // back to conventional pixel operation
                             glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
@@ -1064,16 +1072,25 @@ namespace mrv
 
                     if (videoTime.contains(currentTime))
                     {
-                        const auto& tags = ui->uiView->getTags();
+                        const auto videoFrame = view->getVideoFrame();
+                        if (!videoFrame.empty() &&
+                            !videoFrame[0].layers.empty() &&
+                            videoFrame[0].layers[0].image)
+                        {
+                            auto hdrData = videoFrame[0].layers[0].image->getHDR();
+                            if (hdrData)
+                                outputImage->setHDR(*hdrData);
+                        }
+                        const auto& tags = view->getTags();
                         outputImage->setTags(tags);
                         writer->writeVideo(currentTime, outputImage);
                     }
                 }
 
                 if (hasVideo)
-                    currentTime += otime::RationalTime(1, currentTime.rate());
+                    currentTime += OTIO_NS::RationalTime(1, currentTime.rate());
                 else
-                    currentTime += otime::RationalTime(
+                    currentTime += OTIO_NS::RationalTime(
                         currentTime.rate(), currentTime.rate());
 
                 if (currentTime > endTime)

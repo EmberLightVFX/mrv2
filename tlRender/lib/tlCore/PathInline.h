@@ -5,13 +5,13 @@ namespace tl
 {
     namespace file
     {
-        
+
         inline bool isDotFile(const std::string& fileName)
         {
             return !fileName.empty() && '.' == fileName[0];
         }
 
-        inline const PathOptions& Path::getOptions()
+        inline const PathOptions& Path::getOptions() const
         {
             return _options;
         }
@@ -83,7 +83,7 @@ namespace tl
                 _path.substr(_suf.first, _suf.second) :
                 std::string();
         }
-        
+
         inline std::string Path::getNumber() const
         {
             return _num != _invalid ?
@@ -115,6 +115,13 @@ namespace tl
             return dir ?
                 getDirectory() + getBaseName() + getNumber() + getSuffix() + getExtension() :
                 getBaseName() + getNumber() + getSuffix() + getExtension();
+        }
+
+        inline std::string Path::getFileNameWithRange(bool dir) const
+        {
+            return dir ?
+                getDirectory() + getBaseName() + getFrameRange() + getSuffix() + getExtension() :
+                getBaseName() + getFrameRange() + getSuffix() + getExtension();
         }
 
         inline const std::optional<math::Int64Range>& Path::getFrames() const
@@ -162,12 +169,12 @@ namespace tl
             return
                 (hasNumber() || hasSeqWildcard()) &&
                 other.hasNumber() &&
-                _dir == other._dir &&
-                _base == other._base &&
+                getDirectory() == other.getDirectory() &&
+                getBaseName() == other.getBaseName() &&
                 getSuffix() == other.getSuffix() &&
                 getExtension() == other.getExtension();
         }
-        
+
         inline bool Path::operator == (const Path& other) const
         {
             return _path == other._path && _frames == other._frames;
@@ -177,6 +184,6 @@ namespace tl
         {
             return !(*this == other);
         }
-        
+
     }
 }

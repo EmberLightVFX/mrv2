@@ -2,7 +2,9 @@
 // mrv2
 // Copyright Contributors to the mrv2 Project. All rights reserved.
 
-#include "mrViewer.h"
+
+#include "mrvNetwork/mrvWebRTCClient.h"
+#include "mrvNetwork/mrvCommandInterpreter.h"
 
 #include "mrvFl/mrvOCIO.h"
 #include "mrvFLTK/mrvCallbacks.h"
@@ -14,8 +16,9 @@
 #include "mrvNetwork/mrvProtocolVersion.h"
 #include "mrvNetwork/mrvTCP.h"
 
-#include "mrvNetwork/mrvCommandInterpreter.h"
 #include "mrvOptions/mrvCompareOptions.h"
+
+#include "mrViewer.h"
 
 #if defined(OPENGL_BACKEND)
 #    include "mrvGL/mrvGLJson.h"
@@ -40,7 +43,7 @@
 
 namespace
 {
-    const char* kModule = "inter";
+    const char* kModule = "cmdi";
     const double kTimeout = 0.01;
 } // namespace
 
@@ -99,9 +102,16 @@ namespace mrv
         Fl::remove_timeout((Fl_Timeout_Handler)timerEvent_cb, this);
     }
 
+    void CommandInterpreter::handlePeerDisconnected(const std::string& peerId)
+    {
+        if (peerId.empty())
+            return; // ot a mesh peer, nothing to clean up
+    }
+
     void CommandInterpreter::parse(const Message& message)
     {
         const std::string& c = message["command"];
+
         auto app = ui->app;
         auto prefs = ui->uiPrefs;
         auto view = ui->uiView;
@@ -121,8 +131,10 @@ namespace mrv
 
             if (c == "sync")
             {
+                const std::string peerId = message.value(kLocalPeerIdKey,
+                                                         std::string());
                 tcp->unlock();
-                tcp->syncClient();
+                tcp->syncClient(peerId);
             }
             else if (c == "setPlayback")
             {
@@ -168,12 +180,26 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-                std::string fileName = message["fileName"];
-                std::string audioFileName = message["audioFileName"];
+                const std::string peerId = message.value(kLocalPeerIdKey,
+                                                         std::string());
+                tl::file::Path remoteFilePath = message["filePath"];
+                tl::file::Path remoteAudioFilePath = message["audioFilePath"];
+
+                std::string fileName = remoteFilePath.get();
+                std::string audioFileName = remoteAudioFilePath.get();
                 replace_path(fileName);
-                if (!audioFileName.empty())
-                    replace_path(audioFileName);
-                app->open(fileName, audioFileName);
+                replace_path(audioFileName);
+                if (file::isReadable(fileName) &&
+                    (audioFileName.empty() || file::isReadable(audioFileName)))
+                {
+                    app->open(fileName, audioFileName);
+                }
+                else if (!peerId.empty())
+                {
+                    FilesModelItem item;  // dummy item
+                    fetchRemoteFile(peerId, remoteFilePath,
+                                    remoteAudioFilePath, item);
+                }
             }
             else if (c == "closeAll")
             {
@@ -193,7 +219,16 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-                syncMedia(message);
+                const std::string peerId = message.value(kLocalPeerIdKey,
+                                                         std::string());
+                syncMedia(peerId, message);
+            }
+            else if (c == "Peer Disconnected")
+            {
+                const std::string peerId = message.value(kLocalPeerIdKey, std::string());
+                tcp->unlock();
+                handlePeerDisconnected(peerId);
+                return;
             }
             else if (c == "seek")
             {
@@ -203,7 +238,7 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-                otime::RationalTime value = message["value"];
+                OTIO_NS::RationalTime value = message["value"];
                 player->seek(value);
             }
             else if (c == "Timeline Key Press")
@@ -305,7 +340,7 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-                otime::TimeRange value = message["value"];
+                OTIO_NS::TimeRange value = message["value"];
                 player->setInOutRange(value);
             }
             else if (c == "setSpeed")
@@ -781,7 +816,13 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-                const draw::Point& value = message["value"];
+
+                draw::Point value = message["value"];
+
+#ifdef OPENGL_BACKEND
+                math::Size2i size = App::ui->uiView->getRenderSize();
+                value.y = size.h - value.y;
+#endif
                 shape->pts.push_back(value);
                 view->redrawWindows();
             }
@@ -821,6 +862,7 @@ namespace mrv
                 }
                 auto shape = messageToShape(message["value"]);
                 annotation->shapes.push_back(shape);
+
                 // Create annotation menus if not there already
                 ui->uiMain->fill_menu(ui->uiMenuBar);
                 view->updateUndoRedoButtons();
@@ -833,7 +875,7 @@ namespace mrv
                     tcp->unlock();
                     return;
                 }
-                const otime::RationalTime& time = message["value"];
+                const OTIO_NS::RationalTime& time = message["value"];
                 player->updateVideoCache(time);
             }
             else if (c == "clearCache")
@@ -866,6 +908,7 @@ namespace mrv
                 }
 
                 const std::vector<draw::Annotation>& tmp = message["value"];
+
                 std::vector< std::shared_ptr<draw::Annotation> > annotations;
                 for (const auto& ann : tmp)
                 {
@@ -873,8 +916,8 @@ namespace mrv
                         messageToAnnotation(ann);
                     annotations.push_back(annotation);
                 }
+                player->mergeAllAnnotations(annotations);
 
-                player->setAllAnnotations(annotations);
                 ui->uiTimeline->redraw();
                 ui->uiMain->fill_menu(ui->uiMenuBar);
             }
@@ -1239,18 +1282,6 @@ namespace mrv
                 if ((!value && webrtcPanel) || (value && !webrtcPanel))
                     webrtc_panel_cb(nullptr, ui);
             }
-            else if (c == "Network Panel")
-            {
-                bool receive = prefs->ReceiveUI->value();
-                if (!receive)
-                {
-                    tcp->unlock();
-                    return;
-                }
-                bool value = message["value"];
-                if ((!value && networkPanel) || (value && !networkPanel))
-                    network_panel_cb(nullptr, ui);
-            }
             else if (c == "USD Panel")
             {
 #ifdef TLRENDER_USD
@@ -1293,18 +1324,6 @@ namespace mrv
                 if ((!value && pythonPanel) || (value && !pythonPanel))
                     python_panel_cb(nullptr, ui);
 #endif
-            }
-            else if (c == "Playlist Panel")
-            {
-                bool receive = prefs->ReceiveUI->value();
-                if (!receive)
-                {
-                    tcp->unlock();
-                    return;
-                }
-                bool value = message["value"];
-                if ((!value && playlistPanel) || (value && !playlistPanel))
-                    playlist_panel_cb(nullptr, ui);
             }
             else if (c == "Settings Panel")
             {
@@ -1501,6 +1520,25 @@ namespace mrv
                 const FilesPanelOptions& o = message["value"];
                 app->filesModel()->setFilesPanelOptions(o);
             }
+            else if (c == "setMediaReferenceKey")
+            {
+                bool receive = prefs->ReceiveUI->value();
+                if (!receive)
+                {
+                    tcp->unlock();
+                    return;
+                }
+                std::string key = message["value"];
+
+                const auto& timeline = player->timeline();
+                if (!timeline) return;
+
+                timeline->setMediaReferenceKey(key);
+                player->clearCache();
+                ui->uiTimeline->setTimelinePlayer(nullptr);
+                ui->uiTimeline->setTimelinePlayer(player);
+                ui->uiView->redrawWindows();
+            }
             else if (c == "Protocol Version")
             {
                 int value = message["value"];
@@ -1543,7 +1581,7 @@ namespace mrv
 
         while (tcp->hasReceive())
         {
-            const Message& message = tcp->popMessage();
+            const Message message = tcp->popMessage();
             parse(message);
         }
         Fl::repeat_timeout(kTimeout, (Fl_Timeout_Handler)timerEvent_cb, this);

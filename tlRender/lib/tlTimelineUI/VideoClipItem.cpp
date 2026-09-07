@@ -42,12 +42,13 @@ namespace tl
             io::Options ioOptions;
             TIMELINEUI::InfoRequest infoRequest;
             std::shared_ptr<io::Info> ioInfo;
-            std::map<otime::RationalTime, ThumbnailRequest>
+            std::map<OTIO_NS::RationalTime, ThumbnailRequest>
                 thumbnailRequests;
         };
 
         void VideoClipItem::_init(
-            const otio::SerializableObject::Retainer<otio::Clip>& clip,
+            const std::shared_ptr<timeline::Timeline> timeline,
+            const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Clip>& clip,
             double scale, const ItemOptions& options,
             const DisplayOptions& displayOptions,
             const std::shared_ptr<ItemData>& itemData,
@@ -56,7 +57,7 @@ namespace tl
             const std::shared_ptr<IWidget>& parent)
         {
             const auto path = timeline::getPath(
-                clip->media_reference(), itemData->directory,
+                timeline->getMediaReference(clip), itemData->directory,
                 itemData->options.pathOptions);
             IBasicItem::_init(
                 !clip->name().empty() ? clip->name()
@@ -64,12 +65,12 @@ namespace tl
                 ui::ColorRole::VideoClip, "tl::TIMELINEUI::VideoClipItem",
                 clip.value, scale, options, displayOptions, itemData, context,
                 parent);
-            
+
             TLRENDER_P();
 
             p.clipName = clip->name();
             p.path = path;
-            p.memoryRead = timeline::getMemoryRead(clip->media_reference());
+            p.memoryRead = timeline->getMem(clip->media_reference());
             p.thumbnailGenerator = thumbnailGenerator;
 
             p.ioOptions = _data->options.ioOptions;
@@ -95,7 +96,8 @@ namespace tl
         }
 
         std::shared_ptr<VideoClipItem> VideoClipItem::create(
-            const otio::SerializableObject::Retainer<otio::Clip>& clip,
+            const std::shared_ptr<timeline::Timeline> timeline,
+            const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Clip>& clip,
             double scale, const ItemOptions& options,
             const DisplayOptions& displayOptions,
             const std::shared_ptr<ItemData>& itemData,
@@ -105,7 +107,7 @@ namespace tl
         {
             auto out = std::shared_ptr<VideoClipItem>(new VideoClipItem);
             out->_init(
-                clip, scale, options, displayOptions, itemData,
+                timeline, clip, scale, options, displayOptions, itemData,
                 thumbnailGenerator, context, parent);
             return out;
         }
@@ -217,7 +219,7 @@ namespace tl
             const math::Box2i& drawRect, const ui::DrawEvent& event)
         {
             IBasicItem::drawEvent(drawRect, event);
-            
+
             if (_displayOptions.thumbnails)
             {
                 _drawThumbnails(drawRect, event);
@@ -258,7 +260,7 @@ namespace tl
                         p.path, p.memoryRead, p.ioOptions);
                 }
             }
- 
+
             const int thumbnailWidth =
                 (_displayOptions.thumbnails && p.ioInfo &&
                  !p.ioInfo->video.empty())
@@ -281,18 +283,18 @@ namespace tl
                         thumbnailWidth, _displayOptions.thumbnailHeight);
                     if (math::intersects(box, clipRect))
                     {
-                        const otime::RationalTime time =
-                            otime::RationalTime(
+                        const OTIO_NS::RationalTime time =
+                            OTIO_NS::RationalTime(
                                 _timeRange.start_time().value() +
                                     (w > 1 ? (x / static_cast<double>(w - 1))
                                            : 0) *
                                         _timeRange.duration().value(),
                                 _timeRange.duration().rate())
                                 .floor();
-                        const otime::RationalTime mediaTime = 
+                        const OTIO_NS::RationalTime mediaTime =
                             timeline::toVideoMediaTime(
                                 time, _timeRange, _trimmedRange,
-                                p.ioInfo->videoTime.duration().rate());
+                                p.ioInfo->videoTime->duration().rate());
 
                         const std::string cacheKey = io::getVideoCacheKey(
                             p.path, mediaTime, p.ioOptions, {});
@@ -301,8 +303,8 @@ namespace tl
                         {
                             if (i->second)
                             {
-                                
-                                timeline::VideoData videoData;
+
+                                timeline::VideoFrame videoData;
                                 videoData.size = i->second->getSize();
                                 videoData.layers.push_back({i->second});
 
@@ -319,11 +321,13 @@ namespace tl
                                     (!_displayOptions.hdr.tonemap ||
                                      _displayOptions.hdr == timeline::HDROptions()))
                                 {
-                                    if (!layer.imageB && layer.image)
+                                    if (!layer.imageB && layer.image &&
+                                        layer.image->getInfo().pixelType == image::PixelType::RGBA_U8)
                                     {
                                         event.render->drawImage(layer.image, box);
                                     }
-                                    else if (!layer.image && layer.imageB)
+                                    else if (!layer.image && layer.imageB &&
+                                             layer.imageB->getInfo().pixelType == image::PixelType::RGBA_U8)
                                     {
                                         event.render->drawImage(layer.imageB, box);
                                     }
@@ -354,7 +358,7 @@ namespace tl
                                     p.thumbnailGenerator->getThumbnail(
                                         p.path, p.memoryRead,
                                         _displayOptions.thumbnailHeight,
-                                        mediaTime, p.ioOptions);
+                                        mediaTime, "", p.ioOptions);
                             }
                         }
                     }

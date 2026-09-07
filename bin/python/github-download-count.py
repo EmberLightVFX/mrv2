@@ -11,13 +11,12 @@ import time
 
 # --- Third-Party Imports ---
 try:
-    from curl_cffi import requests as curl_requests
+    import requests
 except ImportError:
-    print("Error: curl_cffi is not installed")
-    print("pip install curl_cffi")
+    print("Error: requests is not installed")
+    print("pip install requests")
     sys.exit(1)
 
-import requests  # plain requests for SourceForge
 import json
 from io import StringIO
 
@@ -30,8 +29,6 @@ headers = {}
 
 if "GITHUB_TOKEN" in os.environ:
     headers["Authorization"] = "token %s" % os.environ["GITHUB_TOKEN"]
-
-BROWSER_IMPERSONATE = 'safari15_5'
 
 # --- GRAND TOTALS ---
 mrv2_grand_total = vmrv2_grand_total = 0
@@ -53,6 +50,7 @@ def get_date_arguments():
     parser.add_argument('end_date', type=str, nargs='?', default=None)
     return parser.parse_args()
 
+global diff
 
 def parse_and_process_dates(args):
     # (unchanged - your excellent date parser stays exactly the same)
@@ -77,6 +75,7 @@ def parse_and_process_dates(args):
         except ValueError:
             raise ValueError(f"Invalid date format '{date_str}'.")
 
+    global diff
     start_dt = parse_date_string(args.start_date, False)
     end_dt = datetime.now(timezone.utc) if not args.end_date else parse_date_string(args.end_date, True)
 
@@ -88,7 +87,7 @@ def parse_and_process_dates(args):
 
     beta_start_dt = start_dt + timedelta(days=1)
 
-    print(" START DATE:", start_dt.strftime("%Y-%m-%d %H:%M:%S %Z"))
+    print("  START DATE:", start_dt.strftime("%Y-%m-%d %H:%M:%S %Z"))
     print("    END DATE:", end_dt.strftime("%Y-%m-%d %H:%M:%S %Z"))
     diff = end_dt - start_dt
     print(f' DIFFERENCE: {diff.days} days, {diff.seconds//3600} hours, {(diff.seconds//60)%60} minutes')
@@ -101,7 +100,6 @@ def parse_and_process_dates(args):
 
 
 def get_github_downloads(user, repo, tag):
-    # (unchanged - your original GitHub function, still uses curl_cffi)
     if not user or not repo:
         print("Skipping GitHub downloads: user and repo required.")
         return 0, 0, 0, 0, 0, 0, 0, 0
@@ -116,7 +114,7 @@ def get_github_downloads(user, repo, tag):
         PER_PAGE = 100
         for page in itertools.count(1):
             url = f'https://api.github.com/repos/{full_name}/releases?per_page={PER_PAGE}&page={page}'
-            response = curl_requests.get(url, impersonate="chrome120")
+            response = requests.get(url)
             response.raise_for_status()
             releases = response.json()
             if not releases:
@@ -178,7 +176,7 @@ def count_sourceforge(repo, folder_name, end_date, start_date, fetch_json):
     """Fetches and sums SourceForge download counts for a folder."""
     print(f"\n\tCount {folder_name} from {start_date} to {end_date}")
 
-    is_detailed_stats_folder = not any(key in folder_name.lower() for key in ['archive'])
+    is_detailed_stats_folder = not any(key in folder_name.lower() for key in ['archive', 'beta'])
 
     mrv2_total = vmrv2_total = 0
     mrv2_win = vmrv2_win = mrv2_lin = vmrv2_lin = mrv2_mac = vmrv2_mac = 0
@@ -359,6 +357,8 @@ if __name__ == "__main__":
     # Run the three queries using plain requests)
     for folder, date_start in [
         (tag, start_date_str),                     # released (detailed)
+        ("beta/opengl", beta_start_date_str),
+        ("beta/vulkan", beta_start_date_str)
     ]:
         (mrv2_sf, vmrv2_sf,
          mrv2_win_sf, vmrv2_win_sf,
@@ -393,4 +393,10 @@ if __name__ == "__main__":
     print(f'{format_number(mrv2_grand_total, 5)} Grand Total  mrv2 Downloads (GitHub + SourceForge)')
     print(f'{format_number(vmrv2_grand_total, 5)} Grand Total vmrv2 Downloads (GitHub + SourceForge)')
     print("-----------------------------------------------------------------------")
-    print(f'{format_number(mrv2_grand_total + vmrv2_grand_total, 5)} Grand Total (GitHub + SourceForge)')
+    total = mrv2_grand_total + vmrv2_grand_total
+    print(f'{format_number(total, 5)} Grand Total (GitHub + SourceForge)')
+    hours = diff.days * 24 + diff.seconds//3600
+    if hours < 1:
+        hours = 1
+    per_hour = round(total / hours, 2)
+    print(f'{format_number(per_hour,5)} Total Downloads Per Hour')

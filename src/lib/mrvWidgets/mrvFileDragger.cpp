@@ -41,13 +41,17 @@ namespace mrv
             Fl_Group::current(0);
         }
 
-        const image::Size size = panel::calculateImageSize();
-            
+        const image::Size size = panel::calculateImageSize(
+            App::ui->uiPrefs->uiPrefsFilesPanelThumbnails->value()
+            );
+
         p.window = new MainWindow(X, Y, size.w, size.h);
         p.window->allow_expand_outside_parent();
         p.window->border(0);
         p.window->begin();
         p.box = new Fl_Box(0, 0, size.w, size.h);
+        p.box->box(FL_FLAT_BOX);
+        p.box->color(FL_CYAN);
         p.window->end();
         p.window->show();
         Fl_Group::current(0);

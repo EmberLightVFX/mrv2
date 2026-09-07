@@ -10,7 +10,6 @@ Annotations Panel
 
 .. image:: ../images/annotations-panel-01.png
    :align: center
-
 	   
 The Annotations Panel allows you to control the Text, Sketch and Notes.  You can select a Font to use for the Text tool.  You can select a hard or soft brush for the draw tools.  And you can draw Laser sketches, so they are not permanent and instead vanish in time.
 
@@ -113,14 +112,13 @@ NDI Panel
 .. image:: ../images/ndi-panel-01.png
    :align: center
 
-
 The NDI Panel allows you to play back an NDI® stream (ie. a video and audio playback stream) from anywhere on your network using the Network Device Interface protocol.
 
 For the connection to take place, you need to make sure your firewall allows incoming and outgoing connections.  For more information, refer to the NDI® SDK documentation.
 
 The pulldown allows you to select the source to play.  Note that starting of playback of NDI® in mrv2 is currently a tad slow, as it needs to cache the video thumbnails and audio first.
 
-In v1.6.6 and later, NDI® Video and Audio output was also added.  This allows you to stream the contents of what's playing in mrv2 to any NDI® compatible device or software (like NDI® Tools Studio Monitor on Windows or NDI® Tools Video Monitor on macOS or other instance of mrv2 itself).
+In v1.7.1 and later, NDI® Video and Audio output was also added.  This allows you to stream the contents of what's playing in mrv2 to any NDI® compatible device or software (like NDI® Tools Studio Monitor on Windows or NDI® Tools Video Monitor on macOS or other instance of mrv2 itself).
 
 NDI® is a registered trademark of Vizrt NDI AB.
 
@@ -190,8 +188,28 @@ Vectorscope Panel
 
 The Vectorscope Panel allows you to show a vectorscope of the selected area of the image.  You select the area with the select tool in the Tool Dock where the drawing tools are located.
 
+Waveform Panel
+++++++++++++++
+
+.. image:: ../images/waveform-panel-01.png
+   :align: center
+
+The Waveform Panel allows you to show a waveform of the selected area of the image.  You select the area with the select tool in the Tool Dock where the drawing tools are located.
+The Waveform shows the luminance of the pixels on the Y axis, while the X axis shows the X position of the image.
+
 WebRTC Panel
 ++++++++++++
 
+.. image:: ../images/webrtc-panel-01.png
+   :align: center
+
 The WebRTC Panel allows syncing two or more remote viewers anywhere in the Web in a "Room".  Then anyone in the Room can control the viewers, by going back and forth, using the drawing tools, etc.
-Note that the actual media is not sent through the web, but must be kept locally.  If you are mixing platforms or the media is not on the same location on both remote locations, you should use Preferences->Path Mapping to make sure the media is found.
+
+To use WebRTC, you first should set the name of your Studio in Preferences->WebRTC->Studio.  You should make it a unique name so that it is not exposed by chance.
+
+Then you should set the Room name also to a relatively unique name (avoid names like "RoomA" or "Room1")
+
+Starting with v1.7.1, The actual media *CAN BE* sent through a special data channel, encrypted.  Think P2P, BitTorrent or Zoom.
+The client that misses the data is stopped, while the machine that has the clips can still interact while sendinging the content in the background.  Note that unlike other viewers, there's no need for a centralized server on the cloud.  The server and client are the same artists' computers.
+This happens if the media resolution cannot be found in the same place or through Path Mappings.
+If you are mixing platforms or the media is already there on both places but not on the same location, you should use Preferences->Path Mapping first to make sure the media is found and avoid transfers through the internet.

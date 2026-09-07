@@ -9,6 +9,8 @@
 
 #include "Polyline2D.h"
 
+#include <cmath>
+
 namespace tl
 {
     namespace draw
@@ -21,7 +23,7 @@ namespace tl
             {
                 return;
             }
-            
+
             PointList filteredPoints;
             filteredPoints.push_back(points.front());
 
@@ -36,7 +38,7 @@ namespace tl
                 filteredPoints.push_back(p1);
             }
 
-            
+
             // Always add the very last point to ensure the line draws to the
             // cursor.
             // We check against the last added point to avoid duplicates if
@@ -44,11 +46,11 @@ namespace tl
             const Point& lastPoint = points.back();
 
             // Use a small epsilon
-            if ((filteredPoints.back() - lastPoint).length() > 1e-6) 
+            if ((filteredPoints.back() - lastPoint).length() > 1e-6)
             {
                 filteredPoints.push_back(lastPoint);
             }
-    
+
             points = filteredPoints;
         }
 
@@ -57,12 +59,9 @@ namespace tl
             EndCapStyle endCapStyle, bool catmullRomSpline, bool allowOverlap)
         {
 
-            // Filter the points
+            // Filter the nearby points
             points = inPoints;
             filterPoints();
-
-            // operate on half the thickness to make our lives easier
-            float thickness = m_width / 2;
 
             // create poly segments from the points
             std::vector<PolySegment<Point>> segments;
@@ -72,9 +71,16 @@ namespace tl
                 auto& point1 = points[i];
                 auto& point2 = points[i + 1];
 
+                // Per-endpoint half-thickness: base width × each point's own
+                // pressure.  Using the same point's pressure on both sides of
+                // a joint guarantees edge continuity between segments.
+                float thicknessStart = std::max(m_width * point1.pressure, 1.F);
+                float thicknessEnd   = std::max(m_width * point2.pressure, 1.F);
+
                 if (point1 != point2)
                     segments.emplace_back(
-                        LineSegment<Point>(point1, point2), thickness);
+                        LineSegment<Point>(point1, point2),
+                        thicknessStart, thicknessEnd);
             }
 
             if (endCapStyle == EndCapStyle::JOINT)
@@ -84,15 +90,18 @@ namespace tl
 
                 auto& point1 = points[points.size() - 1];
                 auto& point2 = points[0];
+                float thicknessStart = std::max(m_width * point1.pressure, 1.F);
+                float thicknessEnd   = std::max(m_width * point2.pressure, 1.F);
 
                 if (point1 != point2)
                     segments.emplace_back(
-                        LineSegment<Point>(point1, point2), thickness);
+                        LineSegment<Point>(point1, point2),
+                        thicknessStart, thicknessEnd);
             }
 
             if (segments.empty())
             {
-                const float w = thickness;
+                const float w = std::max(m_width * points[0].pressure, 1.F);
                 Point center = points[0];
 
                 if (!m_softEdges)
@@ -161,11 +170,11 @@ namespace tl
             {
                 // extend the start/end points by half the thickness
                 pathStart1 =
-                    pathStart1 - firstSegment.edge1.direction() * thickness;
+                    pathStart1 - firstSegment.edge1.direction() * firstSegment.thicknessStart;
                 pathStart2 =
-                    pathStart2 - firstSegment.edge2.direction() * thickness;
-                pathEnd1 = pathEnd1 + lastSegment.edge1.direction() * thickness;
-                pathEnd2 = pathEnd2 + lastSegment.edge2.direction() * thickness;
+                    pathStart2 - firstSegment.edge2.direction() * firstSegment.thicknessStart;
+                pathEnd1 = pathEnd1 + lastSegment.edge1.direction() * lastSegment.thicknessEnd;
+                pathEnd2 = pathEnd2 + lastSegment.edge2.direction() * lastSegment.thicknessEnd;
             }
             else if (endCapStyle == EndCapStyle::ROUND)
             {
@@ -339,7 +348,8 @@ namespace tl
                 Point* innerSecOpt = nullptr;
 
                 LineSegment<Point>::intersection(
-                    *inner1, *inner2, innerSecOpt, allowOverlap);
+                    *inner1, *inner2, innerSecOpt,
+                    m_softEdges? false : allowOverlap);
 
                 // for parallel lines, simply
                 // connect them directly
@@ -391,11 +401,12 @@ namespace tl
 
                     if (m_softEdges)
                     {
-                        V2f tmp(0.0f, 0.5f);
-                        m_uvs.emplace_back(tmp);
-                        m_uvs.emplace_back(tmp);
-                        tmp.x = 1.0f;
-                        m_uvs.emplace_back(tmp);
+                        float uvOuter = clockwise ? 0.0f : 1.0f;
+                        float uvInner = clockwise ? 1.0f : 0.0f;
+
+                        m_uvs.emplace_back(V2f(uvOuter, 0.5f));
+                        m_uvs.emplace_back(V2f(uvOuter, 0.5f));
+                        m_uvs.emplace_back(V2f(uvInner, 0.5f));
                     }
 
                     m_tris.emplace_back(IndexTriangle(n, n + 1, n + 2));
@@ -411,15 +422,36 @@ namespace tl
                             nextStart1 = segment2.edge1.a;
                             nextStart2 = segment2.edge2.a;
                         }
+                        else
+                        {
+                            // simply connect the intersection points
+                            size_t n = m_vertices.size();
+                            m_vertices.emplace_back(outer1->b);
+                            m_vertices.emplace_back(outer2->a);
+                            m_vertices.emplace_back(innerSec);
+
+                            if (m_softEdges)
+                            {
+                                float uvOuter = clockwise ? 0.0f : 1.0f;
+                                float uvInner = clockwise ? 1.0f : 0.0f;
+
+                                m_uvs.emplace_back(V2f(uvOuter, 0.5f));
+                                m_uvs.emplace_back(V2f(uvOuter, 0.5f));
+                                m_uvs.emplace_back(V2f(uvInner, 0.5f));
+                            }
+
+                            m_tris.emplace_back(IndexTriangle(n, n + 1, n + 2));
+                        }
                     }
                     else
                     {
-                        // draw a semicircle between the ends of the outer
-                        // edges, centered at the actual point
-                        // with half the line thickness as the radius
+                        // draw a semicircle between the ends of the outer edges
+                        float uvOuter = clockwise ? 0.0f : 1.0f;
+                        float uvInner = clockwise ? 1.0f : 0.0f;
+
                         createTriangleFan(
                             innerSec, segment1.center.b, outer1->b, outer2->a,
-                            1.0, 0.0, clockwise);
+                            uvInner, uvOuter, clockwise);
                     }
                 }
                 else
@@ -536,8 +568,15 @@ namespace tl
         void Polyline2D::createRoundSoftCap(
             const PolySegment<Point>& segment, const bool start)
         {
-            auto left = segment.edge1.direction() * m_width * 0.5;
-            auto right = segment.edge2.direction() * m_width * 0.5;
+            // `start=false` caps the beginning of the path (.a endpoints);
+            // `start=true`  caps the end of the path   (.b endpoints).
+            // Use the thickness that belongs to whichever end we're capping so
+            // the cap radius matches the actual stroke width there.
+            const float capThickness =
+                start ? segment.thicknessEnd : segment.thicknessStart;
+
+            auto left = segment.edge1.direction() * capThickness;
+            auto right = segment.edge2.direction() * capThickness;
 
             Point center, edge1, edge2;
             if (!start)
@@ -589,4 +628,4 @@ namespace tl
 
     } // namespace draw
 
-} // namespace mrv
+} // namespace tl

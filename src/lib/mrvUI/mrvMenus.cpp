@@ -70,7 +70,7 @@ namespace mrv
     void MainWindow::fill_menu(Fl_Menu_* menu)
     {
         using namespace panel;
-        
+
         Fl_Menu_Item* item = nullptr;
         int mode = 0;
         char buf[1024];
@@ -97,7 +97,7 @@ namespace mrv
         menu->add(
             _("File/Open/Movie or Sequence"), kOpenImage.hotkey(),
             (Fl_Callback*)open_cb, ui);
-        
+
         menu->add(
             _("File/Open/URL Movie"), kOpenURLMovie.hotkey(),
             (Fl_Callback*)open_url_movie_cb, ui);
@@ -121,7 +121,7 @@ namespace mrv
         menu->add(
             _("File/Open/New Program Instance"), kOpenNewInstance.hotkey(),
             (Fl_Callback*)open_new_instance_cb, ui);
-        
+
         mode = 0;
         if (numFiles == 0)
             mode = FL_MENU_INACTIVE;
@@ -146,13 +146,13 @@ namespace mrv
         {
             mode |= FL_MENU_INACTIVE;
         }
-            
+
         menu->add(
             _("File/Save/OTIO EDL Timeline"), kSaveOTIOEDL.hotkey(),
             (Fl_Callback*)save_timeline_to_disk_cb, ui,
             mode | FL_MENU_DIVIDER);
-            
-            
+
+
         mode = 0;
         if (!player || !player->hasAnnotations())
             mode = FL_MENU_INACTIVE;
@@ -161,7 +161,7 @@ namespace mrv
         {
             mode |= FL_MENU_INACTIVE;
         }
-            
+
         menu->add(
             _("File/Save/Annotations Only"), kSaveAnnotationsOnly.hotkey(),
             (Fl_Callback*)save_annotations_only_cb, ui, mode);
@@ -194,7 +194,7 @@ namespace mrv
 
         menu->add(_("File/Save and Reload Session"), kReloadSession.hotkey(),
                   (Fl_Callback*)reload_session_cb, ui, mode);
-         
+
         // std_any value;
         SettingsObject* settings = ui->app->settings();
         const std::vector< std::string >& recentFiles = settings->recentFiles();
@@ -426,8 +426,6 @@ namespace mrv
                 hotkey = kToggleColorInfo.hotkey();
             else if (tmp == "Compare")
                 hotkey = kToggleCompare.hotkey();
-            else if (tmp == "Playlist")
-                hotkey = kTogglePlaylist.hotkey();
             else if (tmp == "Devices")
                 hotkey = kToggleDevices.hotkey();
             else if (tmp == "Settings")
@@ -444,8 +442,6 @@ namespace mrv
                 hotkey = kToggleWaveform.hotkey();
             else if (tmp == "NDI")
                 hotkey = kToggleNDI.hotkey();
-            else if (tmp == "Network")
-                hotkey = kToggleNetwork.hotkey();
             else if (tmp == "WebRTC")
                 hotkey = kToggleWebRTC.hotkey();
             else if (tmp == "USD")
@@ -536,13 +532,6 @@ namespace mrv
                 else
                     item->clear();
             }
-            else if (tmp == _("Playlist"))
-            {
-                if (playlistPanel)
-                    item->set();
-                else
-                    item->clear();
-            }
             else if (tmp == _("Devices"))
             {
                 if (devicesPanel)
@@ -584,15 +573,6 @@ namespace mrv
             {
 #ifdef TLRENDER_NDI
                 if (ndiPanel)
-                    item->set();
-                else
-                    item->clear();
-#endif
-            }
-            else if (tmp == _("Network"))
-            {
-#ifdef MRV2_NETWORK
-                if (networkPanel)
                     item->set();
                 else
                     item->clear();
@@ -671,7 +651,7 @@ namespace mrv
         }
 
         // Make sure to sync panels remotely.
-        syncPanels();
+        syncPanels("");
 
         {
             const timeline::DisplayOptions& displayOptions =
@@ -796,7 +776,7 @@ namespace mrv
             //     image::VideoLevels::LegalRangeHDR)
             //     item->set();
 #endif
-            
+
             idx = menu->add(
                 _("Render/Video Levels/Full Range"),
                 kVideoLevelsFullRange.hotkey(),
@@ -831,17 +811,17 @@ namespace mrv
             if (imageOptions.alphaBlend == timeline::AlphaBlend::Premultiplied)
                 item->set();
 
-            
+
 
             const timeline::HDROptions& hdrOptions = uiView->getHDROptions();
             int selected = static_cast<int>(hdrOptions.algorithm);
 
 #ifdef VULKAN_BACKEND
-            
+
             mode = FL_MENU_TOGGLE;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
-            
+
             idx = menu->add(_("Render/HDR/Enable Peak Detection"),
                             kToggleHDRPeakDetection.hotkey(),
                             (Fl_Callback*) toggle_hdr_peak_detection_cb, ui,
@@ -852,7 +832,7 @@ namespace mrv
                 item->set();
             }
 #endif
-            
+
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
@@ -870,7 +850,7 @@ namespace mrv
                     item->set();
                 ++tonemap;
             }
-            
+
             selected = static_cast<int>(hdrOptions.gamutMapping);
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
@@ -893,28 +873,28 @@ namespace mrv
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
-            
+
             idx = menu->add(
                 _("Render/HDR Data/From File"), kHDRDataFromFile.hotkey(),
                 (Fl_Callback*)hdr_data_from_file_cb, ui, mode);
             item = (Fl_Menu_Item*)&(menu->menu()[idx]);
             if (displayOptions.hdrInfo == timeline::HDRInformation::FromFile)
                 item->set();
-            
+
             idx = menu->add(
                 _("Render/HDR Data/Inactive"), kHDRDataFalse.hotkey(),
                 (Fl_Callback*)hdr_data_inactive_cb, ui, mode);
             item = (Fl_Menu_Item*)&(menu->menu()[idx]);
             if (displayOptions.hdrInfo == timeline::HDRInformation::Inactive)
                 item->set();
-            
+
             idx = menu->add(
                 _("Render/HDR Data/Active"), kHDRDataTrue.hotkey(),
                 (Fl_Callback*)hdr_data_active_cb, ui, mode);
             item = (Fl_Menu_Item*)&(menu->menu()[idx]);
             if (displayOptions.hdrInfo == timeline::HDRInformation::Active)
                 item->set();
-            
+
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
@@ -930,11 +910,11 @@ namespace mrv
 #ifdef VULKAN_BACKEND
             const timeline::ShaderOptions& shaderOptions =
                 uiView->getShaderOptions();
-            
+
             mode = FL_MENU_RADIO;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
-            
+
             idx = menu->add(
                 _("Render/Debanding/None"), kDebandingNone.hotkey(),
                 (Fl_Callback*)debanding_none_cb, ui, mode);
@@ -948,7 +928,7 @@ namespace mrv
             item = (Fl_Menu_Item*)&(menu->menu()[idx]);
             if (shaderOptions.debanding == timeline::Debanding::Low)
                 item->set();
-            
+
             idx = menu->add(
                 _("Render/Debanding/Medium"), kDebandingMedium.hotkey(),
                 (Fl_Callback*)debanding_medium_cb, ui, mode);
@@ -963,7 +943,7 @@ namespace mrv
             if (shaderOptions.debanding == timeline::Debanding::High)
                 item->set();
 #endif
-            
+
 
             idx = menu->add(
                 _("Render/Minify Filter/Nearest"), filtering_nearest,
@@ -1004,11 +984,11 @@ namespace mrv
             if (displayOptions.imageFilters.magnify ==
                 timeline::ImageFilter::Linear)
                 item->set();
-            
+
             mode = FL_MENU_TOGGLE;
             if (numFiles == 0)
                 mode |= FL_MENU_INACTIVE;
-            
+
             idx = menu->add(
                 _("Render/HDR/Auto Normalize"), kAutoNormalize.hotkey(),
                 (Fl_Callback*)toggle_normalize_image_cb, ui, mode);
@@ -1147,7 +1127,7 @@ namespace mrv
         menu->add(
             _("Playback/Go to/Next Frame"), kFrameStepFwd.hotkey(),
             (Fl_Callback*)next_frame_cb, ui, FL_MENU_DIVIDER | mode);
-        
+
         menu->add(
             _("Playback/Go to/Previous 10 seconds"), kFrameStepFPSBack.hotkey(),
             (Fl_Callback*)previous_second_cb, ui, mode);
@@ -1155,8 +1135,8 @@ namespace mrv
             _("Playback/Go to/Next 10 seconds"), kFrameStepFPSFwd.hotkey(),
             (Fl_Callback*)next_second_cb, ui, FL_MENU_DIVIDER | mode);
 
-        
-        
+
+
         if (player)
         {
             mode = 0;
@@ -1260,6 +1240,16 @@ namespace mrv
             buf, kCompareDifference.hotkey(),
             (Fl_Callback*)compare_difference_cb, ui, mode);
 
+        snprintf(buf, 256, "%s", _("View/Compare/Add"));
+        idx = menu->add(
+            buf, kCompareAdd.hotkey(),
+            (Fl_Callback*)compare_add_cb, ui, mode);
+
+        snprintf(buf, 256, "%s", _("View/Compare/Multiply"));
+        idx = menu->add(
+            buf, kCompareAdd.hotkey(),
+            (Fl_Callback*)compare_multiply_cb, ui, mode);
+
         snprintf(buf, 256, "%s", _("View/Compare/Horizontal"));
         idx = menu->add(
             buf, kCompareHorizontal.hotkey(),
@@ -1299,7 +1289,7 @@ namespace mrv
             ui->uiTimeline->setEditable(false);
             mode |= FL_MENU_INACTIVE;
         }
-        
+
         idx = menu->add(
             _("Timeline/Editable"), kToggleTimelineEditable.hotkey(),
             (Fl_Callback*)toggle_timeline_editable_cb, ui, mode);
@@ -1420,6 +1410,39 @@ namespace mrv
                         item->set();
                 }
             }
+
+            if (player)
+            {
+                const auto& timeline = player->timeline();
+                if (timeline)
+                {
+                    std::vector<std::string> keys = timeline->getMediaReferenceKeys();
+                    std::string key = timeline->getMediaReferenceKey();
+                    if (keys.size() > 1)
+                    {
+                        for (unsigned i = 0; i < keys.size(); ++i)
+                        {
+                            /* xgettext:c++-format */
+                            std::string msg =
+                                tl::string::Format(_("Timeline/Media Reference/{0}"))
+                                .arg(keys[i]);
+
+                            idx = menu->add(
+                                msg.c_str(), 0,
+                                (Fl_Callback*)
+                                timeline_media_reference_key_cb, ui,
+                                FL_MENU_RADIO);
+
+                            if ((key == keys[i]) ||
+                                (key.empty() && keys[i] == "DEFAULT_MEDIA"))
+                            {
+                                item = (Fl_Menu_Item*)&(menu->menu()[idx]);
+                                item->set();
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         const int aIndex = model->observeAIndex()->get();
@@ -1524,7 +1547,7 @@ namespace mrv
                 item = (Fl_Menu_Item*)&(menu->menu()[idx]);
                 if (o.mode == timeline::CompareMode::Add)
                     item->set();
-                
+
                 idx = menu->add(
                     _("Image/Compare Mode/Multiply"), 0,
                     (Fl_Callback*)compare_multiply_cb, ui, mode);
@@ -1573,12 +1596,12 @@ namespace mrv
                         item->set();
                     else
                         item->clear();
-                    
+
                     idx = menu->add(
                         _("Image/Compare/Toggle A and B"), 0,
                         (Fl_Callback*)toggle_compare_a_and_b_cb,
                         ui, 0);
-                
+
                     snprintf(buf, 256, _("Image/Compare/%s"), fileName.c_str());
                     idx = menu->add(
                         buf, 0, (Fl_Callback*)select_Bfile_cb, (void*)ptr,
@@ -1600,7 +1623,7 @@ namespace mrv
             {
                 mode |= FL_MENU_INACTIVE;
             }
-            
+
             idx = menu->add(
                 _("Edit/Associated Clips"),
                 kToggleEditAssociatedClips.hotkey(),
@@ -1653,7 +1676,7 @@ namespace mrv
                 kEditRemoveAudioGap.hotkey(),
                 (Fl_Callback*)edit_remove_audio_gap_cb, ui, mode);
 
-                
+
             menu->add(_("Edit/Selected/Add Transition"),
                       kEditAddTransition.hotkey(),
                       (Fl_Callback*)edit_add_transition_cb, ui, mode);
@@ -1997,7 +2020,7 @@ namespace mrv
 #endif
 
         if (dynamic_cast< DummyClient* >(tcp) == nullptr ||
-            panel::networkPanel || panel::webrtcPanel)
+            panel::webrtcPanel)
         {
             mode = FL_MENU_TOGGLE;
 
@@ -2124,52 +2147,56 @@ namespace mrv
         }
 
 #ifdef MRV2_PYBIND11
-        for (const auto& entry : pythonMenus)
         {
-            int mode = 0;
-            const py::handle& obj = pythonMenus.at(entry);
-            if (!py::isinstance<py::function>(obj) &&
-                !py::isinstance<py::tuple>(obj))
+            py::gil_scoped_acquire acquire;
+
+            for (const auto& entry : pythonMenus)
             {
-                /* xgettext:c++-format */
-                std::string msg =
-                    string::Format(_("In '{0}' expected a function as a value "
-                                     "or a tuple containing a Python function "
-                                     "and a string with menu options in it."))
-                        .arg(entry);
-                LOG_ERROR(msg);
-                continue;
-            }
-            if (py::isinstance<py::tuple>(obj))
-            {
-                // obj is a Python tuple
-                py::tuple tup = py::reinterpret_borrow<py::tuple>(obj);
-                if (tup.size() == 2 && py::isinstance<py::function>(tup[0]) &&
-                    py::isinstance<py::str>(tup[1]))
-                {
-                    py::str str(tup[1]);
-                    const std::string modes = str.cast<std::string>();
-                    if (modes.find("__divider__") != std::string::npos)
-                    {
-                        mode |= FL_MENU_DIVIDER;
-                    }
-                }
-                else
+                int mode = 0;
+                const py::handle& obj = pythonMenus.at(entry);
+                if (!py::isinstance<py::function>(obj) &&
+                    !py::isinstance<py::tuple>(obj))
                 {
                     /* xgettext:c++-format */
                     std::string msg =
-                        string::Format(
-                            _("In '{0}' expected a function a tuple "
-                              "containing a Python function and a string "
-                              "with menu options in it."))
-                            .arg(entry);
+                        string::Format(_("In '{0}' expected a function as a value "
+                                         "or a tuple containing a Python function "
+                                         "and a string with menu options in it."))
+                        .arg(entry);
                     LOG_ERROR(msg);
                     continue;
                 }
+                if (py::isinstance<py::tuple>(obj))
+                {
+                    // obj is a Python tuple
+                    py::tuple tup = py::reinterpret_borrow<py::tuple>(obj);
+                    if (tup.size() == 2 && py::isinstance<py::function>(tup[0]) &&
+                        py::isinstance<py::str>(tup[1]))
+                    {
+                        py::str str(tup[1]);
+                        const std::string modes = str.cast<std::string>();
+                        if (modes.find("__divider__") != std::string::npos)
+                        {
+                            mode |= FL_MENU_DIVIDER;
+                        }
+                    }
+                    else
+                    {
+                        /* xgettext:c++-format */
+                        std::string msg =
+                            string::Format(
+                                _("In '{0}' expected a function a tuple "
+                                  "containing a Python function and a string "
+                                  "with menu options in it."))
+                            .arg(entry);
+                        LOG_ERROR(msg);
+                        continue;
+                    }
+                }
+                idx = menu->add(
+                    entry.c_str(), 0, (Fl_Callback*)run_python_method_cb,
+                    (void*)&pythonMenus.at(entry), mode);
             }
-            idx = menu->add(
-                entry.c_str(), 0, (Fl_Callback*)run_python_method_cb,
-                (void*)&pythonMenus.at(entry), mode);
         }
 #endif
 

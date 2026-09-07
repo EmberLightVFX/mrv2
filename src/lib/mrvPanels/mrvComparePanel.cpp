@@ -20,6 +20,7 @@
 #include "mrvWidgets/mrvHorSlider.h"
 #include "mrvWidgets/mrvPopupMenu.h"
 
+#include "mrvIcons/Butterfly.h"
 #include "mrvIcons/Compare.h"
 #include "mrvIcons/CompareA.h"
 #include "mrvIcons/CompareB.h"
@@ -139,14 +140,16 @@ namespace mrv
 
             const auto player = p.ui->uiView->getTimelinePlayer();
 
-            otio::RationalTime time = otio::RationalTime(0.0, 1.0);
+            OTIO_NS::RationalTime time = OTIO_NS::RationalTime(0.0, 1.0);
             if (player)
                 time = player->currentTime();
 
-            size = panel::calculateImageSize();
-            
+            int thumbnailType = p.ui->uiPrefs->uiPrefsComparePanelThumbnails->value();
+            size = panel::calculateImageSize(thumbnailType);
+
             file::Path lastPath;
             int Y = g->y();
+            Fl_Check_Button* cB;
 
             for (size_t i = 0; i < numFiles; ++i)
             {
@@ -166,7 +169,7 @@ namespace mrv
                 const std::string dir = path.getDirectory();
                 const bool listdir = false;
                 const std::string file = path.getFileName(listdir);
-                
+
                 auto bW = new Widget<ClipButton>(
                     g->x(), g->y() + 20 + i * size.h + 4, g->w(), size.h + 4);
                 ClipButton* b = bW;
@@ -207,8 +210,7 @@ namespace mrv
                 _r->map[i] = b;
 
                 std::string label;
-                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
-                    kThumbnailNormal)
+                if (thumbnailType == kThumbnailNormal)
                 {
                     const std::string layer = getLayerName(media, layerId);
                     label = protocol + dir + "\n" + file + layer;
@@ -218,8 +220,15 @@ namespace mrv
                     label = file;
                 }
                 b->copy_label(label.c_str());
-                
-                _createThumbnail(b, path, time, layerId);
+
+                if (thumbnailType == kThumbnailNone)
+                {
+                    b->bind_image(nullptr);
+                    continue;
+                }
+
+                _createThumbnail(b, media, time, layerId,
+                                 media->mediaReferenceKey);
 
                 Y += size.h;
             }
@@ -236,10 +245,6 @@ namespace mrv
             int v = static_cast<int>(model->getCompareTime());
             pm->value(v);
             pm->tooltip(_("Select between Relative or Absolute Compare Time Mode"));
-
-            Fl_Group* bg = new Fl_Group(X, Y, g->w(), 30);
-            bg->begin();
-
             cMode->callback(
                 [=](auto w)
                 {
@@ -247,7 +252,29 @@ namespace mrv
                     model->setCompareTime(o);
                 });
 
-            
+            auto o = model->observeCompareOptions()->get();
+
+            Y += 30;
+
+            // \@todo \bug: Implement this
+            auto cFitA = new Widget< Fl_Check_Button >(X + 10, Y, 30, 30,
+                                                       _("Fit to A"));
+            cB = cFitA;
+            cB->value(o.fitToA);
+            cB->tooltip(_("Fit All clips to the size of the first clip."));
+            cFitA->callback(
+                [=](auto w)
+                {
+                    auto o = model->observeCompareOptions()->get();
+                    o.fitToA = w->value();
+                    model->setCompareOptions(o);
+                });
+
+            Y += 30;
+
+            Fl_Group* bg = new Fl_Group(X, Y, g->w(), 60);
+            bg->begin();
+
             Fl_Button* b;
             auto bW = new Widget< Button >(X, Y, 30, 30);
             b = bW;
@@ -349,7 +376,9 @@ namespace mrv
                     compare_tile_cb(nullptr, p.ui);
                 });
 
-            bW = new Widget< Button >(X + 210, Y, 30, 30);
+            Y += 30;
+
+            bW = new Widget< Button >(X, Y, 30, 30);
             b = bW;
             b->bind_image(MRV2_LOAD_SVG(CompareAdd));
             b->tooltip(_("Add the A and B files"));
@@ -358,8 +387,8 @@ namespace mrv
                 {
                     compare_add_cb(nullptr, p.ui);
                 });
-            
-            bW = new Widget< Button >(X + 240, Y, 30, 30);
+
+            bW = new Widget< Button >(X + 30, Y, 30, 30);
             b = bW;
             b->bind_image(MRV2_LOAD_SVG(CompareMultiply));
             b->tooltip(_("Multiply the A and B files"));
@@ -369,8 +398,20 @@ namespace mrv
                 {
                     compare_multiply_cb(nullptr, p.ui);
                 });
-            
-            bW = new Widget< Button >(X + 270, Y, 30, 30);
+
+            bW = new Widget< Button >(X + 60, Y, 30, 30);
+            b = bW;
+            b->bind_image(MRV2_LOAD_SVG(Butterfly));
+            b->tooltip(_("Show the halves of the A and B files,\n"
+                         "one of them mirrored"));
+
+            bW->callback(
+                [=](auto w)
+                {
+                    compare_butterfly_cb(nullptr, p.ui);
+                });
+
+            bW = new Widget< Button >(X + 90, Y, 30, 30);
             b = bW;
             b->bind_image(MRV2_LOAD_SVG(Prev));
             b->tooltip(_("Previous filename"));
@@ -381,7 +422,7 @@ namespace mrv
                         p.ui->app->filesModel()->prevB();
                 });
 
-            bW = new Widget< Button >(X + 300, Y, 30, 30);
+            bW = new Widget< Button >(X + 120, Y, 30, 30);
             b = bW;
             b->bind_image(MRV2_LOAD_SVG(Next));
             b->tooltip(_("Next filename"));
@@ -436,7 +477,6 @@ namespace mrv
             s->range(0.f, 1.0f);
             s->step(0.01F);
             s->default_value(0.5f);
-            auto o = model->observeCompareOptions()->get();
             s->value(o.wipeCenter.x);
             sV->callback(
                 [=](auto w)
@@ -559,7 +599,7 @@ namespace mrv
             const auto player = p.ui->uiView->getTimelinePlayer();
             if (!player)
                 return;
-            otio::RationalTime time;
+            OTIO_NS::RationalTime time;
 
             const auto& model = p.ui->app->filesModel();
             const auto& files = model->observeFiles();
@@ -569,11 +609,13 @@ namespace mrv
             auto Bindices = model->observeBIndexes()->get();
             auto o = model->observeCompareOptions()->get();
 
+            int thumbnailType = p.ui->uiPrefs->uiPrefsComparePanelThumbnails->value();
+
             for (int i = 0; i < numFiles; ++i)
             {
                 const auto& media = files->getItem(i);
                 const auto& path = media->path;
-                
+
                 const std::string protocol = path.getProtocol();
                 const std::string dir = path.getDirectory();
                 const bool listdir = false;
@@ -612,8 +654,7 @@ namespace mrv
                 b->redraw();
 
                 std::string label;
-                if (p.ui->uiPrefs->uiPrefsPanelThumbnails->value() ==
-                    kThumbnailNormal)
+                if (thumbnailType == kThumbnailNormal)
                 {
                     const std::string layer = getLayerName(media, layerId);
                     label = protocol + dir + "\n" + file + layer;
@@ -624,7 +665,14 @@ namespace mrv
                 }
                 b->copy_label(label.c_str());
 
-                _createThumbnail(b, path, time, layerId);
+                if (thumbnailType == kThumbnailNone)
+                {
+                    b->bind_image(nullptr);
+                    continue;
+                }
+
+                _createThumbnail(b, media, time, layerId,
+                                 media->mediaReferenceKey);
             }
         }
 
@@ -642,7 +690,7 @@ namespace mrv
         {
             compareTimeW->value(static_cast<int>(value));
         }
-        
+
         void ComparePanel::refresh()
         {
             _cancelRequests();

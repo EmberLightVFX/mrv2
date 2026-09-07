@@ -110,6 +110,7 @@
 #if defined(OPENGL_BACKEND)
 #    include <tlGL/Init.h>
 #    include "mrvGL/mrvGLErrors.h" // defines glGetString and GL_VERSION
+#    include <GLFW/glfw3.h>
 #endif
 
 #ifdef TLRENDER_LIBPLACEBO
@@ -149,6 +150,9 @@ extern "C"
 #endif
 
 #ifdef TLRENDER_NET
+#    ifndef CURL_STATICLIB
+#        define CURL_STATICLIB
+#    endif
 #    include <curl/curl.h>
 #endif
 
@@ -201,9 +205,11 @@ extern "C"
 
 #include "mrvOS/mrvOS.h"
 #include "mrvOS/mrvCPU.h"
+#include "mrvOS/mrvMemory.h"
 
 
 #include <tlCore/String.h>
+#include <tlCore/StringFormat.h>
 
 
 #ifdef TLRENDER_RAW
@@ -355,7 +361,7 @@ namespace mrv
         return "OpenGL";
 #endif
     }
-    
+
     const char* version()
     {
         return kVersion;
@@ -765,6 +771,31 @@ namespace mrv
 #endif
     }
 
+    std::vector<std::string> ffmpeg_hardware_decoders()
+    {
+        std::vector<std::string> out;
+#ifdef TLRENDER_FFMPEG
+        enum AVHWDeviceType type = AV_HWDEVICE_TYPE_NONE;
+        while ((type = av_hwdevice_iterate_types(type)) !=
+               AV_HWDEVICE_TYPE_NONE)
+        {
+            std::string device = av_hwdevice_get_type_name(type);
+            out.push_back(device);
+        }
+#endif
+        return out;
+    }
+
+    void ffmpeg_hw_decoders(mrv::TextBrowser* b)
+    {
+        std::vector<std::string> decoders = ffmpeg_hardware_decoders();
+        for (auto decoder : decoders)
+        {
+            decoder += "\n";
+            b->add(decoder.c_str());
+        }
+    }
+
     void ffmpeg_protocols(mrv::TextBrowser* b)
     {
 #ifdef TLRENDER_FFMPEG
@@ -863,6 +894,12 @@ namespace mrv
 #if defined(OPENGL_BACKEND)
         o << "glad v" << GLAD_GENERATOR_VERSION << endl
           << "Copyright (c) 2013-2020 David Herberth" << endl
+          << endl;
+        o << "glfw v" << GLFW_VERSION_MAJOR << "."
+          << GLFW_VERSION_MINOR << "." << GLFW_VERSION_REVISION << endl
+          << "Copyright (c) 2002-2006 Marcus Geelnard" << endl
+          << "Copyright (c) 2006-2019 Camilla Löwy <elmindreda@glfw.org>"
+          << endl
           << endl;
 #endif
         o << "Imath v" << IMATH_VERSION_STRING << endl
@@ -990,7 +1027,7 @@ namespace mrv
         o << "OpenJPH v"
           << OPENJPH_VERSION_MAJOR << "." << OPENJPH_VERSION_MINOR
           << OPENJPH_VERSION_PATCH << std::endl
-          << "Copyright (c) 2019, Aous Naman" << std::endl 
+          << "Copyright (c) 2019, Aous Naman" << std::endl
           << "Copyright (c) 2019, Kakadu Software Pty Ltd, Australia" << endl
           << "Copyright (c) 2019, The University of New South Wales, Australia"
           << endl
@@ -1109,9 +1146,32 @@ namespace mrv
         }
     }
 
+    const std::string cpu_info()
+    {
+        std::string out;
+        out += GetCpuCaps(&gCpuCaps);
+
+        uint64_t totalVirtualMem, virtualMemUsed, virtualMemUsedByMe,
+            totalPhysMem, physMemUsed, physMemUsedByMe;
+
+        memory_information(
+            totalVirtualMem, virtualMemUsed, virtualMemUsedByMe,
+            totalPhysMem, physMemUsed, physMemUsedByMe);
+
+        out += "\n";
+        out += tl::string::Format(
+            _("Total Physical Memory: {0} Gb")).arg(totalPhysMem / 1024.0);
+        out += "\n";
+        out += "\n";
+        out += tl::string::Format(
+            _("Total Virtual Memory: {0} Gb")).arg(totalVirtualMem / 1024.0);
+
+        return out;
+    }
+
     void cpu_information(mrv::TextBrowser* b)
     {
-        const std::string& lines = GetCpuCaps(&gCpuCaps);
+        const std::string lines = cpu_info();
 
         std::stringstream o(lines);
 
@@ -1141,11 +1201,11 @@ namespace mrv
         {
             VkPhysicalDeviceIDPropertiesKHR id_props = {};
             id_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES_KHR;
-            
+
             VkPhysicalDeviceProperties2 prop = {};
             prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
             prop.pNext = &id_props;
-            
+
             vkGetPhysicalDeviceProperties2(devices[i], &prop);
 
             if (prop.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
@@ -1164,7 +1224,7 @@ namespace mrv
 #endif
         return out;
     }
-    
+
     uint32_t getVulkanLoaderVersion()
     {
 #ifdef OPENGL_BACKEND
@@ -1173,7 +1233,7 @@ namespace mrv
 
 #ifdef VULKAN_BACKEND
         // Attempt to get the function pointer for vkEnumerateInstanceVersion
-        PFN_vkEnumerateInstanceVersion pfnEnumerateInstanceVersion = 
+        PFN_vkEnumerateInstanceVersion pfnEnumerateInstanceVersion =
             (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
 
         if (pfnEnumerateInstanceVersion) {
@@ -1184,7 +1244,7 @@ namespace mrv
                 return instanceVersion;
             }
         }
-    
+
         // vkEnumerateInstanceVersion is not available, assume Vulkan 1.0
         // This value is defined as VK_MAKE_API_VERSION(0, 1, 0, 0)
         return VK_API_VERSION_1_0;
@@ -1260,7 +1320,7 @@ namespace mrv
         uint32_t minor = VK_API_VERSION_MINOR(v);
         uint32_t patch = VK_API_VERSION_PATCH(v);
         uint32_t build = 0;
-        
+
         o << "Vulkan Loader Version:\tv"
           << major << "." << minor << "." << patch
           << std::endl
@@ -1269,7 +1329,7 @@ namespace mrv
 #ifdef __APPLE__
         o << "MoltenVk Version: v" << MVK_VERSION_STRING << std::endl;
 #endif
-        
+
         VkInstance instance = ui->uiView->instance();
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -1284,7 +1344,7 @@ namespace mrv
             VkPhysicalDeviceProperties2 prop = {};
             prop.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
             prop.pNext = &id_props;
-            
+
             vkGetPhysicalDeviceProperties2(devices[i], &prop);
             VkPhysicalDeviceType t = prop.properties.deviceType;
             const std::string& deviceName = prop.properties.deviceName;
@@ -1297,7 +1357,7 @@ namespace mrv
             minor = VK_API_VERSION_MINOR(v);
             patch = VK_API_VERSION_PATCH(v);
             build = 0;
-            
+
             // NVIDIA uses a custom encoding:
             if (deviceName.find("NVIDIA") != std::string::npos)
             {
@@ -1312,7 +1372,7 @@ namespace mrv
               << build
               << std::endl
               << std::endl;
-            
+
         }
 #endif
 
@@ -1333,26 +1393,26 @@ namespace mrv
           << R"THANKS(
 Core
 ----
-Darby Johnston                                (original tlRender library) 
+Darby Johnston                                (original tlRender library)
 Gonzalo Garramuño                             (mrv2 and rewrite of mrViewer)
 Sam Richards                                  (FFmpeg encoding guidelines)
 
 FLTK
 ----
-Albrecht Schlosser                            (FLTK 1.4 developer, Windows,
+Albrecht Schlosser                            (FLTK developer, Windows,
                                                macOS and build system)
 Bill Spitzak                                  (FLTK creator)
 David Gibson                                  (FLTK developer)
 F. Constantini                                (FLTK developer)
-Greg Ercolano                                 (FLTK 1.4 contributor,
+Greg Ercolano                                 (FLTK contributor,
                                                mrv2 color schemes,
                                                CollapsibleGroup widget,
-                                               porting from fltk2.0 to 1.4)
+                                               porting from fltk2.0 to 1.4+)
 Ian MacArthur                                 (FLTK contributor, original
                                                docking code, See-Through code)
-Manolo Guoy                                   (FLTK 1,4 developer, macOS and
-                                               Wayland)
-Matthias Melcher                              (FLTK 1.4 developer, macOS,
+Manolo Guoy                                   (FLTK developer, macOS, Windows
+                                               and Wayland)
+Matthias Melcher                              (FLTK developer, macOS,
                                                fluid and FlmmAColorChooser)
 Michael Sweet                                 (FLTK developer)
 MoAlyousef                                    (FLTK contributor, C++ source
@@ -1394,6 +1454,7 @@ c0nvexo                                       (Color Pipeline on Missing
 Christoph Lohr                                (Color Pipeline Debugging,
                                                UI improvements,
                                                MKV Support idea)
+coolvitto                                     (Japanese translations)
 danbradham                                    (UI debugging)
 darkvertext                                   (Environment mapping support)
 dchabashvili                                  (Annotations exporting to movs)
@@ -1412,10 +1473,11 @@ kirillall                                     (OpenEXR DWAA/DWAB multithread bug
 kursad-k                                      (Windows 11, Positioning)
 lucky3d                                       (Windows 10, Background Panel)
 lukas-remis                                   (Comparison issues)
-luzpaz                                        (Spelling corrections)  
+luzpaz                                        (Spelling corrections)
 mantissa-                                     (Sequences misdetection)
 Mark Rasmussen                                (Windows/Linux Vulkan debugging)
 mhgandvisions                                 (Session debugging)
+MigMadail                                     (Slow startup)
 MMmaoamao                                     (AV1 Suggestion)
 mzigaib                                       (Sequences misdetection)
 ndeebook                                      (Save Single Frame with

@@ -89,6 +89,16 @@ sudo dnf -y install alsa-lib-devel \
 # source to a newer version.
 
 #
+# Vulkan SDK
+#
+sudo dnf install vulkan-headers vulkan-loader-devel
+sudo dnf install vulkan-tools vulkan-validation-layers-devel
+sudo dnf install spirv-tools
+
+# The following one may not be found and may require compiling from source
+sudo dnf install shaderc
+
+#
 # To compile you need a newer compiler than those in Red Hat.
 #
 sudo dnf install gcc-toolset-14
@@ -112,7 +122,7 @@ source "$HOME/.cargo/env"
 sudo apt update
 
 #
-# Install dependencies
+# Install dependencies (for cutting edge build)
 #
 sudo apt -y install autoconf \
                     automake \
@@ -129,8 +139,9 @@ sudo apt -y install autoconf \
 		    libcairo-dev \
 		    libdbus-1-dev \
 		    libegl-dev \
-		    libgtk-3-dev \
 		    libffi-dev \
+		    libgtk-3-dev \
+		    libjpeg-turbo8-dev \
 		    libpulse-dev \
 		    libssl-dev \
 		    libx11-dev \
@@ -147,8 +158,33 @@ sudo apt -y install autoconf \
                     tk-dev \
 		    wayland-protocols
 
+#
+# These are Dependencies for using OS system libs, instead of building them
+# from scratch (-D USE_SYSTEM_LIBS=ON)
+#
+sudo apt -y install libaom-dev \
+     	    	    libdav1d-dev \
+		    libexpat1-dev \
+		    libglfw3-dev \
+		    libimath-dev \
+		    libminizip-ng-dev \
+		    libopencolorio-dev \
+		    libsnappy-dev \
+     	    	    libssh2-1-dev \
+		    libsvtav1enc-dev \
+		    libpystring-dev \
+		    libvpx-dev \
+		    libx264-dev \
+		    libyaml-cpp-dev \
+		    meson \
+		    nasm \
+		    nlohmann-json3-dev \
+		    pip \
+     	    	    python3-dev
+
 # If you are building the Vulkan version of mrv2, you need to install
-# The VulkanSDK components
+# The VulkanSDK:
+sudo apt install libvulkan-dev glslang-dev libshaderc-dev spirv-tools
 
 # Install cpanminus and IPC::Cmd non-interactively for libcrypto building
 sudo cpan App::cpanminus && cpanm --notest IPC::Cmd
@@ -180,9 +216,12 @@ xcode-select --install
 brew install git gnu-sed swig python cmake ninja gettext openssl readline sqlite3 xz zlib ccache automake autoconf
 
 # If you are building the Vulkan version of vmrv2, you need to install
-# The VulkanSDK components.  You don't need to install MoltenVk as it is built
+# The VulkanSDK components.  You may not need to install MoltenVk as it is built
 # from source.
 
+brew install vulkan-loader molten-vk vulkan-tools shaderc glslang vulkan-headersvulkan-profiles spirv-tools
+brew link --overwrite molten-vk
+	    
 #
 # rustup for cargo (needed for libdovi)
 #
@@ -297,10 +336,6 @@ the optional Windows SDK (none by default) and your copy of Msys.
 You run the .bat file first, which will set the Visual Studio paths and 
 fire up a Msys console.  From then on, all commands described are run in 
 the Msys console.
-
-FFmpeg and liblcms2 are now compiled as part of the pre-flight cmake build.  libssh and libcrypto are taken from Msys64 repositories when building FFmpeg as well as swig.
-
-The libintl and libiconv libraries are taken from the MSys64 repositories as pre-flight check with the bin/install_libintl_window.sh script (part of runme.sh).
 
 ## CMake build options
 

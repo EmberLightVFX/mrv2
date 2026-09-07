@@ -3,21 +3,6 @@
 # mrv2
 # Copyright Contributors to the mrv2 Project. All rights reserved.
 
-vcpkg_ARCH=x64
-if [[ $ARCH == *amd64* ]]; then
-    vcpkg_ARCH=x64
-elif [[ $ARCH == *aarch64* || $ARCH == *arm64* ]]; then
-    vcpkg_ARCH=arm64
-fi
-vcpkg_TRIPLET=${vcpkg_ARCH}-windows
-vcpkg_DIR=$BUILD_DIR/deps/vcpkg/src/vcpkg/installed/$vcpkg_TRIPLET
-	
-if [[ $KERNEL == *Windows* ]]; then
-    if [[ -d $vcpkg_DIR ]]; then
-	echo "Copying $vcpkg_DIR/bin/*.dll"
-	cp -rf $vcpkg_DIR/bin/*.dll $BUILD_DIR/install/bin
-    fi
-fi
 
 if [[ "$CMAKE_TARGET" == "package" ]]; then
 
@@ -27,8 +12,10 @@ if [[ "$CMAKE_TARGET" == "package" ]]; then
     # Here we move the installers to the packages location.
     #
     mrv2_NAME=mrv2
+    mrv2_ARG=""
     if [[ $MRV2_BACKEND == "VK" ]]; then
 	mrv2_NAME=vmrv2
+	mrv2_ARG='-vk'
     fi
     
     if [[ $KERNEL == *Windows* ]]; then
@@ -37,7 +24,13 @@ if [[ "$CMAKE_TARGET" == "package" ]]; then
 	. etc/windows/signing_installer.sh
     elif [[ $KERNEL == *Darwin* ]]; then
 	send_to_packages "${mrv2_NAME}-v${mrv2_VERSION}-Darwin-${ARCH}.dmg"
-	# . etc/macos_signing_installer.sh
+	VK_ARG=""
+	if [[ "$MRV2_VK" == "ON" || "$MRV2_VK" == "1" ]]; then
+	    VK_ARG='-vk'
+	fi
+	etc/macos/codesign_notarize.sh sign-dmg ${VK_ARG}
+	etc/macos/codesign_notarize.sh notarize ${VK_ARG}
+	etc/macos/codesign_notarize.sh staple ${VK_ARG}
     elif [[ $KERNEL == *Linux* ]]; then
 	send_to_packages "${mrv2_NAME}-v${mrv2_VERSION}-Linux-${ARCH}.deb"
 	send_to_packages "${mrv2_NAME}-v${mrv2_VERSION}-Linux-${ARCH}.rpm"

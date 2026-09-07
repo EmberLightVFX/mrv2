@@ -16,7 +16,7 @@ download_assets v{VERSION}
 
 A program to download all betas or version assets from sourceforge.
 """
-            
+ 
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     description=description)
@@ -52,8 +52,8 @@ headers = {
 
 
 KNOWN_SF_MIRRORS = [
-    "ufpr", "netix", "nav", "kent", "nchc", "jaist",
-    "versaweb", "cytranet", "iweb", "tenet"
+    "ufpr", "altushost-swe", "netix", "nav", "kent", "nchc", "jaist",
+    "versaweb", "cytranet", "iweb", "tenet",
 ]
 
 def resolve_mirror_url(file_url, mirror_name):
@@ -73,9 +73,10 @@ def benchmark_mirrors(file_url, mirrors, timeout=3):
             elapsed = time.monotonic() - start
             if r.status_code in (200, 206):
                 results.append((elapsed, mirror, r.url))
-                print(f"  {mirror}: {elapsed:.2f}s → {r.url}")
+                #print(f"  {mirror}: {elapsed:.2f}s → {r.url}")
         except requests.exceptions.RequestException:
-            print(f"  {mirror}: unreachable")
+            #print(f"  {mirror}: unreachable")
+            pass
     results.sort()
     return results  # [(latency, mirror_name, resolved_url), ...]
 
@@ -149,7 +150,7 @@ def download_with_best_mirror(file_url, output_path, filename):
             print(f"Mirror '{mirror}' failed: {e}, trying next...")
 
     if not downloaded:
-        print(f"✗ All mirrors failed for {filename}")
+        print(f"✗ ALL MIRRORS FAILED FOR: {filename}")
     
 def parse_sourceforge_page(html_content, base_url):
     """
@@ -200,11 +201,11 @@ def download_url(base_url, dest_dir, mrv2_prefix):
 
         PREFIX_REGEX=re.compile(rf"^{mrv2_prefix}-")
         if not PREFIX_REGEX.search(filename):
-            print(f"Skipping non-prefix {mrv2_prefix} file: {filename}")
+            #print(f"Skipping non-prefix {mrv2_prefix} file: {filename}")
             continue
 
         if not MATCH_REGEX.search(filename):
-            print(f"Skipping non-regex file: {filename}")
+            #print(f"Skipping non-regex file: {filename}")
             continue
 
         output_path = os.path.join(dest_dir, filename)

@@ -130,7 +130,7 @@ namespace tl
                     _io->readU16(&_header.channels);
                     _io->readU32(&_header.pixelMin);
                     _io->readU32(&_header.pixelMax);
-                    _io->setPos(512);
+                    _io->seek(512, file::SeekMode::Set);
                     if (_header.storage)
                     {
                         const size_t size = _header.height * _header.channels;
@@ -182,7 +182,7 @@ namespace tl
 
                 io::VideoData read(
                     const std::string& fileName,
-                    const otime::RationalTime& time)
+                    const OTIO_NS::RationalTime& time)
                 {
                     io::VideoData out;
                     out.time = time;
@@ -266,12 +266,7 @@ namespace tl
                     }
 
                     image::Tags tags;
-                    tags["otioClipName"] = fileName;
-                    {
-                        std::stringstream ss;
-                        ss << time;
-                        tags["otioClipTime"] = ss.str();
-                    }
+                    io::addOtioTags(tags, fileName, time);
                     out.image->setTags(tags);
 
                     return out;
@@ -327,15 +322,15 @@ namespace tl
             io::Info out;
             out.video.push_back(File(fileName, memory).getInfo());
             out.videoTime =
-                otime::TimeRange::range_from_start_end_time_inclusive(
-                    otime::RationalTime(_startFrame, _defaultSpeed),
-                    otime::RationalTime(_endFrame, _defaultSpeed));
+                OTIO_NS::TimeRange::range_from_start_end_time_inclusive(
+                    OTIO_NS::RationalTime(_startFrame, _defaultSpeed),
+                    OTIO_NS::RationalTime(_endFrame, _defaultSpeed));
             return out;
         }
 
         io::VideoData Read::_readVideo(
             const std::string& fileName, const file::MemoryRead* memory,
-            const otime::RationalTime& time, const io::Options&)
+            const OTIO_NS::RationalTime& time, const io::Options&)
         {
             return File(fileName, memory).read(fileName, time);
         }

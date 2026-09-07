@@ -57,7 +57,7 @@ namespace tl
             {
                 int64_t id = -1;
                 file::Path path;
-                otime::RationalTime time = time::invalidTime;
+                OTIO_NS::RationalTime time = time::invalidTime;
                 io::Options options;
                 std::promise<io::VideoData> promise;
             };
@@ -217,7 +217,7 @@ namespace tl
         }
 
         std::future<io::VideoData> Render::render(
-            int64_t id, const file::Path& path, const otime::RationalTime& time,
+            int64_t id, const file::Path& path, const OTIO_NS::RationalTime& time,
             const io::Options& options)
         {
             TLRENDER_P();
@@ -465,7 +465,7 @@ namespace tl
 
                     if (!p.thread.running)
                         break;
-                    
+
                     if (!p.mutex.infoRequests.empty())
                     {
                         infoRequest = p.mutex.infoRequests.front();
@@ -475,7 +475,7 @@ namespace tl
                     {
                         request = p.mutex.requests.front();
                         p.mutex.requests.pop_front();
-                    }                    
+                    }
                 }
 
                 // Set options.
@@ -571,11 +571,11 @@ namespace tl
                         info.video.push_back(image::Info(
                             renderWidth, renderWidth / aspectRatio,
                             image::PixelType::RGBA_F16));
-                        info.videoTime = otime::TimeRange::
+                        info.videoTime = OTIO_NS::TimeRange::
                             range_from_start_end_time_inclusive(
-                                otime::RationalTime(
+                                OTIO_NS::RationalTime(
                                     startTimeCode, timeCodesPerSecond),
-                                otime::RationalTime(
+                                OTIO_NS::RationalTime(
                                     endTimeCode, timeCodesPerSecond));
                         // std::cout << fileName << " range: " << info.videoTime
                         // << std::endl;
@@ -592,12 +592,8 @@ namespace tl
                     if (p.cache->getVideo(cacheKey, videoData))
                     {
                         image::Tags tags;
-                        tags["otioClipName"] = request->path.get();
-                        {
-                            std::stringstream ss;
-                            ss << request->time;
-                            tags["otioClipTime"] = ss.str();
-                        }
+                        io::addOtioTags(tags, request->path.get(),
+                                        request->time);
                         videoData.image->setTags(tags);
 
                         request->promise.set_value(videoData);
@@ -649,12 +645,7 @@ namespace tl
                         videoData.time = request->time;
 
                         image::Tags tags;
-                        tags["otioClipName"] = request->path.get();
-                        {
-                            std::stringstream ss;
-                            ss << request->time;
-                            tags["otioClipTime"] = ss.str();
-                        }
+                        io::addOtioTags(tags, request->path.get(), request->time);
                         image->setTags(tags);
 
                         videoData.image = image;
@@ -704,14 +695,14 @@ namespace tl
                             {
                                 renderWidth = std::atoi(i->second.c_str());
                             }
-                            
+
                             float complexity = 1.F;
                             i = ioOptions.find("USD/complexity");
                             if (i != ioOptions.end())
                             {
                                 complexity = std::atof(i->second.c_str());
                             }
-                            
+
                             DrawMode drawMode = DrawMode::ShadedSmooth;
                             i = ioOptions.find("USD/drawMode");
                             if (i != ioOptions.end())
@@ -719,28 +710,28 @@ namespace tl
                                 std::stringstream ss(i->second);
                                 ss >> drawMode;
                             }
-                            
+
                             bool enableLighting = true;
                             i = ioOptions.find("USD/enableLighting");
                             if (i != ioOptions.end())
                             {
                                 enableLighting = std::atoi(i->second.c_str());
                             }
-                            
+
                             bool enableSceneLights = true;
                             i = ioOptions.find("USD/enableSceneLights");
                             if (i != ioOptions.end())
                             {
                                 enableSceneLights = std::atoi(i->second.c_str());
                             }
-                            
+
                             bool enableSceneMaterials = true;
                             i = ioOptions.find("USD/enableSceneMaterials");
                             if (i != ioOptions.end())
                             {
                                 enableSceneMaterials = std::atoi(i->second.c_str());
                             }
-                                
+
                             bool sRGB = true;
                             i = ioOptions.find("USD/sRGB");
                             if (i != ioOptions.end())
@@ -755,7 +746,7 @@ namespace tl
                             {
                                 cameraName = i->second;
                             }
-                            
+
                             GfCamera gfCamera;
                             auto camera =
                                 getCamera(stageCacheItem.stage, cameraName);
@@ -817,7 +808,7 @@ namespace tl
                             renderParams.enableLighting = enableLighting;
                             renderParams.enableSceneLights = enableSceneLights;
                             renderParams.enableSceneMaterials = enableSceneMaterials;
-                            
+
                             renderParams.clearColor =
                                 GfVec4f(0.F, 0.F, 0.F, 0.F);
                             renderParams.colorCorrectionMode =

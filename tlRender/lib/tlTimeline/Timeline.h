@@ -11,7 +11,10 @@
 #include <tlCore/Path.h>
 #include <tlCore/ValueObserver.h>
 
+#include <tlIO/Plugin.h>
+
 #include <opentimelineio/timeline.h>
+#include <opentimelineio/mediaReference.h>
 
 #include <future>
 
@@ -34,20 +37,55 @@ namespace tl
         TLRENDER_ENUM(FileSequenceAudio);
         TLRENDER_ENUM_SERIALIZE(FileSequenceAudio);
 
+        //! Spatial coordinate options.
+        enum class Spatial
+        {
+            //! Ignore the OTIO spatial coordinates, laying out clips from their
+            //! image sizes
+            kNone,
+
+            //! Use the OTIO spatial coordinates where clips provide them
+            Coordinates,
+
+            //! Use the OTIO spatial coordinates, and give clips without them
+            //! the size of the first video clip, so that clips of differing
+            //! resolutions are all displayed at the same size
+            Normalize,
+
+            Count,
+            First = kNone
+        };
+        TLRENDER_ENUM(Spatial);
+
         //! Timeline options.
         struct Options
         {
             FileSequenceAudio fileSequenceAudio = FileSequenceAudio::BaseName;
+
+            //! Spatial coordinates.
+            Spatial spatial = Spatial::Coordinates;
+
             std::string fileSequenceAudioFileName;
             std::string fileSequenceAudioDirectory;
 
+            //! Enable workarounds for timelines that may not conform exactly
+            //! to specification.
+            bool compat = true;
+
+            //! Maximum number of video requests.
             size_t videoRequestCount = 16;
+
+            //! Maximum number of audio requests.
             size_t audioRequestCount = 16;
+
+            //! Request timeout.
             std::chrono::milliseconds requestTimeout =
                 std::chrono::milliseconds(5);
 
+            //! I/O options.
             io::Options ioOptions;
 
+            //! Path options.
             file::PathOptions pathOptions;
 
             bool operator==(const Options&) const;
@@ -56,32 +94,32 @@ namespace tl
 
         //! Create a new timeline from a path. The path can point to an .otio
         //! file, .otioz file, movie file, or image sequence.
-        otio::SerializableObject::Retainer<otio::Timeline> create(
-            const file::Path&, const std::shared_ptr<system::Context>&,
-            const otime::RationalTime& = time::invalidTime,
+        OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline> create(
+            file::Path&, const std::shared_ptr<system::Context>&,
+            const opentime::RationalTime& = time::invalidTime,
             const Options& = Options());
 
         //! Create a new timeline from a path and audio path. The file name
         //! can point to an .otio file, .otioz file, movie file, or image
         //! sequence.
-        otio::SerializableObject::Retainer<otio::Timeline> create(
-            const file::Path& path, const file::Path& audioPath,
+        OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline> create(
+            file::Path& path, const file::Path& audioPath,
             const std::shared_ptr<system::Context>&,
-            const otime::RationalTime& = time::invalidTime,
+            const opentime::RationalTime& = time::invalidTime,
             const Options& = Options());
 
         //! Video request.
         struct VideoRequest
         {
             uint64_t id = 0;
-            std::future<VideoData> future;
+            std::future<VideoFrame> future;
         };
 
         //! Audio request.
         struct AudioRequest
         {
             uint64_t id = 0;
-            std::future<AudioData> future;
+            std::future<AudioFrame> future;
         };
 
         //! Timeline.
@@ -91,8 +129,13 @@ namespace tl
 
         protected:
             void _init(
-                const otio::SerializableObject::Retainer<otio::Timeline>&,
-                const std::shared_ptr<system::Context>&, const Options&);
+                const std::shared_ptr<system::Context>& context,
+                file::Path& inputPath, const file::Path& inputAudioPath,
+                const Options& options);
+            void _init(
+                const std::shared_ptr<system::Context>&,
+                const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&,
+                const Options&);
 
             Timeline();
 
@@ -101,46 +144,46 @@ namespace tl
 
             //! Create a new timeline.
             static std::shared_ptr<Timeline> create(
-                const otio::SerializableObject::Retainer<otio::Timeline>&,
                 const std::shared_ptr<system::Context>&,
-                const Options& = Options());
-
-            //! Create a new timeline from a file name. The file name can point
-            //! to an .otio file, movie file, or image sequence.
-            static std::shared_ptr<Timeline> create(
-                const std::string&, const std::shared_ptr<system::Context>&,
-                const otime::RationalTime& = time::invalidTime,
+                const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&,
                 const Options& = Options());
 
             //! Create a new timeline from a path. The path can point to an
             //! .otio file, movie file, or image sequence.
             static std::shared_ptr<Timeline> create(
-                const file::Path&, const std::shared_ptr<system::Context>&,
-                const otime::RationalTime& = time::invalidTime,
+                const std::shared_ptr<system::Context>&,
+                file::Path& inOutPath,
+                const Options& = Options());
+
+            //! Create a new timeline from a path and audio path. The path can
+            //! point to an .otio file, movie file, or image sequence.
+            static std::shared_ptr<Timeline> create(
+                const std::shared_ptr<system::Context>&,
+                file::Path& inOutPath,
+                file::Path& inOutAudioPath,
+                const Options& = Options());
+
+            //! Create a new timeline from a file name. The file name can point
+            //! to an .otio file, movie file, or image sequence.
+            static std::shared_ptr<Timeline> create(
+                const std::shared_ptr<system::Context>&,
+                const std::string&,
                 const Options& = Options());
 
             //! Create a new timeline from a file name and audio file name.
             //! The file name can point to an .otio file, movie file, or
             //! image sequence.
             static std::shared_ptr<Timeline> create(
-                const std::string& fileName, const std::string& audioFilename,
                 const std::shared_ptr<system::Context>&,
-                const otime::RationalTime& = time::invalidTime,
-                const Options& = Options());
-
-            //! Create a new timeline from a path and audio path. The path can
-            //! point to an .otio file, movie file, or image sequence.
-            static std::shared_ptr<Timeline> create(
-                const file::Path& path, const file::Path& audioPath,
-                const std::shared_ptr<system::Context>&,
-                const otime::RationalTime& = time::invalidTime,
+                const std::string& fileName,
+                const std::string& audioFilename,
                 const Options& = Options());
 
             //! Get the context.
             const std::weak_ptr<system::Context>& getContext() const;
 
             //! Get the timeline.
-            const otio::SerializableObject::Retainer<otio::Timeline>&
+            const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&
             getTimeline() const;
 
             //! Observe timeline changes.
@@ -149,7 +192,7 @@ namespace tl
 
             //! Set the timeline.
             void setTimeline(
-                const otio::SerializableObject::Retainer<otio::Timeline>&);
+                const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&);
 
             //! Get the file path.
             const file::Path& getPath() const;
@@ -160,11 +203,68 @@ namespace tl
             //! Get the timeline options.
             const Options& getOptions() const;
 
+            //! Get the memory for the given media reference.
+            std::vector<file::MemoryRead> getMem(
+                const OTIO_NS::MediaReference*);
+
+            //! \name Media References
+            ///
+            //! Clips may carry several media references, for example a proxy
+            //! and a full resolution version of the same media, and one of
+            //! them is active at a time. Which one is active is tracked here
+            //! rather than written back to the OTIO timeline, so that the
+            //! timeline can be read by the request thread without locking.
+            ///@{
+
+            //! Get the media reference keys used anywhere in the timeline,
+            //! sorted and without duplicates.
+            std::vector<std::string> getMediaReferenceKeys() const;
+
+            //! Get the media reference key applied to the whole timeline. An
+            //! empty key, the default, leaves every clip on the media
+            //! reference that OTIO has active.
+            std::string getMediaReferenceKey() const;
+
+            //! Set the media reference key for the whole timeline. Clips that
+            //! have no media reference with this key fall back to
+            //! OTIO_NS::Clip::default_media_key, and then to the media reference
+            //! OTIO has active.
+            //!
+            //! The change applies to media read after it; the caller is
+            //! responsible for discarding anything already read, for example
+            //! with Player::clearCache().
+            void setMediaReferenceKey(const std::string&);
+
+            //! Get the media reference key applied to the given clip, which
+            //! may be empty. This is the key set for the clip alone, not the
+            //! timeline wide key it falls back to.
+            std::string getMediaReferenceKey(const OTIO_NS::Clip*) const;
+
+            //! Set the media reference key for a single clip, overriding the
+            //! timeline wide key. An empty key returns the clip to the timeline
+            //! wide key.
+            void setMediaReferenceKey(
+                const OTIO_NS::Clip*,
+                const std::string&);
+
+            //! Get the memory offset in bytes for a media reference bundled in an
+            //! .otioz file.
+            //! Returns std::nullopt if the reference is not part of a bundle or cannot
+            //! be found.
+            std::optional<size_t> getBundleMemoryOffset(const OTIO_NS::MediaReference*) const;
+
+            //! Get the media reference a clip is read from, honoring the keys
+            //! set above.
+            OTIO_NS::MediaReference* getMediaReference(
+                const OTIO_NS::Clip*) const;
+
+            ///@}
+
             //! \name Information
             ///@{
 
             //! Get the time range.
-            const otime::TimeRange& getTimeRange() const;
+            const opentime::TimeRange& getTimeRange() const;
 
             //! Get the I/O information. This information is retrieved from
             //! the first clip in the timeline.
@@ -172,12 +272,25 @@ namespace tl
 
             ///@}
 
+            void expandOTIOZ(const std::string& mediaPath);
+
             //! \name Video and Audio Data
             ///@{
 
+            std::future<io::VideoData> readMedia(
+                const file::Path& path,
+                const OTIO_NS::RationalTime& time,
+                const io::Options& options);
+
+            std::future<io::AudioData>
+            readMediaAudio(
+                const file::Path& path,
+                const OTIO_NS::TimeRange& timeRange,
+                const io::Options& options);
+
             //! Get video data.
             VideoRequest getVideo(
-                const otime::RationalTime&, const io::Options& = io::Options());
+                const opentime::RationalTime&, const io::Options& = io::Options());
 
             //! Get audio data.
             AudioRequest
@@ -192,6 +305,33 @@ namespace tl
             void tick();
 
         private:
+            void _tick();
+            void _requests();
+            void _finishRequests();
+            std::future<io::VideoData> _readVideo(
+                const OTIO_NS::Clip*, const opentime::RationalTime&,
+                const io::Options&);
+            std::future<io::AudioData> _readAudio(
+                const OTIO_NS::Clip*, const opentime::TimeRange&,
+                const io::Options&);
+            std::shared_ptr<io::IRead> _getRead(
+                const OTIO_NS::Clip*,
+                const io::Options&);
+            std::shared_ptr<io::IRead> _getRead(
+                const OTIO_NS::MediaReference*,
+                const io::Options&);
+
+            // Find a media reference by its resolved path.
+            OTIO_NS::MediaReference* _findMedia(const file::Path&);
+
+            bool _getVideoInfo(const OTIO_NS::Composable*);
+            bool _getAudioInfo(const OTIO_NS::Composable*);
+            void _getCanvas();
+            void _getMaxVideoSize();
+            void _timelineUpdate();
+            OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>
+            _readOTIO(const file::Path& path, OTIO_NS::ErrorStatus* errorStatus);
+
             TLRENDER_PRIVATE();
         };
     } // namespace timeline

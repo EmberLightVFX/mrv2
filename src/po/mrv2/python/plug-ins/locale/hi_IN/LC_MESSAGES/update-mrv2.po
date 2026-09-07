@@ -4,6 +4,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: mrv 2-build\n"
+"Report-Msgid-Bugs-To: \n"
 "PO-Revision-Date: 2024-08-30 22:04-0300\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -136,4 +137,4 @@ msgid "releases found for the specified repository."
 msgstr "निर्दिष्ट रिपॉज़िटरी के लिए कोई रिलीज़ नहीं मिली।"
 
 msgid "Help/Update mrv2"
-msgstr "मदद/mrv2 अद्यतन करें"
+msgstr "सहायता/mrv2 अद्यतन करें"

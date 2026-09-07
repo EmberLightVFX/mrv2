@@ -46,7 +46,7 @@ namespace mrv
         {
             TimelinePlayer* player;
             double speed;
-            otio::RationalTime time;
+            OTIO_NS::RationalTime time;
         };
 
         void stop_playback_cb(StopData* data)
@@ -69,7 +69,7 @@ namespace mrv
         std::shared_ptr<observer::ValueObserver<timeline::Playback> >
             playbackObserver;
         std::shared_ptr<observer::ValueObserver<timeline::Loop> > loopObserver;
-        std::shared_ptr<observer::ValueObserver<otime::RationalTime> >
+        std::shared_ptr<observer::ValueObserver<OTIO_NS::RationalTime> >
             currentTimeObserver;
         std::shared_ptr<observer::ValueObserver<timeline::PlayerCacheOptions> >
             cacheOptionsObserver;
@@ -126,9 +126,9 @@ namespace mrv
             [this](timeline::Loop value) { loopChanged(value); });
 
         p.currentTimeObserver =
-            observer::ValueObserver<otime::RationalTime>::create(
+            observer::ValueObserver<OTIO_NS::RationalTime>::create(
                 p.player->observeCurrentTime(),
-                [this](const otime::RationalTime& value)
+                [this](const OTIO_NS::RationalTime& value)
                     { currentTimeChanged(value); });
 
         p.cacheOptionsObserver =
@@ -178,14 +178,14 @@ namespace mrv
         return _p->player->getTimeline();
     }
 
-    const otio::SerializableObject::Retainer<otio::Timeline>&
+    const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>&
     TimelinePlayer::getTimeline() const
     {
         return _p->player->getTimeline()->getTimeline();
     }
 
     void TimelinePlayer::setTimeline(
-        const otio::SerializableObject::Retainer<otio::Timeline>& timeline)
+        const OTIO_NS::SerializableObject::Retainer<OTIO_NS::Timeline>& timeline)
     {
         _p->player->getTimeline()->setTimeline(timeline);
     }
@@ -210,7 +210,7 @@ namespace mrv
         return _p->player->getOptions();
     }
 
-    const otime::TimeRange& TimelinePlayer::timeRange() const
+    const OTIO_NS::TimeRange& TimelinePlayer::timeRange() const
     {
         return _p->player->getTimeRange();
     }
@@ -240,17 +240,17 @@ namespace mrv
         return _p->player->observeLoop()->get();
     }
 
-    const otime::RationalTime& TimelinePlayer::currentTime() const
+    const OTIO_NS::RationalTime& TimelinePlayer::currentTime() const
     {
         return _p->player->observeCurrentTime()->get();
     }
 
-    const otime::TimeRange& TimelinePlayer::inOutRange() const
+    const OTIO_NS::TimeRange& TimelinePlayer::inOutRange() const
     {
         return _p->player->observeInOutRange()->get();
     }
 
-    const std::vector<timeline::VideoData>& TimelinePlayer::currentVideo() const
+    const std::vector<timeline::VideoFrame>& TimelinePlayer::currentVideo() const
     {
         return _p->player->getCurrentVideo();
     }
@@ -270,7 +270,8 @@ namespace mrv
         return _p->player->observeAudioOffset()->get();
     }
 
-    const std::vector<timeline::AudioData>& TimelinePlayer::currentAudio() const
+    const std::vector<timeline::AudioFrame>&
+    TimelinePlayer::currentAudio() const
     {
         return _p->player->observeCurrentAudio()->get();
     }
@@ -285,7 +286,7 @@ namespace mrv
         return _p->player->observeCacheInfo()->get();
     }
 
-    void TimelinePlayer::updateVideoCache(const otime::RationalTime& time)
+    void TimelinePlayer::updateVideoCache(const OTIO_NS::RationalTime& time)
     {
         pushMessage("updateVideoCache", time);
         _p->player->updateVideoCache(time);
@@ -368,7 +369,7 @@ namespace mrv
         _p->player->setLoop(value);
     }
 
-    void TimelinePlayer::seek(const otime::RationalTime& value)
+    void TimelinePlayer::seek(const OTIO_NS::RationalTime& value)
     {
         pushMessage("seek", value);
         _p->player->seek(value);
@@ -415,7 +416,7 @@ namespace mrv
 
         p.isStepping = true;
         const auto oneFrame =
-            otime::RationalTime(1.0, timeRange().duration().rate());
+            OTIO_NS::RationalTime(1.0, timeRange().duration().rate());
         auto time = currentTime() - oneFrame;
         if (time <= inOutRange().start_time())
         {
@@ -455,7 +456,7 @@ namespace mrv
 
         p.isStepping = true;
         const auto oneFrame =
-            otime::RationalTime(1.0, timeRange().duration().rate());
+            OTIO_NS::RationalTime(1.0, timeRange().duration().rate());
         auto time = currentTime() + oneFrame;
 
         if (time >= inOutRange().end_time_exclusive())
@@ -484,7 +485,7 @@ namespace mrv
             1.75 / speed(), (Fl_Timeout_Handler)stop_playback_cb, data);
     }
 
-    void TimelinePlayer::setInOutRange(const otime::TimeRange& value)
+    void TimelinePlayer::setInOutRange(const OTIO_NS::TimeRange& value)
     {
         pushMessage("setInOutRange", value);
         _p->player->setInOutRange(value);
@@ -602,7 +603,7 @@ namespace mrv
     }
 
     //! This signal is emitted when the current time is changed.
-    void TimelinePlayer::currentTimeChanged(const otime::RationalTime& value)
+    void TimelinePlayer::currentTimeChanged(const OTIO_NS::RationalTime& value)
     {
         auto timeline = App::ui->uiTimeline;
         timeline->redraw();
@@ -641,12 +642,12 @@ namespace mrv
 #endif
     }
 
-    const std::vector< otime::RationalTime >
+    const std::vector< OTIO_NS::RationalTime >
     TimelinePlayer::getAnnotationTimes() const
     {
         TLRENDER_P();
 
-        std::vector< otime::RationalTime > times;
+        std::vector< OTIO_NS::RationalTime > times;
         for (auto annotation : p.annotations)
         {
             times.push_back(annotation->time);
@@ -717,7 +718,7 @@ namespace mrv
             return *found;
         }
     }
-    
+
     std::shared_ptr< draw::Annotation > TimelinePlayer::getUndoAnnotation() const
     {
         TLRENDER_P();
@@ -750,7 +751,8 @@ namespace mrv
         // Don't allow creating annotations while playing.  Stop playback first.
         if (playback() != timeline::Playback::Stop)
         {
-            stop();
+            // Stop playback without updating thumbnails.
+            setPlayback(timeline::Playback::Stop, true);
         }
 
         auto time = currentTime();
@@ -789,10 +791,54 @@ namespace mrv
     }
 
     void TimelinePlayer::setAllAnnotations(
-        const std::vector< std::shared_ptr< draw::Annotation >>& value)
+        const std::vector<std::shared_ptr<draw::Annotation > >& value)
     {
         _p->annotations = value;
         _p->undoAnnotations.clear();
+    }
+
+    void TimelinePlayer::mergeAllAnnotations(
+        const std::vector<std::shared_ptr<draw::Annotation > >& values)
+    {
+        TLRENDER_P();
+
+        for (const auto& incomingAnnotation : values)
+        {
+            if (!incomingAnnotation)
+                continue;
+
+            // Search for an existing annotation at the exact same time
+            auto found = std::find_if(
+                p.annotations.begin(), p.annotations.end(),
+                [&incomingAnnotation](const std::shared_ptr<draw::Annotation>& a)
+                {
+                    return a->time == incomingAnnotation->time;
+                });
+
+            if (found != p.annotations.end())
+            {
+                // Clash exists: merge shapes into the existing annotation
+                auto& existingAnnotation = *found;
+
+                existingAnnotation->shapes.insert(
+                    existingAnnotation->shapes.end(),
+                    incomingAnnotation->shapes.begin(),
+                    incomingAnnotation->shapes.end()
+                );
+
+                // Clear the local undo buffer since new shapes were added
+                // (Matches the behavior of Annotation::push_back)
+                existingAnnotation->undo_shapes.clear();
+            }
+            else
+            {
+                // No clash: append the new annotation
+                p.annotations.push_back(incomingAnnotation);
+            }
+        }
+
+        // Clear global undo annotations since the timeline state has been modified externally
+        p.undoAnnotations.clear();
     }
 
     void TimelinePlayer::clearFrameAnnotation()
@@ -937,7 +983,7 @@ namespace mrv
             return *found;
         }
     }
-        
+
     //! Get undo annotation for current time
     std::shared_ptr< voice::Annotation > TimelinePlayer::getUndoVoiceAnnotation() const
     {
@@ -973,7 +1019,8 @@ namespace mrv
         // Don't allow creating annotations while playing.  Stop playback first.
         if (playback() != timeline::Playback::Stop)
         {
-            stop();
+            // Stop playback without updating thumbnails.
+            setPlayback(timeline::Playback::Stop, true);
         }
 
         auto time = currentTime();
@@ -1008,7 +1055,7 @@ namespace mrv
         TLRENDER_P();
 
         std::vector< std::shared_ptr< voice::Annotation > > out;
-        
+
         const auto& time = currentTime();
         const int64_t frame = time.value();
 
@@ -1054,7 +1101,7 @@ namespace mrv
     void TimelinePlayer::removeAnnotation(const std::shared_ptr< voice::Annotation >& voiceAnnotation)
     {
         TLRENDER_P();
-        
+
         p.undoVoiceAnnotations = p.voiceAnnotations;
         p.voiceAnnotations.erase(
             std::remove(p.voiceAnnotations.begin(),
@@ -1062,7 +1109,7 @@ namespace mrv
             p.voiceAnnotations.end());
     }
 #endif
-    
+
     void TimelinePlayer::timerEvent()
     {
         _p->player->tick();

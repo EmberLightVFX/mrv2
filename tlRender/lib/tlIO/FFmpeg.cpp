@@ -3,8 +3,11 @@
 // Copyright (c) 2024-Present Gonzalo Garramuño
 // All rights reserved.
 
-//#define DEBUG_DYNAMIC_HDR 1
-//#define DEBUG_STATIC_HDR 1
+#if 0
+#    define DBG std::cerr << __FUNCTION__ << " " << __LINE__ << std::endl;
+#else
+#    define DBG
+#endif
 
 #include <tlIO/FFmpeg.h>
 
@@ -22,23 +25,49 @@ extern "C"
 {
 #include <libavutil/channel_layout.h>
 #include <libavutil/dict.h>
-#include <libavutil/dovi_meta.h>
+#ifdef TLRENDER_DOVI
+#    include <libavutil/dovi_meta.h>
+#endif
+#include <libavutil/ffversion.h>
 #include <libavutil/hdr_dynamic_metadata.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/mastering_display_metadata.h>
 }
 
 #include <array>
+#include <mutex>
 
 namespace tl
 {
     namespace ffmpeg
     {
+        bool Options::operator == (const Options& other) const
+        {
+            return
+                yuvToRgb == other.yuvToRgb &&
+                hwAccel == other.hwAccel &&
+                threadCount == other.threadCount;
+        }
+
+        bool Options::operator != (const Options& other) const
+        {
+            return !(*this == other);
+        }
+
+        io::Options getOptions(const Options& value)
+        {
+            io::Options out;
+            out["FFmpeg/YUVToRGB"] = string::Format("{0}").arg(value.yuvToRgb);
+            out["FFmpeg/HWAccel"] = string::Format("{0}").arg(value.hwAccel);
+            out["FFmpeg/ThreadCount"] = string::Format("{0}").arg(value.threadCount);
+            return out;
+        }
+
         TLRENDER_ENUM_IMPL(
             Profile, "None", "H264", "ProRes", "ProRes_Proxy", "ProRes_LT",
             "ProRes_HQ", "ProRes_4444", "ProRes_XQ", "DNxHD", "DNxHR_LB",
             "DNxHR_SQ", "DNxHR_HQ", "DNxHR_HQX", "DNxHR_444", "VP9", "Cineform",
-            "AV1", "HAP", "AV1_AOM");
+            "AV1", "HAP", "AV1_AOM", "HEVC");
         TLRENDER_ENUM_SERIALIZE_IMPL(Profile);
 
         TLRENDER_ENUM_IMPL(
@@ -76,7 +105,7 @@ namespace tl
                         av_q2d(data->display_primaries[1][0]);
                     hdr.primaries[image::HDRPrimaries::Green].y =
                         av_q2d(data->display_primaries[1][1]);
-                    
+
                     hdr.primaries[image::HDRPrimaries::Blue].x =
                         av_q2d(data->display_primaries[2][0]);
                     hdr.primaries[image::HDRPrimaries::Blue].y =
@@ -88,7 +117,7 @@ namespace tl
                         av_q2d(data->white_point[1]);
                 }
             }
-                
+
             raw = get_stream_side_data(st, AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
             if (raw)
             {
@@ -97,7 +126,7 @@ namespace tl
                 hdr.maxCLL = data->MaxCLL;
                 hdr.maxFALL = data->MaxFALL;
             }
-            
+
             raw = get_stream_side_data(st, AV_PKT_DATA_DYNAMIC_HDR10_PLUS);
             if (raw)
             {
@@ -123,7 +152,7 @@ namespace tl
                     }
 
                     histogramMax *= 10000.F;
-                    
+
                     if (!hdr.sceneMax[0])
                         hdr.sceneMax[0] = histogramMax;
                     if (!hdr.sceneMax[1])
@@ -191,7 +220,7 @@ namespace tl
             }
 #endif
         }
-        
+
         float dolby_rescale(float x)
         {
             static const float PQ_M1 = 2610./4096 * 1./4,
@@ -209,7 +238,7 @@ namespace tl
             x /= 203.F;
             return x;
         }
-        
+
         bool
         toHDRData(AVFrame* frame, image::HDRData& hdr)
         {
@@ -230,97 +259,101 @@ namespace tl
                         math::FloatRange(min_luma, max_luma);
                 }
             }
-        
-        raw = get_side_data_raw(frame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
-        if (raw)
-        {
-            out = true;
-            auto data = reinterpret_cast<AVContentLightMetadata*>(raw);
-            hdr.maxCLL = data->MaxCLL;
-            hdr.maxFALL = data->MaxFALL;
-        }
-        raw = get_side_data_raw(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
-        if (raw)
-        {
-            out = true;
-            auto data = reinterpret_cast<AVDynamicHDRPlus*>(raw);
-            if (data->application_version < 2)
+
+            raw = get_side_data_raw(frame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+            if (raw)
             {
-                const AVHDRPlusColorTransformParams* p = data->params;
-                hdr.sceneMax[0] = 10000.F * av_q2d(p->maxscl[0]);
-                hdr.sceneMax[1] = 10000.F * av_q2d(p->maxscl[1]);
-                hdr.sceneMax[2] = 10000.F * av_q2d(p->maxscl[2]);
-                hdr.sceneAvg = 10000.F * av_q2d(p->average_maxrgb);
+                out = true;
+                auto data = reinterpret_cast<AVContentLightMetadata*>(raw);
+                hdr.maxCLL = data->MaxCLL;
+                hdr.maxFALL = data->MaxFALL;
+            }
 
-                
-                float histogramMax = 0.F;
-                
-                for (int i = 0;
-                     i < p->num_distribution_maxrgb_percentiles; i++)
+            raw = get_side_data_raw(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS);
+            if (raw)
+            {
+                out = true;
+                auto data = reinterpret_cast<AVDynamicHDRPlus*>(raw);
+                if (data->application_version < 2)
                 {
-                    float value = av_q2d(p->distribution_maxrgb[i].percentile);
-                    if (value > histogramMax)
-                        histogramMax = value;
-                }
+                    const AVHDRPlusColorTransformParams* p = data->params;
+                    hdr.sceneMax[0] = 10000.F * av_q2d(p->maxscl[0]);
+                    hdr.sceneMax[1] = 10000.F * av_q2d(p->maxscl[1]);
+                    hdr.sceneMax[2] = 10000.F * av_q2d(p->maxscl[2]);
+                    hdr.sceneAvg = 10000.F * av_q2d(p->average_maxrgb);
 
-                histogramMax *= 10000.F;
-                if (!hdr.sceneMax[0])
-                    hdr.sceneMax[0] = histogramMax;
-                if (!hdr.sceneMax[1])
-                    hdr.sceneMax[1] = histogramMax;
-                if (!hdr.sceneMax[2])
-                    hdr.sceneMax[2] = histogramMax;
 
-                if (p->tone_mapping_flag == 1)
-                {
-                    hdr.ootf.targetLuma = av_q2d(
-                        data->targeted_system_display_maximum_luminance);
-                    hdr.ootf.kneeX = av_q2d(p->knee_point_x);
-                    hdr.ootf.kneeY = av_q2d(p->knee_point_y);
-                    if (p->num_bezier_curve_anchors < 16)
+                    float histogramMax = 0.F;
+
+                    for (int i = 0;
+                         i < p->num_distribution_maxrgb_percentiles; i++)
                     {
-                        hdr.ootf.numAnchors =
-                            p->num_bezier_curve_anchors;
-                        for (int i = 0; i < hdr.ootf.numAnchors; ++i)
-                            hdr.ootf.anchors[i] =
-                                av_q2d(p->bezier_curve_anchors[i]);
+                        float value = av_q2d(p->distribution_maxrgb[i].percentile);
+                        if (value > histogramMax)
+                            histogramMax = value;
+                    }
+
+                    histogramMax *= 10000.F;
+                    if (!hdr.sceneMax[0])
+                        hdr.sceneMax[0] = histogramMax;
+                    if (!hdr.sceneMax[1])
+                        hdr.sceneMax[1] = histogramMax;
+                    if (!hdr.sceneMax[2])
+                        hdr.sceneMax[2] = histogramMax;
+
+                    if (p->tone_mapping_flag == 1)
+                    {
+                        hdr.ootf.targetLuma = av_q2d(
+                            data->targeted_system_display_maximum_luminance);
+                        hdr.ootf.kneeX = av_q2d(p->knee_point_x);
+                        hdr.ootf.kneeY = av_q2d(p->knee_point_y);
+                        if (p->num_bezier_curve_anchors < 16)
+                        {
+                            hdr.ootf.numAnchors =
+                                p->num_bezier_curve_anchors;
+                            for (int i = 0; i < hdr.ootf.numAnchors; ++i)
+                                hdr.ootf.anchors[i] =
+                                    av_q2d(p->bezier_curve_anchors[i]);
+                        }
                     }
                 }
             }
-        }
-        raw = get_side_data_raw(frame, AV_FRAME_DATA_DOVI_METADATA);
-        if (raw)
-        {
-            out = true;
 
-            const AVDOVIMetadata* metadata = reinterpret_cast<AVDOVIMetadata *>(raw);
-            const AVDOVIRpuDataHeader* header = av_dovi_get_header(metadata);
-            if (header->disable_residual_flag)
+#ifdef TLRENDER_DOBI
+            raw = get_side_data_raw(frame, AV_FRAME_DATA_DOVI_METADATA);
+            if (raw)
             {
-                const AVDOVIColorMetadata *dovi_color;
-                dovi_color = av_dovi_get_color(metadata);
-                hdr.eotf = image::EOTF_BT2020;
-                hdr.isDolbyVision = true;
-                float min_luma = dolby_rescale(dovi_color->source_min_pq / 4095.0f);
-                float max_luma = dolby_rescale(dovi_color->source_max_pq / 4095.0f);
-                hdr.displayMasteringLuminance = math::FloatRange(min_luma, max_luma);
-                const AVDOVIDmData *dovi_ext;
-                if ((dovi_ext = av_dovi_find_level(metadata, 1))) {
-                    hdr.maxPQY = dovi_ext->l1.max_pq / 4095.0f;
-                    hdr.avgPQY = dovi_ext->l1.avg_pq / 4095.0f;
+                out = true;
+
+                const AVDOVIMetadata* metadata = reinterpret_cast<AVDOVIMetadata *>(raw);
+                const AVDOVIRpuDataHeader* header = av_dovi_get_header(metadata);
+                if (header->disable_residual_flag)
+                {
+                    const AVDOVIColorMetadata *dovi_color;
+                    dovi_color = av_dovi_get_color(metadata);
+                    hdr.eotf = image::EOTF_BT2020;
+                    hdr.isDolbyVision = true;
+                    float min_luma = dolby_rescale(dovi_color->source_min_pq / 4095.0f);
+                    float max_luma = dolby_rescale(dovi_color->source_max_pq / 4095.0f);
+                    hdr.displayMasteringLuminance = math::FloatRange(min_luma, max_luma);
+                    const AVDOVIDmData *dovi_ext;
+                    if ((dovi_ext = av_dovi_find_level(metadata, 1))) {
+                        hdr.maxPQY = dovi_ext->l1.max_pq / 4095.0f;
+                        hdr.avgPQY = dovi_ext->l1.avg_pq / 4095.0f;
+                    }
+                }
+
+                AVFrameSideData* sd = av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER);
+                if (sd)
+                {
+                    hdr.isDolbyVision = true;
+                    hdr_metadata_from_dovi_rpu(hdr, sd->buf->data, sd->buf->size);
                 }
             }
+#endif
 
-            AVFrameSideData* sd = av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER);
-            if (sd)
-            {
-                hdr.isDolbyVision = true;
-                hdr_metadata_from_dovi_rpu(hdr, sd->buf->data, sd->buf->size);
-            }
+            return out;
         }
-
-        return out;
-    }
 
         audio::DataType toAudioType(AVSampleFormat value)
         {
@@ -478,7 +511,7 @@ namespace tl
                  {".webm", io::FileType::Movie},
                  {".webp", io::FileType::Movie},
                  {".wmv", io::FileType::Movie},
-                 
+
                  // Audio Formats
                  {".aiff", io::FileType::Audio},
                  {".mka", io::FileType::Audio},
@@ -492,7 +525,8 @@ namespace tl
 
             _logSystemWeak = logSystem;
             // av_log_set_level(AV_LOG_QUIET);
-            av_log_set_level(AV_LOG_WARNING);
+            // av_log_set_level(AV_LOG_WARNING);
+            av_log_set_level(AV_LOG_DEBUG);
             av_log_set_callback(_logCallback);
 
             const AVCodec* avCodec = nullptr;
@@ -579,61 +613,67 @@ namespace tl
         void
         Plugin::_logCallback(void* avcl, int level, const char* fmt, va_list vl)
         {
-            static std::string lastMessage;
-            std::string format;
+            // Filter out verbose messages early
+            if (level == AV_LOG_VERBOSE || !fmt)
+                return;
 
-            if (level != AV_LOG_VERBOSE)
+            if (auto logSystem = _logSystemWeak.lock())
             {
-                AVClass* avc = avcl ? *(AVClass**)avcl : NULL;
-                if (avc)
+                // 1. Safely format the FFmpeg message itself (without the
+                //    prefix
+                char messageBuf[string::cBufferSize];
+                messageBuf[string::cBufferSize - 1] = 0;
+                vsnprintf(messageBuf, string::cBufferSize, fmt, vl);
+
+                std::string finalMessage = string::removeTrailingNewlines(messageBuf);
+
+                // 2. Safely extract the context name
+                std::string prefix = "";
+                if (avcl)
                 {
-                    format = "(";
-                    format += avc->item_name(avcl);
-                    format += ") ";
+                    AVClass* avc = *(AVClass**)avcl;
+                    // Safely check the function pointer BEFORE invoking it
+                    if (avc && avc->item_name)
+                    {
+                        const char* itemName = avc->item_name(avcl);
+                        prefix = std::string("(") + (itemName ? itemName : "Unknown") + ") ";
+                    }
+                    else
+                    {
+                        prefix = "(Unknown) ";
+                    }
                 }
-                format += fmt;
-            }
 
-            if (level != AV_LOG_VERBOSE)
-            {
-                if (auto logSystem = _logSystemWeak.lock())
+                finalMessage = prefix + finalMessage;
+
+                // 3. Thread-safe deduplication
+                if (level < AV_LOG_INFO)
                 {
-                    char buf[string::cBufferSize];
-                    vsnprintf(buf, string::cBufferSize, format.c_str(), vl);
+                    static std::string lastMessage;
+                    static std::mutex logMutex;
 
-                    const std::string& message =
-                        string::removeTrailingNewlines(buf);
+                    std::lock_guard<std::mutex> lock(logMutex);
+                    if (finalMessage == lastMessage)
+                        return;
+                    lastMessage = finalMessage;
+                }
 
-                    if (level < AV_LOG_INFO)
-                    {
-                        if (message == lastMessage)
-                            return;
-
-                        lastMessage = message;
-                    }
-
-                    switch (level)
-                    {
-                    case AV_LOG_PANIC:
-                    case AV_LOG_FATAL:
-                    case AV_LOG_ERROR:
-                        logSystem->print(
-                            "tl::io::ffmpeg::Plugin", message, log::Type::Error,
-                            "ffmpeg");
-                        break;
-                    case AV_LOG_WARNING:
-                        logSystem->print(
-                            "tl::io::ffmpeg::Plugin", message,
-                            log::Type::Warning, "ffmpeg");
-                        break;
-                    case AV_LOG_INFO:
-                        logSystem->print(
-                            "tl::io::ffmpeg::Plugin", message,
-                            log::Type::Message, "ffmpeg");
-                        break;
-                    default:
-                        break;
-                    }
+                // 4. Dispatch to the logging system
+                switch (level)
+                {
+                case AV_LOG_PANIC:
+                case AV_LOG_FATAL:
+                case AV_LOG_ERROR:
+                    logSystem->print("tl::io::ffmpeg::Plugin", finalMessage, log::Type::Error, "ffmpeg");
+                    break;
+                case AV_LOG_WARNING:
+                    logSystem->print("tl::io::ffmpeg::Plugin", finalMessage, log::Type::Warning, "ffmpeg");
+                    break;
+                case AV_LOG_INFO:
+                    logSystem->print("tl::io::ffmpeg::Plugin", finalMessage, log::Type::Message, "ffmpeg");
+                    break;
+                default:
+                    break;
                 }
             }
         }

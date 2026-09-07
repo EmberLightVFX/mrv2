@@ -45,6 +45,7 @@ namespace tl
             AV1,
             HAP,
             AV1_AOM,
+            HEVC,
 
             Count
         };
@@ -68,8 +69,16 @@ namespace tl
         TLRENDER_ENUM(AudioCodec);
         TLRENDER_ENUM_SERIALIZE(AudioCodec);
 
-        //! Number of threads.
-        const size_t threadCount = 0;
+        //! FFmpeg options.
+        struct Options
+        {
+            bool   yuvToRgb    = false;
+            bool   hwAccel     = false;
+            size_t threadCount = 0;
+
+            bool operator == (const Options&) const;
+            bool operator != (const Options&) const;
+        };
 
         //! Software scaler flags.
         const int swsScaleFlags = SWS_SPLINE | SWS_ACCURATE_RND |
@@ -91,7 +100,16 @@ namespace tl
                                          type);
             return sd ? sd->data : NULL;
         }
-        
+
+        //! Attach/replace stream (codecpar) side data.
+        inline AVPacketSideData* set_stream_side_data(
+            AVCodecParameters* par, enum AVPacketSideDataType type,
+            std::size_t size)
+        {
+            return av_packet_side_data_new(
+                &par->coded_side_data, &par->nb_coded_side_data, type, size, 0);
+        }
+
         //! Convert to HDR data.
         bool
         toHDRData(AVStream*, image::HDRData&);
@@ -148,16 +166,16 @@ namespace tl
 
             std::future<io::Info> getInfo() override;
             std::future<io::VideoData> readVideo(
-                const otime::RationalTime&,
+                const OTIO_NS::RationalTime&,
                 const io::Options& = io::Options()) override;
             std::future<io::AudioData> readAudio(
-                const otime::TimeRange&,
+                const OTIO_NS::TimeRange&,
                 const io::Options& = io::Options()) override;
             void cancelRequests() override;
 
         private:
             void _addToCache(
-                io::VideoData& data, const otime::RationalTime&,
+                io::VideoData& data, const OTIO_NS::RationalTime&,
                 const io::Options&);
             void _videoThread();
             void _audioThread();
@@ -185,17 +203,22 @@ namespace tl
                 const file::Path&, const io::Info&, const io::Options&,
                 const std::weak_ptr<log::System>&);
 
+            void setHDR(const image::HDRData&) override;
+
+            void writeHeader() override;
+
             void writeVideo(
-                const otime::RationalTime&,
+                const OTIO_NS::RationalTime&,
                 const std::shared_ptr<image::Image>&,
                 const io::Options& = io::Options()) override;
 
             void writeAudio(
-                const otime::TimeRange&, const std::shared_ptr<audio::Audio>&,
+                const OTIO_NS::TimeRange&, const std::shared_ptr<audio::Audio>&,
                 const io::Options& = io::Options()) override;
 
         private:
-            void _attach_hdr_metadata(AVFrame*);
+            void _attach_frame_hdr_metadata(AVFrame*);
+            void _attach_stream_hdr_metadata(AVStream*);
             void _encode(
                 AVCodecContext*, const AVStream*, AVFrame*, AVPacket*);
             void _flushAudio();

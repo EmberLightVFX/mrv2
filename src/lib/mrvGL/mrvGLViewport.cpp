@@ -52,6 +52,8 @@
 
 #include "mrvApp/mrvSettingsObject.h"
 
+#include <FL/fl_config.h>
+
 namespace
 {
     const char* kModule = "view";
@@ -61,7 +63,7 @@ namespace mrv
 {
     namespace opengl
     {
-    
+
         using namespace tl;
 
         Viewport::Viewport(int X, int Y, int W, int H, const char* L) :
@@ -185,6 +187,14 @@ namespace mrv
             refresh();
 
             _initializeGLResources();
+
+#if FLTK_HAVE_PEN_SUPPORT
+            if (!desktop::X11() && !desktop::XWayland())
+            {
+                // Subscribe to pen events
+                Fl::Pen::subscribe(this);
+            }
+#endif
         }
 
         int Viewport::handle(int event)
@@ -214,10 +224,10 @@ namespace mrv
                 _initializeGL();
                 valid(1);
             }
-            
 
-            const auto& viewportSize = getViewportSize();
-            const auto& renderSize = getRenderSize();
+
+            const math::Size2i& viewportSize = getViewportSize();
+            math::Size2i renderSize = getRenderSize();
 
             bool hasAlpha = false;
             const float alpha = p.ui->uiMain->get_alpha() / 255.F;
@@ -230,7 +240,7 @@ namespace mrv
                 hasAlpha ||
                 getBackgroundOptions().type == timeline::Background::Transparent;
 
-            
+
             try
             {
                 if (renderSize.isValid())
@@ -249,11 +259,14 @@ namespace mrv
                         break;
                     case kAccuracyAuto:
                         image::PixelType pixelType = image::PixelType::RGBA_U8;
-                        auto& video = p.videoData[0];
+                        static auto emptyVideo = timeline::VideoFrame();
+                        timeline::VideoFrame& video = emptyVideo;
+                        if (!p.videoData.empty())
+                            video = p.videoData[0];
                         if (p.missingFrame &&
                             p.missingFrameType != MissingFrameType::kBlackFrame)
                         {
-                            video = p.lastVideoData;
+                            video = p.lastVideoFrame;
                         }
 
                         if (!video.layers.empty() && video.layers[0].image &&
@@ -300,7 +313,15 @@ namespace mrv
                         break;
                     }
 
-                    
+                    if (p.pixelAspectRatio > 0.F && !p.videoData.empty() &&
+                        !p.videoData.front().layers.empty())
+                    {
+                        auto image = p.videoData.front().layers.front().image;
+                        p.videoData.front().size.pixelAspectRatio = p.pixelAspectRatio;
+                        if (image) image->setPixelAspectRatio(p.pixelAspectRatio);
+                        renderSize = getRenderSize();
+                    }
+
                     gl::OffscreenBufferOptions offscreenBufferOptions;
                     offscreenBufferOptions.colorType = gl.colorBufferType;
 
@@ -333,9 +354,9 @@ namespace mrv
                 {
                     gl.buffer.reset();
                     gl.stereoBuffer.reset();
-                    
+
                 }
-                
+
 
                 if (gl.buffer && gl.render)
                 {
@@ -363,7 +384,7 @@ namespace mrv
 
                             if (p.ocio_disabled)
                                 ocio.enabled = false;
-                    
+
                             if (screen >= 0 && !p.monitorOCIOOptions.empty() &&
                                 screen < p.monitorOCIOOptions.size())
                             {
@@ -399,7 +420,9 @@ namespace mrv
                                     gl.render->drawVideo(
                                         p.videoData,
                                         timeline::getBoxes(
-                                            p.compareOptions.mode, p.videoData),
+                                            p.compareOptions,
+                                            p.displayOptions,
+                                            p.videoData),
                                         p.imageOptions, p.displayOptions,
                                         p.compareOptions, getBackgroundOptions());
                                 }
@@ -416,7 +439,7 @@ namespace mrv
                 gl.buffer.reset();
                 gl.stereoBuffer.reset();
             }
-            
+
 
             float r = 0.F, g = 0.F, b = 0.F, a = 0.F;
 
@@ -471,15 +494,15 @@ namespace mrv
                 }
             }
 
-            
+
             glDrawBuffer(GL_BACK_LEFT);
-            
+
 
             glViewport(0, 0, GLsizei(viewportSize.w), GLsizei(viewportSize.h));
             glClearStencil(0);
             glClearColor(r, g, b, a);
             glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-            
+
 
             const auto& player = getTimelinePlayer();
             if (!player)
@@ -501,7 +524,7 @@ namespace mrv
 #else
             const std::vector<bool> voannotations;
 #endif
-            
+
             MultilineInput* w = getMultilineInput();
             if (w)
             {
@@ -547,7 +570,7 @@ namespace mrv
                     blitViewport = p.ui->uiPrefs->uiPrefsBlitMainViewport->value();
                 else
                     blitViewport = p.ui->uiPrefs->uiPrefsBlitSecondaryViewport->value();
-            
+
                 if (p.presentation || blitViewport == kNoBlit ||
                     p.environmentMapOptions.type != EnvironmentMapOptions::kNone ||
                     rotation != 0.F || (transparent && hasAlpha))
@@ -694,7 +717,7 @@ namespace mrv
                             renderSize, offscreenBufferOptions);
                         _createOverlayPBO(renderSize);
                     }
-                    
+
                     const math::Matrix4x4f& renderMVP = _renderProjectionMatrix();
                     _drawAnnotations(
                         gl.overlay, renderMVP, currentTime, annotations,
@@ -713,7 +736,7 @@ namespace mrv
                     // Wait for the fence to complete before compositing
                     GLenum waitReturn =
                         glClientWaitSync(gl.overlayFence, 0, GL_TIMEOUT_IGNORED);
-                    
+
                     if (waitReturn == GL_TIMEOUT_EXPIRED)
                     {
                         LOG_ERROR("glClientWaitSync: Timeout occurred!");
@@ -729,9 +752,9 @@ namespace mrv
                 }
 
                 if (p.selection.min.x >= 0)
-                {                    
+                {
                     p.colorAreaInfo.box = p.selection;
-                
+
                     // Hard-code the pixel type as that's what OpenGL will read
                     p.colorAreaInfo.pixelType = image::PixelType::RGBA_F32;
 
@@ -843,7 +866,7 @@ namespace mrv
                     p.actionMode != ActionMode::kText &&
                     p.actionMode != ActionMode::kVoice &&
                     p.actionMode != ActionMode::kSelection &&
-                    p.actionMode != ActionMode::kRotate && 
+                    p.actionMode != ActionMode::kRotate &&
                     p.actionMode != ActionMode::kLink &&
                     Fl::belowmouse() == this)
                 {
@@ -853,8 +876,6 @@ namespace mrv
                 if (p.hudActive && p.hud != HudDisplay::kNone)
                     _drawHUD(alpha);
 
-                if (!p.helpText.empty())
-                    _drawHelpText();
             }
 
 #ifdef USE_OPENGL2
@@ -1005,17 +1026,17 @@ namespace mrv
             int hsv_colorspace = c->uiBColorType->value() + 1;
 
             const auto& renderSize = gl.buffer->getSize();
-            
+
             const uint32_t W = info.box.w();
             const uint32_t H = info.box.h();
-            
+
             const uint8_t* ptr = reinterpret_cast<const uint8_t*>(p.image);
-            
+
             const int channelCount = image::getChannelCount(info.pixelType);
-            const int byteCount = image::getBitDepth(info.pixelType) / 8;  
+            const int byteCount = image::getBitDepth(info.pixelType) / 8;
 
             const size_t dataSize = W * H;
-            
+
             image::Color4f rgba, hsv;
 
             for (size_t i = 0; i < dataSize; ++i)
@@ -1049,7 +1070,7 @@ namespace mrv
                 hsv = rgba_to_hsv(hsv_colorspace, rgba);
                 hsv.a = calculate_brightness(rgba, brightness_type);
                 hsv_to_info(hsv, info);
-                
+
                 ptr += channelCount * byteCount;
             }
 
@@ -1166,7 +1187,7 @@ namespace mrv
                         return;
                     glReadPixels(box.min.x, box.min.y, W, H, format, type,
                                  p.image);
-                    
+
                     return;
                 }
                 else
@@ -1176,22 +1197,22 @@ namespace mrv
                     // glReadPixels() should return immediately.
                     glBindBuffer(
                         GL_PIXEL_PACK_BUFFER, gl.pboIDs[gl.currentPBOIndex]);
-                    
+
 
                     glReadPixels(box.min.x, box.min.y, W, H, format, type, 0);
                     // was: glReadPixels(0, 0, renderSize.w, renderSize.h, format, type, 0);
-                    
+
 
                     // map the PBO to process its data by CPU
                     glBindBuffer(GL_PIXEL_PACK_BUFFER, gl.pboIDs[gl.nextPBOIndex]);
-                    
+
 
                     // We are stopped, read the first PBO.
                     if (stopped)
                     {
                         glBindBuffer(
                             GL_PIXEL_PACK_BUFFER, gl.pboIDs[gl.currentPBOIndex]);
-                        
+
                     }
                 }
 
@@ -1207,12 +1228,12 @@ namespace mrv
                 glClientWaitSync(
                     gl.pboFences[gl.nextPBOIndex], GL_SYNC_FLUSH_COMMANDS_BIT,
                     GL_TIMEOUT_IGNORED);
-                
+
                 glDeleteSync(gl.pboFences[gl.nextPBOIndex]);
-                
+
 
                 p.image = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-                
+
                 p.rawImage = false;
             }
             else
@@ -1445,9 +1466,10 @@ namespace mrv
             Message msg;
             msg["command"] = command;
             msg["value"] = value;
+
             tcp->pushMessage(msg);
         }
 
     }
-    
+
 } // namespace mrv

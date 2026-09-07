@@ -39,18 +39,22 @@ namespace tl
 
         const size_t avIOContextBufferSize = 4096;
 
-        struct Options
+        struct ReadOptions
         {
-            otime::RationalTime startTime = time::invalidTime;
+            OTIO_NS::RationalTime startTime = time::invalidTime;
             bool yuvToRGBConversion = false;
+            bool hwAccel = false;
+            std::string hwDriver = "";
             bool fastYUV420PConversion = true;
             audio::Info audioConvertInfo;
             int audioTrack = -1;
-            size_t threadCount = ffmpeg::threadCount;
-            size_t requestTimeout = 5;
+            size_t threadCount = Options().threadCount;
             size_t videoBufferSize = 4;
-            otime::RationalTime audioBufferSize = otime::RationalTime(2.0, 1.0);
+            OTIO_NS::RationalTime audioBufferSize = opentime::RationalTime(2.0, 1.0);
         };
+
+        //! Parse the reader options.
+        ReadOptions getReadOptions(const io::Options&);
 
         class ReadVideo
         {
@@ -59,38 +63,42 @@ namespace tl
                 const std::string& fileName,
                 const std::vector<file::MemoryRead>& memory,
                 const std::weak_ptr<log::System>& logSystem,
-                const Options& options);
+                const ReadOptions& options);
 
             ~ReadVideo();
 
             bool isValid() const;
             const image::Info& getInfo() const;
-            const otime::TimeRange& getTimeRange() const;
+            const OTIO_NS::TimeRange& getTimeRange() const;
             const image::Tags& getTags() const;
 
             void start();
-            void seek(const otime::RationalTime&);
+            void seek(const OTIO_NS::RationalTime&);
             bool process(
-                const bool backwards, const otime::RationalTime& targetTime,
-                otime::RationalTime& currentTime);
+                const bool backwards, const OTIO_NS::RationalTime& targetTime,
+                OTIO_NS::RationalTime& currentTime);
 
             bool isBufferEmpty() const;
             std::shared_ptr<image::Image> popBuffer();
 
         private:
             int _decode(
-                const bool backwards, const otime::RationalTime& targetTime,
-                otime::RationalTime& currentTime);
+                const bool backwards, const OTIO_NS::RationalTime& targetTime,
+                OTIO_NS::RationalTime& currentTime);
             void _copy(std::shared_ptr<image::Image>&,
                        std::shared_ptr<AVFrame>);
             float _getRotation(const AVStream*);
+            void _initHwAccel(const AVCodec*);
+            void _initSws(AVPixelFormat srcFormat);
+            static AVPixelFormat _getHwFormat(AVCodecContext*,
+                                              const AVPixelFormat*);
 
             //! tlRender variables
             std::string _fileName;
-            Options _options;
+            ReadOptions _options;
             image::Info _info;
             image::HDRData _hdr;
-            otime::TimeRange _timeRange = time::invalidTimeRange;
+            OTIO_NS::TimeRange _timeRange = time::invalidTimeRange;
             image::Tags _tags;
             float _rotation = 0.F;
             std::weak_ptr<log::System> _logSystem;
@@ -105,6 +113,7 @@ namespace tl
             AVRational _avSpeed = {24, 1};
             int _avStream = -1;
             int _avAudioStream = -1;
+            bool _fastYUV420PConversion = true;
             std::map<int, AVCodecParameters*> _avCodecParameters;
             std::map<int, AVCodecContext*> _avCodecContext;
             AVFrame* _avFrame = nullptr;
@@ -112,10 +121,16 @@ namespace tl
             AVColorTransferCharacteristic _avColorTRC;
             AVPixelFormat _avInputPixelFormat = AV_PIX_FMT_NONE;
             AVPixelFormat _avOutputPixelFormat = AV_PIX_FMT_NONE;
-            bool _fastYUV420PConversion = true;
             SwsContext* _swsContext = nullptr;
             std::list<std::shared_ptr<image::Image> > _buffer;
             bool _eof = false;
+
+            // Hardware accelerated information.
+            bool _hwAccel = false;
+            bool _hwLogged = false;
+            AVBufferRef* _hwDeviceContext = nullptr;
+            AVPixelFormat _hwPixelFormat = AV_PIX_FMT_NONE;
+            AVFrame* _swFrame = nullptr;
         };
 
         class ReadAudio
@@ -124,30 +139,30 @@ namespace tl
             ReadAudio(
                 const std::string& fileName,
                 const std::vector<file::MemoryRead>&, double videoRate,
-                const Options&);
+                const ReadOptions&);
 
             ~ReadAudio();
 
             bool isValid() const;
             const audio::Info& getInfo() const;
-            const otime::TimeRange& getTimeRange() const;
+            const OTIO_NS::TimeRange& getTimeRange() const;
             const image::Tags& getTags() const;
 
             void start();
-            void seek(const otime::RationalTime&);
+            void seek(const OTIO_NS::RationalTime&);
             bool
-            process(const otime::RationalTime& currentTime, size_t sampleCount);
+            process(const OTIO_NS::RationalTime& currentTime, size_t sampleCount);
 
             size_t getBufferSize() const;
             void bufferCopy(uint8_t*, size_t sampleCount);
 
         private:
-            int _decode(const otime::RationalTime& currentTime);
+            int _decode(const OTIO_NS::RationalTime& currentTime);
 
             std::string _fileName;
-            Options _options;
+            ReadOptions _options;
             audio::Info _info;
-            otime::TimeRange _timeRange = time::invalidTimeRange;
+            OTIO_NS::TimeRange _timeRange = time::invalidTimeRange;
             image::Tags _tags;
 
             AVFormatContext* _avFormatContext = nullptr;
@@ -165,7 +180,7 @@ namespace tl
 
         struct Read::Private
         {
-            Options options;
+            ReadOptions options;
 
             std::shared_ptr<ReadVideo> readVideo;
             std::shared_ptr<ReadAudio> readAudio;
@@ -178,22 +193,23 @@ namespace tl
 
             struct VideoRequest
             {
-                otime::RationalTime time = time::invalidTime;
+                OTIO_NS::RationalTime time = time::invalidTime;
                 io::Options options;
                 std::promise<io::VideoData> promise;
             };
+
             struct VideoMutex
             {
                 std::list<std::shared_ptr<InfoRequest> > infoRequests;
                 std::list<std::shared_ptr<VideoRequest> > videoRequests;
-                // std::shared_ptr<VideoRequest> videoRequest;
                 bool stopped = false;
                 std::mutex mutex;
             };
             VideoMutex videoMutex;
+
             struct VideoThread
             {
-                otime::RationalTime currentTime = time::invalidTime;
+                OTIO_NS::RationalTime currentTime = time::invalidTime;
                 std::chrono::steady_clock::time_point logTimer;
                 std::condition_variable cv;
                 std::thread thread;
@@ -203,21 +219,20 @@ namespace tl
 
             struct AudioRequest
             {
-                otime::TimeRange timeRange = time::invalidTimeRange;
+                OTIO_NS::TimeRange timeRange = time::invalidTimeRange;
                 io::Options options;
                 std::promise<io::AudioData> promise;
             };
             struct AudioMutex
             {
                 std::list<std::shared_ptr<AudioRequest> > requests;
-                // std::shared_ptr<AudioRequest> currentRequest;
                 bool stopped = false;
                 std::mutex mutex;
             };
             AudioMutex audioMutex;
             struct AudioThread
             {
-                otime::RationalTime currentTime = time::invalidTime;
+                OTIO_NS::RationalTime currentTime = time::invalidTime;
                 std::chrono::steady_clock::time_point logTimer;
                 std::condition_variable cv;
                 std::thread thread;

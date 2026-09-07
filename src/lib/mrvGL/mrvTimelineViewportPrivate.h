@@ -35,11 +35,11 @@ namespace mrv
             static short ghostNext;
 
             bool hdrMonitorFound = false;
-            
+
             //! Boolean to turn off ocio when playing a video or showing
             //! BT709 or sRGB images.
             bool ocio_disabled = false;
-        
+
             timeline::OCIOOptions ocioOptions;
             timeline::LUTOptions lutOptions;
             static timeline::HDROptions hdrOptions;
@@ -92,20 +92,16 @@ namespace mrv
             ViewerUI* ui = nullptr;
 
             //! Video frame and data
-            std::vector<tl::timeline::VideoData> videoData;
+            std::vector<tl::timeline::VideoFrame> videoData;
 
             //! Last valid video frame and data
-            tl::timeline::VideoData lastVideoData;
+            tl::timeline::VideoFrame lastVideoFrame;
 
             //! OpenGL3 fontSystem (used for HUD)
             std::shared_ptr<image::FontSystem> fontSystem;
 
             //! Right mouse menu
             Fl_Menu_Button* popupMenu = nullptr;
-
-            //! Temporary help text displayed in HUD
-            static std::string helpText;
-            static float helpTextFade;
 
             //! HUD display flags (ORed together).
             static bool hudActive;
@@ -116,7 +112,7 @@ namespace mrv
 
             //! Action Mode.
             static ActionMode actionMode;
-            
+
             //! Edit Mode.
             static timeline::EditMode editMode;
 
@@ -125,13 +121,14 @@ namespace mrv
 
             //! Boolean flag used to mark that scrubbing is being used.
             static bool isScrubbing;
-            
+
             //! Rectangle selection ( Color area )
             static math::Box2i selection;
+            math::Vector2i selectionAnchor;
 
             //! Last video size (if changed, clear selection)
             static image::Size videoSize;
-            
+
             //! Last FLTK cursor set on window.
             Fl_Cursor lastCursor = FL_CURSOR_ARROW;
 
@@ -194,7 +191,7 @@ namespace mrv
             std::chrono::high_resolution_clock::time_point startTime;
 
             // Observers.
-            std::shared_ptr<observer::ListObserver<timeline::VideoData> >
+            std::shared_ptr<observer::ListObserver<timeline::VideoFrame> >
             videoDataObserver;
 
             //! Overlay.
@@ -202,6 +199,13 @@ namespace mrv
 
             //! Tooltip.
             Tooltip* tooltip = nullptr;
+
+            //! Tablet information.
+            float pressure = 0.F;
+            math::Vector2f lastPenPosition;
+
+            // libplacebo toggle.
+            bool tonemap = true;
         };
     }  // namespace opengl
 } // namespace mrv

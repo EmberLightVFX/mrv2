@@ -3,6 +3,8 @@
 // Copyright (c) 2024-Present Gonzalo Garramuño
 // All rights reserved.
 
+// #define DBG std::cerr << __FUNCTION__ << " " << __LINE__ << std::endl;
+
 #include <sstream>
 
 #include <tlIO/FFmpegReadPrivate.h>
@@ -16,13 +18,13 @@ extern "C"
 {
 #include <libavutil/display.h>
 #include <libavutil/imgutils.h>
-#include <libavutil/opt.h>   
+#include <libavutil/opt.h>
 } // extern "C"
 
 namespace
 {
     const char* kModule = "ffmpeg";
-    
+
     static constexpr std::array<double, 16> valid_timecode_rates{
         { 1.0,
           12.0,
@@ -41,13 +43,13 @@ namespace
           60000.0 / 1001.0,
           60.0 }
     };
-    
+
     bool is_valid_timecode_rate(double fps)
     {
         auto b = valid_timecode_rates.begin(), e = valid_timecode_rates.end();
         return std::find(b, e, fps) != e;
     }
-    
+
 }
 
 namespace tl
@@ -56,8 +58,8 @@ namespace tl
     {
 
         namespace
-        {   
-            
+        {
+
             void setPrimariesFromAVColorPrimaries(int ffmpegPrimaries,
                                                   image::HDRData& hdrData)
             {
@@ -158,8 +160,8 @@ namespace tl
                     break;
                 }
             }
-        
-        
+
+
 
             image::EOTFType toEOTF(AVColorTransferCharacteristic trc)
             {
@@ -180,6 +182,7 @@ namespace tl
                 case AVCOL_TRC_SMPTE170M:
                 case AVCOL_TRC_SMPTE240M:
                 case AVCOL_TRC_IEC61966_2_4:
+                case AVCOL_TRC_IEC61966_2_1:
                 case AVCOL_TRC_BT1361_ECG:
                     out = image::EOTFType::EOTF_BT709;
                     break;
@@ -194,7 +197,7 @@ namespace tl
             const std::string& fileName,
             const std::vector<file::MemoryRead>& memory,
             const std::weak_ptr<log::System>& logSystem,
-            const Options& options) :
+            const ReadOptions& options) :
             _fileName(fileName),
             _logSystem(logSystem),
             _options(options)
@@ -229,7 +232,7 @@ namespace tl
             //
             // If we are potentially reading a .webp sequence, add a format
             // specifier to it to read a sequence of frames if available.
-            // 
+            //
             std::string formatFileName = fileName;
             file::Path path(fileName);
             const std::string& extension = path.getExtension();
@@ -355,7 +358,9 @@ namespace tl
 
                 // If we are reading VPX, use libvpx-vp9 external lib if
                 // available so we can read an alpha channel.
-                if (avVideoCodecParameters->codec_id == AV_CODEC_ID_VP9)
+                // Also, libvpx-vp9 is much faster than ffmpeg's vp9 built-in.
+                if (!_options.hwAccel &&
+                    avVideoCodecParameters->codec_id == AV_CODEC_ID_VP9)
                 {
                     auto avLibVpxCodec =
                         avcodec_find_decoder_by_name("libvpx-vp9");
@@ -411,16 +416,11 @@ namespace tl
                 _avCodecContext[_avStream]->thread_count = options.threadCount;
                 _avCodecContext[_avStream]->thread_type = FF_THREAD_FRAME;
 
-                if (options.threadCount == 0)
+                if (options.hwAccel)
                 {
-                    // \@note: libdav1d codec does not decode properly when
-                    //         thread count is 0.
-                    if (avVideoCodecParameters->codec_id == AV_CODEC_ID_AV1)
-                    {
-                        LOG_WARNING("Decoder AV1 may decode black with 0 "
-                                    "FFmpeg I/O threads.  Setting it to 4.");
-                        _avCodecContext[_avStream]->thread_count = 4;
-                    }
+                    // Attempt hardware decode. On any failure this is a no-op
+                    // and decoding stays on the software path.
+                    _initHwAccel(avVideoCodec);
                 }
 
                 r = avcodec_open2(_avCodecContext[_avStream], avVideoCodec, 0);
@@ -430,7 +430,7 @@ namespace tl
                                                  .arg(fileName)
                                                  .arg(getErrorLabel(r)));
                 }
-                
+
                 _info.size.w = _avCodecParameters[_avStream]->width;
                 _info.size.h = _avCodecParameters[_avStream]->height;
 
@@ -451,7 +451,7 @@ namespace tl
                     _tags["FFmpeg Pixel Format"] = pixel_format;
                 else
                     _tags["FFmpeg Pixel Format"] = "Unknown";
-                    
+
 
                 // LibVPX returns AV_PIX_FMT_YUV420P with metadata
                 // "alpha_mode" set to 1.
@@ -719,6 +719,43 @@ namespace tl
                     _info.pixelType = image::PixelType::RGB_U8;
                     break;
                 }
+                if (_hwAccel)
+                {
+                    // Hardware frames download as NV12/NV16 (8-bit) or P010/P210 (>8-bit).
+                    // They are handed to the display shader as semi-planar YUV
+                    // with no colour conversion -- the shader performs YUV->RGB
+                    // exactly as for software-decoded YUV, so hardware and
+                    // software decoding match, and the cache keeps the smaller
+                    // YUV footprint. _avOutputPixelFormat doubles as the expected
+                    // download format and the sws fallback target (see _copy()).
+                    const AVPixFmtDescriptor* desc =
+                        av_pix_fmt_desc_get(_avInputPixelFormat);
+                    const bool gt8 = desc && desc->comp[0].depth > 8;
+                    const bool is422 = desc && 1 == desc->log2_chroma_w && 0 == desc->log2_chroma_h;
+                    const bool is444 = desc && 0 == desc->log2_chroma_w && 0 == desc->log2_chroma_h;
+
+                    if (is444)
+                    {
+                        // NV24/NV42 (8-bit) and P410/P412/P416 (>8-bit) are the
+                        // semi-planar 4:4:4 counterparts of NV12/P010, i.e. one
+                        // luma plane plus one interleaved chroma plane at full
+                        // resolution. Like the 4:2:0/4:2:2 branches above, this
+                        // has no alpha plane, so YUVA444* sources are excluded
+                        // in _initHwAccel() and never reach this branch.
+                        _avOutputPixelFormat = gt8 ? AV_PIX_FMT_P410LE : AV_PIX_FMT_NV24;
+                        _info.pixelType = gt8 ? image::PixelType::YUV_444SP_U16 : image::PixelType::YUV_444SP_U8;
+                    }
+                    else if (is422)
+                    {
+                        _avOutputPixelFormat = gt8 ? AV_PIX_FMT_P210LE : AV_PIX_FMT_NV16;
+                        _info.pixelType = gt8 ? image::PixelType::YUV_422SP_U16 : image::PixelType::YUV_422SP_U8;
+                    }
+                    else
+                    {
+                        _avOutputPixelFormat = gt8 ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12;
+                        _info.pixelType = gt8 ? image::PixelType::YUV_420SP_U16 : image::PixelType::YUV_420SP_U8;
+                    }
+                }
                 const auto params = _avCodecParameters[_avStream];
                 if (params->color_range != AVCOL_RANGE_JPEG)
                 {
@@ -742,9 +779,9 @@ namespace tl
                     break;
 
                 default:
-                    // A safe default is usually Rec.709, though strictly speaking 
+                    // A safe default is usually Rec.709, though strictly speaking
                         // you might want to guess based on video resolution.
-                        _info.yuvCoefficients = image::YUVCoefficients::REC709; 
+                        _info.yuvCoefficients = image::YUVCoefficients::REC709;
                     break;
                 }
 
@@ -788,7 +825,7 @@ namespace tl
                             r);
                     }
 
-                    otime::RationalTime timeReference = time::invalidTime;
+                    OTIO_NS::RationalTime timeReference = time::invalidTime;
                     AVDictionaryEntry* tag = nullptr;
                     while (
                         (tag = av_dict_get(
@@ -802,19 +839,19 @@ namespace tl
                                 key, "time_reference",
                                 string::Compare::CaseInsensitive))
                         {
-                            timeReference = otime::RationalTime(
+                            timeReference = OTIO_NS::RationalTime(
                                 std::atoi(value.c_str()), sampleRate);
                         }
                     }
 
-                    otime::RationalTime startTime(0.0, sampleRate);
+                    OTIO_NS::RationalTime startTime(0.0, sampleRate);
                     if (!timeReference.is_invalid_time())
                     {
                         startTime = timeReference;
                     }
-                    _timeRange = otime::TimeRange(
+                    _timeRange = OTIO_NS::TimeRange(
                         startTime.rescaled_to(60.0),
-                        otime::RationalTime(sampleCount, sampleRate)
+                        OTIO_NS::RationalTime(sampleCount, sampleRate)
                             .rescaled_to(60.0));
                 }
                 else
@@ -879,20 +916,20 @@ namespace tl
                         }
                     }
 
-                    otime::RationalTime startTime(0.0, speed);
+                    OTIO_NS::RationalTime startTime(0.0, speed);
                     if (!timecode.empty())
                     {
-                        otime::ErrorStatus errorStatus;
-                        const otime::RationalTime time =
-                            otime::RationalTime::from_timecode(
+                        opentime::ErrorStatus errorStatus;
+                        const OTIO_NS::RationalTime time =
+                            OTIO_NS::RationalTime::from_timecode(
                                 timecode, speed, &errorStatus);
-                        if (!otime::is_error(errorStatus))
+                        if (!opentime::is_error(errorStatus))
                         {
                             startTime = time.floor();
                         }
                     }
-                    _timeRange = otime::TimeRange(
-                        startTime, otime::RationalTime(sequenceSize, speed));
+                    _timeRange = OTIO_NS::TimeRange(
+                        startTime, OTIO_NS::RationalTime(sequenceSize, speed));
                 }
 
                 for (const auto& i : tags)
@@ -930,7 +967,7 @@ namespace tl
                 {
                     _tags["Video Color Primaries"] =
                         av_color_primaries_name(params->color_primaries);
-                    
+
                 }
                 {
                     _avColorTRC = params->color_trc;
@@ -976,14 +1013,19 @@ namespace tl
             if (_swsContext)
             {
                 sws_freeContext(_swsContext);
+                _swsContext = nullptr;
+            }
+            if (_avFrame2)
+            {
+                av_frame_free(&_avFrame2);
             }
             if (_avFrame)
             {
                 av_frame_free(&_avFrame);
             }
-            if (_avFrame2)
+            if (_swFrame)
             {
-                av_frame_free(&_avFrame2);
+                av_frame_free(&_swFrame);
             }
             for (auto i : _avCodecContext)
             {
@@ -993,18 +1035,17 @@ namespace tl
             {
                 avcodec_parameters_free(&i.second);
             }
+            if (_avFormatContext)
+            {
+                avformat_close_input(&_avFormatContext);
+            }
             if (_avIOContext)
             {
                 avio_context_free(&_avIOContext);
             }
-            //! \bug Free'd by avio_context_free()?
-            // if (_avIOContextBuffer)
-            //{
-            //     av_free(_avIOContextBuffer);
-            // }
-            if (_avFormatContext)
+            if (_hwDeviceContext)
             {
-                avformat_close_input(&_avFormatContext);
+                av_buffer_unref(&_hwDeviceContext);
             }
         }
 
@@ -1018,7 +1059,7 @@ namespace tl
             return _info;
         }
 
-        const otime::TimeRange& ReadVideo::getTimeRange() const
+        const OTIO_NS::TimeRange& ReadVideo::getTimeRange() const
         {
             return _timeRange;
         }
@@ -1053,6 +1094,157 @@ namespace tl
             }
         } // namespace
 
+        AVPixelFormat ReadVideo::_getHwFormat(
+            AVCodecContext* context,
+            const AVPixelFormat* formats)
+        {
+            auto self = static_cast<ReadVideo*>(context->opaque);
+            for (const AVPixelFormat* p = formats; *p != AV_PIX_FMT_NONE; ++p)
+            {
+                if (*p == self->_hwPixelFormat)
+                {
+                    return *p;
+                }
+            }
+            // The hardware format was not offered for this stream; let the decoder
+            // fall back to a software format. _decode() detects this per frame (the
+            // frame format will not match _hwPixelFormat, so no download happens)
+            // and _copy() builds the scaler from whatever format actually arrives.
+            return formats[0];
+        }
+
+        void ReadVideo::_initHwAccel(const AVCodec* codec)
+        {
+            // The hardware path outputs 4:2:0/4:2:2/4:4:4 NV12/NV16/NV24/P010/
+            // P210/P410 with limited-range YUV colour handling. For sources it
+            // would not reproduce faithfully -- full-range, chroma subsampling
+            // other than 4:2:0/4:2:2/4:4:4, or an alpha channel (none of the
+            // semi-planar download formats carry an alpha plane) -- stay on
+            // the software decoder so hardware decoding is always a faithful
+            // match (it silently falls back rather than altering the image).
+            const AVPixelFormat inputFormat =
+                static_cast<AVPixelFormat>(_avCodecParameters[_avStream]->format);
+            const AVPixFmtDescriptor* inputDesc = av_pix_fmt_desc_get(inputFormat);
+            const bool is420 = inputDesc &&
+                1 == inputDesc->log2_chroma_w && 1 == inputDesc->log2_chroma_h;
+            const bool is422 = inputDesc &&
+                1 == inputDesc->log2_chroma_w && 0 == inputDesc->log2_chroma_h;
+            const bool is444 = inputDesc &&
+                0 == inputDesc->log2_chroma_w && 0 == inputDesc->log2_chroma_h;
+            const bool hasAlpha = inputDesc &&
+                (inputDesc->flags & AV_PIX_FMT_FLAG_ALPHA);
+
+            if (AVCOL_RANGE_JPEG == _avCodecParameters[_avStream]->color_range)
+            {
+                std::string msg =
+                    string::Format("Hardware decoding skipped for a full-range source; using software decoding: \"{0}\"").arg(_fileName);
+                LOG_WARNING(msg);
+                return;
+            }
+            if (!is420 && !is422 && !is444)
+            {
+                std::string msg =
+                    string::Format("Hardware decoding skipped for a non-4:2:0/non-4:2:2/non-4:4:4 source; using software decoding: \"{0}\"").arg(_fileName);
+                LOG_WARNING(msg);
+                return;
+            }
+            if (hasAlpha)
+            {
+                // e.g. ProRes 4444/4444 XQ (YUVA444P*). Vulkan hwaccel decode
+                // may well produce an alpha-bearing frame, but there is no
+                // semi-planar (NV/P-series) download format that carries an
+                // alpha plane, and this pipeline has no alpha-aware hardware
+                // path, so fall back to software decoding rather than
+                // silently dropping the alpha channel.
+                std::string msg =
+                    string::Format("Hardware decoding skipped for a source with an alpha channel; using software decoding: \"{0}\"").arg(_fileName);
+                LOG_WARNING(msg);
+                return;
+            }
+
+            // Try each candidate device type in order, using the first one
+            // that both offers a hardware configuration for this codec and
+            // successfully creates a device. If all candidates fail, stay
+            // on the software decoding path.
+            enum AVHWDeviceType type = AV_HWDEVICE_TYPE_NONE;
+            while ((type = av_hwdevice_iterate_types(type)) !=
+                    AV_HWDEVICE_TYPE_NONE)
+            {
+                std::string name = av_hwdevice_get_type_name(type);
+                if (!_options.hwDriver.empty())
+                {
+                    if (name != _options.hwDriver)
+                    {
+                        std::string msg = string::Format("HW Driver '{0}' "
+                                                         "does not match "
+                                                         "'{1}'.")
+                                          .arg(name)
+                                          .arg(_options.hwDriver);
+                        LOG_STATUS(msg);
+                        continue;
+                    }
+                }
+
+                // Find a hardware configuration for this codec and device type.
+                AVPixelFormat hwFormat = AV_PIX_FMT_NONE;
+                for (int i = 0; ; ++i)
+                {
+                    const AVCodecHWConfig* config = avcodec_get_hw_config(codec, i);
+                    if (!config)
+                    {
+                        break;
+                    }
+                    if ((config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) &&
+                        config->device_type == type)
+                    {
+                        hwFormat = config->pix_fmt;
+                        break;
+                    }
+                }
+                if (AV_PIX_FMT_NONE == hwFormat)
+                {
+                    // This codec has no hardware support for this device
+                    // type; try the next candidate.
+                    std::string msg = string::Format(
+                        "Hardware decoding ({0}) is not available for the codec \"{1}\"; trying next backend").
+                        arg(av_hwdevice_get_type_name(type)).
+                        arg(codec->name ? codec->name : "?");
+                    LOG_INFO(msg);
+                    continue;
+                }
+                // Create the hardware device. On failure, try the next candidate.
+                AVBufferRef* device = nullptr;
+                if (av_hwdevice_ctx_create(&device, type, nullptr, nullptr, 0) < 0)
+                {
+                    std::string msg = string::Format(
+                        "Cannot create a hardware decoding device ({0}); trying next backend").
+                        arg(av_hwdevice_get_type_name(type));
+                    LOG_WARNING(msg);
+                    continue;
+                }
+                _hwDeviceContext = device;
+                _hwPixelFormat = hwFormat;
+                _hwAccel = true;
+                _avCodecContext[_avStream]->hw_device_ctx = av_buffer_ref(_hwDeviceContext);
+                _avCodecContext[_avStream]->opaque = this;
+                _avCodecContext[_avStream]->get_format = _getHwFormat;
+
+
+                std::string msg = string::Format("Hardware decoding enabled ({0}) for the codec \"{1}\"").
+                                  arg(av_hwdevice_get_type_name(type)).
+                                  arg(codec->name ? codec->name : "?");
+                LOG_STATUS(msg);
+                return;
+            }
+
+            // None of the candidate device types worked; stay on the
+            // software decoding path.
+            std::string msg = string::Format(
+                "Hardware decoding is not available for the codec \"{0}\"; using software decoding").
+                arg(codec->name ? codec->name : "?");
+            LOG_WARNING(msg);
+        }
+
         void ReadVideo::start()
         {
             if (_avStream != -1)
@@ -1064,7 +1256,7 @@ namespace tl
                         string::Format("{0}: Cannot allocate frame")
                         .arg(_fileName));
                 }
-                    
+
                 if (!canCopy(
                         _avInputPixelFormat, _avOutputPixelFormat,
                         _fastYUV420PConversion))
@@ -1093,6 +1285,10 @@ namespace tl
                             string::Format("{0}: Cannot allocate frame")
                                 .arg(_fileName));
                     }
+                    _avFrame2->format = _avOutputPixelFormat;
+                    _avFrame2->width = _info.size.w;
+                    _avFrame2->height = _info.size.h;
+                    _avFrame2->buf[0] = av_buffer_alloc(_info.getByteCount());
 
                     int r;
                     r = sws_isSupportedInput(_avInputPixelFormat);
@@ -1110,111 +1306,29 @@ namespace tl
                                 "{0}: Unsuported pixel output format")
                                 .arg(_fileName));
                     }
-                    _swsContext = sws_alloc_context();
-                    if (!_swsContext)
+
+                    if (_hwAccel)
                     {
-                        throw std::runtime_error(
-                            string::Format("{0}: Cannot allocate context")
-                                .arg(_fileName));
-                    }
-                    av_opt_set_defaults(_swsContext);
-                    int width = _avCodecParameters[_avStream]->width;
-                    int height = _avCodecParameters[_avStream]->height;
-                    r = av_opt_set_int(
-                        _swsContext, "srcw", width, AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "srch", height, AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "src_format", _avInputPixelFormat,
-                        AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "dstw", width, AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "dsth", height, AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "dst_format", _avOutputPixelFormat,
-                        AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "sws_flags", swsScaleFlags,
-                        AV_OPT_SEARCH_CHILDREN);
-                    r = av_opt_set_int(
-                        _swsContext, "threads", 0, AV_OPT_SEARCH_CHILDREN);
-                    r = sws_init_context(_swsContext, nullptr, nullptr);
-                    if (r < 0)
-                    {
-                        throw std::runtime_error(
-                            string::Format("{0}: Cannot initialize sws context")
-                                .arg(_fileName));
-                    }
-
-                    const auto params = _avCodecParameters[_avStream];
-
-                    // \@bug:
-                    //    We don't do a BT2020_NCL to BT709 conversion in
-                    //    software which is slow.
-                    if (params->color_space != AVCOL_SPC_BT2020_NCL &&
-                        (params->color_space != AVCOL_SPC_UNSPECIFIED ||
-                         width < 4096 || height < 2160))
-                    {
-                        int in_full = -1;
-                        int out_full = -1;
-                        int brightness = -1;
-                        int contrast = -1;
-                        int saturation = -1;
-                        int *inv_table = nullptr, *table = nullptr;
-
-                        sws_getColorspaceDetails(
-                            _swsContext, &inv_table, &in_full, &table,
-                            &out_full, &brightness, &contrast, &saturation);
-
-                        // \@note: sws_getCoefficients uses its own enum,
-                        //         which mostly matches AV_COL_SPC_* values,
-                        //         but we still do a special check here just in
-                        //         case.
-                        int in_color_space = SWS_CS_DEFAULT;
-                        switch (params->color_space)
+                        _swFrame = av_frame_alloc();
+                        if (!_swFrame)
                         {
-                        case AVCOL_SPC_RGB:
-                            in_color_space = SWS_CS_ITU601;
-                            break;
-                        case AVCOL_SPC_BT709:
-                            in_color_space = SWS_CS_ITU709;
-                            break;
-                        case AVCOL_SPC_FCC:
-                            in_color_space = SWS_CS_FCC;
-                            break;
-                            // case AVCOL_SPC_ITU624 (is not defined)
-                            // can be NTSC or PAL in_color_space = SWS_CS_624;
-                            // break;
-                        case AVCOL_SPC_SMPTE170M:
-                            in_color_space = SWS_CS_SMPTE170M;
-                            break;
-                        case AVCOL_SPC_SMPTE240M:
-                            in_color_space = SWS_CS_SMPTE240M;
-                            break;
-                        case AVCOL_SPC_BT2020_NCL:
-                        case AVCOL_SPC_BT2020_CL: // \@bug: this one is wrong
-                            in_color_space = SWS_CS_BT2020;
-                            break;
-                        default:
-                            break;
+                            throw std::runtime_error(
+                                string::Format("Cannot allocate frame: \"{0}\"").
+                                arg(_fileName));
                         }
-
-                        in_full = (params->color_range == AVCOL_RANGE_JPEG);
-                        out_full = (params->color_range == AVCOL_RANGE_JPEG);
-
-                        int out_color_space = SWS_CS_ITU709;
-
-                        sws_setColorspaceDetails(
-                            _swsContext, sws_getCoefficients(in_color_space),
-                            in_full, sws_getCoefficients(out_color_space),
-                            out_full, brightness, contrast, saturation);
+                        // The scaler is created lazily in _copy(), once the
+                        // real source format is known (the hardware download
+                        // format, or the decoder's software-fallback format).
+                    }
+                    else
+                    {
+                        _initSws(_avInputPixelFormat);
                     }
                 }
             }
         }
 
-        void ReadVideo::seek(const otime::RationalTime& time)
+        void ReadVideo::seek(const OTIO_NS::RationalTime& time)
         {
             if (_avStream != -1 && !_useAudioOnly)
             {
@@ -1237,8 +1351,8 @@ namespace tl
         }
 
         bool ReadVideo::process(
-            const bool backwards, const otime::RationalTime& targetTime,
-            otime::RationalTime& currentTime)
+            const bool backwards, const OTIO_NS::RationalTime& targetTime,
+            OTIO_NS::RationalTime& currentTime)
         {
             bool out = false;
             if (_avStream != -1 && _buffer.size() < _options.videoBufferSize)
@@ -1276,9 +1390,9 @@ namespace tl
                         else if (decoding < 0)
                         {
                             // \@bug: We failed decoding this frame.
-                            // This will make FFmpeg try to use the next available frame.
-                            seek(targetTime);
-                            decoding = 0;
+                            //        Try seeking which may fix it.
+                            if (targetTime.value() == currentTime.value())
+                                seek(targetTime);
                         }
                         decoding = _decode(backwards, targetTime, currentTime);
                         if (AVERROR(EAGAIN) == decoding)
@@ -1291,7 +1405,13 @@ namespace tl
                         }
                         else if (decoding < 0)
                         {
-                            //! \todo How should this be handled?
+                            std::string err = string::Format("Decoding failed "
+                                                             "for "
+                                                             "currentTime={0} "
+                                                             "targetTime={1}")
+                                              .arg(currentTime)
+                                              .arg(targetTime);
+                            LOG_ERROR(err);
                             break;
                         }
                         else if (1 == decoding)
@@ -1332,8 +1452,8 @@ namespace tl
         }
 
         int ReadVideo::_decode(
-            const bool backwards, const otime::RationalTime& targetTime,
-            otime::RationalTime& currentTime)
+            const bool backwards, const OTIO_NS::RationalTime& targetTime,
+            OTIO_NS::RationalTime& currentTime)
         {
             int out = 0;
             if (_singleImage && _singleImage->isValid())
@@ -1352,14 +1472,39 @@ namespace tl
                 {
                     return out;
                 }
+                AVFrame* frame = _avFrame;
+                if (_hwAccel && _avFrame->format == _hwPixelFormat)
+                {
+                    // Download the hardware surface to a CPU frame (NV12/P010).
+                    av_frame_unref(_swFrame);
+                    if (av_hwframe_transfer_data(_swFrame, _avFrame, 0) < 0)
+                    {
+                        std::string msg =
+                            string::Format("Cannot download a hardware frame; skipping: \"{0}\"").
+                                          arg(_fileName);
+                        LOG_WARNING(msg);
+                        continue;
+                    }
+                    av_frame_copy_props(_swFrame, _avFrame);
+                    frame = _swFrame;
+                    if (!_hwLogged)
+                    {
+                        // Confirms frames are really decoding on the hardware, as
+                        // opposed to the device being attached but the decoder
+                        // having fallen back to software (see _getHwFormat()).
+                        std::string msg = string::Format("Hardware decoding is active: \"{0}\"").arg(_fileName);
+                        LOG_STATUS(msg);
+                        _hwLogged = true;
+                    }
+                }
                 const int64_t timestamp = _avFrame->pts != AV_NOPTS_VALUE
                                               ? _avFrame->pts
                                               : _avFrame->pkt_dts;
                 // std::cout << "video timestamp: " << timestamp << std::endl;
                 const auto& avVideoStream =
                     _avFormatContext->streams[_avStream];
-                
-                const otime::RationalTime time(
+
+                const OTIO_NS::RationalTime time(
                     _timeRange.start_time().value() +
                         av_rescale_q(
                             timestamp, avVideoStream->time_base,
@@ -1375,27 +1520,22 @@ namespace tl
                         currentTime = targetTime;
                     else
                         currentTime = time;
-                    
+
                     std::shared_ptr<image::Image> image;
 
                     auto tags = _tags;
 
-                    tags["otioClipName"] = _fileName;
-                    {
-                        std::stringstream ss;
-                        ss << time;
-                        tags["otioClipTime"] = ss.str();
-                    }
-                    
+                    io::addOtioTags(tags, _fileName, time);
+
                     // Clone to safely hold this frame's buffer data.
-                    AVFrame* cloned = av_frame_clone(_avFrame);
+                    AVFrame* cloned = av_frame_clone(frame);
 
                     // Initialize a safe AVFrame shared_ptr to hold to the AVFrame data.
                     std::shared_ptr<AVFrame> safeFrame(cloned, [](AVFrame* f)
                         {
                             av_frame_free(&f);
                         });
-                    
+
                     _copy(image, safeFrame);
 
                     AVDictionaryEntry* tag = nullptr;
@@ -1411,22 +1551,22 @@ namespace tl
                     }
                     while (
                         (tag = av_dict_get(
-                            _avFrame->metadata, "", tag,
+                            frame->metadata, "", tag,
                             AV_DICT_IGNORE_SUFFIX)))
                     {
                         tags[tag->key] = tag->value;
                     }
-                    
-                    _hdr.eotf = toEOTF(_avFrame->color_trc);
-                    setPrimariesFromAVColorPrimaries(_avFrame->color_primaries,
+
+                    _hdr.eotf = toEOTF(frame->color_trc);
+                    setPrimariesFromAVColorPrimaries(frame->color_primaries,
                                                      _hdr);
                     if (image::isHDR(_hdr))
                     {
-                        toHDRData(_avFrame, _hdr);
+                        toHDRData(frame, _hdr);
                         image->setHDR(_hdr);
                     }
                     image->setTags(tags);
-                    
+
                     _buffer.push_back(image);
                     out = 1;
 
@@ -1437,7 +1577,7 @@ namespace tl
                     }
                     break;
                 }
-                
+
                 // Prepare for next decode
                 av_frame_unref(_avFrame);
             }
@@ -1448,20 +1588,37 @@ namespace tl
                               std::shared_ptr<AVFrame> avFrame)
         {
             // Check if avFrame changed image size (can happen when reading a
-            // sequence of .webp) 
+            // sequence of .webp)
             if (avFrame->width != _info.size.w &&
                 avFrame->width > 0)
                 _info.size.w = avFrame->width;
-            
+
             if (avFrame->height != _info.size.h &&
                 avFrame->height > 0)
                 _info.size.h = avFrame->height;
-            
-            
+
             const std::size_t w = _info.size.w;
             const std::size_t h = _info.size.h;
-
             uint8_t* data;
+
+            if (_hwAccel &&
+                (avFrame->format == _avOutputPixelFormat))
+            {
+                const uint8_t* planes[3] = {
+                    avFrame->data[0],
+                    avFrame->data[1],
+                    avFrame->data[2]
+                };
+                int linesize[3] = {
+                    avFrame->linesize[0],
+                    avFrame->linesize[1],
+                    avFrame->linesize[2]
+                };
+                image = image::Image::create(_info, avFrame,
+                                             planes, linesize);
+                return;
+            }
+
             if (canCopy(
                     _avInputPixelFormat, _avOutputPixelFormat,
                     _fastYUV420PConversion))
@@ -1530,9 +1687,17 @@ namespace tl
             }
             else
             {
+                if (!_swsContext)
+                {
+                    // Build the scaler now that the real source format is known
+                    // (the hardware download format, or a software-fallback
+                    // format).
+                    _initSws(static_cast<AVPixelFormat>(avFrame->format));
+                }
+
                 image = image::Image::create(_info);
                 data = image->getData();
-                
+
                 av_image_fill_arrays(
                     _avFrame2->data, _avFrame2->linesize, data,
                     _avOutputPixelFormat, w, h, 1);
@@ -1542,6 +1707,97 @@ namespace tl
                     avFrame->linesize, 0,
                     _avCodecParameters[_avStream]->height, _avFrame2->data,
                     _avFrame2->linesize);
+            }
+        }
+
+        void ReadVideo::_initSws(AVPixelFormat srcFormat)
+        {
+            _swsContext = sws_alloc_context();
+            if (!_swsContext)
+            {
+                throw std::runtime_error(string::Format("Cannot allocate context: \"{0}\"").arg(_fileName));
+            }
+            av_opt_set_defaults(_swsContext);
+            size_t width = _avCodecParameters[_avStream]->width;
+            size_t height = _avCodecParameters[_avStream]->height;
+            int r = av_opt_set_int(_swsContext, "srcw", width,
+                                   AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "srch", height, AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "src_format", srcFormat, AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "dstw", width, AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "dsth", height, AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "dst_format", _avOutputPixelFormat, AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "sws_flags", swsScaleFlags, AV_OPT_SEARCH_CHILDREN);
+            r = av_opt_set_int(_swsContext, "threads", _options.threadCount, AV_OPT_SEARCH_CHILDREN);
+            r = sws_init_context(_swsContext, nullptr, nullptr);
+            if (r < 0)
+            {
+                throw std::runtime_error(string::Format("Cannot initialize sws context: \"{0}\"").arg(_fileName));
+            }
+
+            const auto params = _avCodecParameters[_avStream];
+
+            // \@bug:
+            //    We don't do a BT2020_NCL to BT709 conversion in
+            //    software which is slow.
+            if (params->color_space != AVCOL_SPC_BT2020_NCL &&
+                (params->color_space != AVCOL_SPC_UNSPECIFIED ||
+                 width < 4096 || height < 2160))
+            {
+                int in_full = -1;
+                int out_full = -1;
+                int brightness = -1;
+                int contrast = -1;
+                int saturation = -1;
+                int *inv_table = nullptr, *table = nullptr;
+
+                sws_getColorspaceDetails(
+                    _swsContext, &inv_table, &in_full, &table,
+                    &out_full, &brightness, &contrast, &saturation);
+
+                // \@note: sws_getCoefficients uses its own enum,
+                //         which mostly matches AV_COL_SPC_* values,
+                //         but we still do a special check here just in
+                //         case.
+                int in_color_space = SWS_CS_DEFAULT;
+                switch (params->color_space)
+                {
+                case AVCOL_SPC_RGB:
+                    in_color_space = SWS_CS_ITU601;
+                    break;
+                case AVCOL_SPC_BT709:
+                    in_color_space = SWS_CS_ITU709;
+                    break;
+                case AVCOL_SPC_FCC:
+                    in_color_space = SWS_CS_FCC;
+                    break;
+                    // case AVCOL_SPC_ITU624 (is not defined)
+                    // can be NTSC or PAL in_color_space = SWS_CS_624;
+                    // break;
+                case AVCOL_SPC_SMPTE170M:
+                    in_color_space = SWS_CS_SMPTE170M;
+                    break;
+                case AVCOL_SPC_SMPTE240M:
+                    in_color_space = SWS_CS_SMPTE240M;
+                    break;
+                case AVCOL_SPC_BT2020_NCL:
+                case AVCOL_SPC_BT2020_CL: // \@bug: this one is wrong
+                    in_color_space = SWS_CS_BT2020;
+                    break;
+                default:
+                    break;
+                }
+
+                in_full = (params->color_range == AVCOL_RANGE_JPEG);
+                out_full = (params->color_range == AVCOL_RANGE_JPEG);
+
+                int out_color_space = SWS_CS_ITU709;
+
+                sws_setColorspaceDetails(
+                    _swsContext, sws_getCoefficients(in_color_space),
+                    in_full, sws_getCoefficients(out_color_space),
+                    out_full, brightness, contrast, saturation);
+
             }
         }
 

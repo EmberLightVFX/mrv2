@@ -7,7 +7,8 @@
 #include <tlCore/LogSystem.h>
 
 #include <tlDevice/NDI/NDI.h>
-#include <tlDevice/NDI/NDIOptions.h>
+
+#include <tlCore/NDIOptions.h>
 
 #include <tlIO/Plugin.h>
 
@@ -56,10 +57,10 @@ namespace tl
 
             std::future<io::Info> getInfo() override;
             std::future<io::VideoData> readVideo(
-                const otime::RationalTime&,
+                const OTIO_NS::RationalTime&,
                 const io::Options& = io::Options()) override;
             std::future<io::AudioData> readAudio(
-                const otime::TimeRange&,
+                const OTIO_NS::TimeRange&,
                 const io::Options& = io::Options()) override;
             void cancelRequests() override;
 

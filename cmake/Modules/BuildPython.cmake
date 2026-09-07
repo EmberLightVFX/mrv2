@@ -84,6 +84,7 @@ if(APPLE)
 	${Python_OPTIMIZATIONS}
 	--enable-shared
 	--with-openssl=${_openssl_LOC}
+	--disable-test-modules
 	--prefix=${CMAKE_INSTALL_PREFIX}
     )
     set( Python_BUILD make -j ${NPROCS} )
@@ -112,6 +113,7 @@ elseif(UNIX)
 	--enable-shared
         --prefix=${CMAKE_INSTALL_PREFIX}
 	--without-ensurepip
+	--disable-test-modules
     )
     
     # Build command
@@ -169,7 +171,7 @@ ExternalProject_Add(
     GIT_TAG ${Python_GIT_TAG}
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/deps/Python
 
-    DEPENDS ${Python_DPENDENCIES}
+    DEPENDS ${Python_DEPENDENCIES}
     
     PATCH_COMMAND     "${Python_PATCH}"
     CONFIGURE_COMMAND "${Python_CONFIGURE}"
@@ -188,6 +190,8 @@ else()
 	set( ENV{PYTHONPATH} "${CMAKE_INSTALL_PREFIX}/lib/python${Python_VERSION}:${CMAKE_INSTALL_PREFIX}/lib/python${Python_VERSION}/site-packages:${CMAKE_INSTALL_PREFIX}/lib/python${Python_VERSION}/lib-dynload:$ENV{PYTHONPATH}" )
     endif()
 endif()
+
+set(PYTHONPATH $ENV{PYTHONPATH})
 
 set( PYTHON_DEP Python )
 

@@ -10,8 +10,6 @@
 
 #include "mrvEdit/mrvEditCallbacks.h"
 
-#include "mrvApp/mrvPlaylistsModel.h"
-
 #include "mrvCore/mrvBackend.h"
 
 #include <FL/Fl_Widget.H> // For Fl_Callback
@@ -51,7 +49,7 @@ namespace mrv
     void open_recent_cb(Fl_Menu_* w, ViewerUI* ui);
 
     void open_new_instance_cb(Fl_Menu_* w, ViewerUI* ui);
-    
+
     void save_single_frame_to_folder_cb(Fl_Menu_* w, ViewerUI* ui);
     void save_single_frame_cb(Fl_Menu_* w, ViewerUI* ui);
     void save_annotations_only_cb(Fl_Menu_* w, ViewerUI* ui);
@@ -83,7 +81,8 @@ namespace mrv
     void compare_difference_cb(Fl_Widget* w, ViewerUI* ui);
     void compare_add_cb(Fl_Widget* w, ViewerUI* ui);
     void compare_multiply_cb(Fl_Widget* w, ViewerUI* ui);
-    
+    void compare_butterfly_cb(Fl_Widget* w, ViewerUI* ui);
+
     void compare_horizontal_cb(Fl_Widget* w, ViewerUI* ui);
     void compare_vertical_cb(Fl_Widget* w, ViewerUI* ui);
     void compare_tile_cb(Fl_Widget* w, ViewerUI* ui);
@@ -116,7 +115,7 @@ namespace mrv
     void toggle_hdr_debug_cb(Fl_Menu_* m, ViewerUI* ui);
     void select_hdr_tonemap_cb(Fl_Menu_* w, ViewerUI* ui);
     void select_hdr_gamut_mapping_cb(Fl_Menu_* m, ViewerUI* ui);
-    
+
     void hdr_data_from_file_cb(Fl_Menu_* m, ViewerUI* ui);
     void hdr_data_inactive_cb(Fl_Menu_* m, ViewerUI* ui);
     void hdr_data_active_cb(Fl_Menu_* m, ViewerUI* ui);
@@ -208,7 +207,7 @@ namespace mrv
 
     void next_frame_cb(Fl_Menu_*, ViewerUI* ui);
     void previous_frame_cb(Fl_Menu_*, ViewerUI* ui);
-    
+
     void next_second_cb(Fl_Menu_*, ViewerUI* ui);
     void previous_second_cb(Fl_Menu_*, ViewerUI* ui);
 
@@ -232,6 +231,7 @@ namespace mrv
     void toggle_timeline_track_info_cb(Fl_Menu_*, ViewerUI* ui);
     void toggle_timeline_clip_info_cb(Fl_Menu_*, ViewerUI* ui);
     void toggle_timeline_active_track_cb(Fl_Menu_*, ViewerUI* ui);
+    void timeline_media_reference_key_cb(Fl_Menu_*, ViewerUI* ui);
 
     // OCIO callbacks
 
@@ -255,7 +255,7 @@ namespace mrv
     void debanding_low_cb(Fl_Menu_*, ViewerUI* ui);
     void debanding_medium_cb(Fl_Menu_*, ViewerUI* ui);
     void debanding_high_cb(Fl_Menu_*, ViewerUI* ui);
-    
+
     // Video levels callbacks
     void video_levels_from_file_cb(Fl_Menu_*, ViewerUI* ui);
     void video_levels_legal_range_cb(Fl_Menu_*, ViewerUI* ui);
@@ -288,7 +288,7 @@ namespace mrv
 
     //! Unlock features
     void unlock_features_cb(Fl_Menu_*, ViewerUI* ui);
-    
+
     //! Call the browser with documentation.
     void help_documentation_cb(Fl_Menu_*, ViewerUI* ui);
 

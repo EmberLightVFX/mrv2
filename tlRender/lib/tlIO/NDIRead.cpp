@@ -121,8 +121,8 @@ namespace tl
             NDIlib_audio_frame_t a;
             NDIlib_frame_type_e type_e = NDIlib_frame_type_none;
 
-            p.audioThread.currentTime = otime::RationalTime(0.0, 48000.0);
-            p.videoThread.currentTime = otime::RationalTime(0.0, fps);
+            p.audioThread.currentTime = OTIO_NS::RationalTime(0.0, 48000.0);
+            p.videoThread.currentTime = OTIO_NS::RationalTime(0.0, fps);
 
             // Preroll to find video and (potentially) audio stream
             unsigned videoCounter = 0;
@@ -147,7 +147,7 @@ namespace tl
                             p.info.videoTime = p.readVideo->getTimeRange();
                         }
                         p.videoThread.currentTime =
-                            p.info.videoTime.start_time();
+                            p.info.videoTime->start_time();
 
                         p.videoThread.logTimer =
                             std::chrono::steady_clock::now();
@@ -185,7 +185,7 @@ namespace tl
                         p.info.audio = p.readAudio->getInfo();
                         p.info.audioTime = p.readAudio->getTimeRange();
                         p.audioThread.currentTime =
-                            p.info.audioTime.start_time();
+                            p.info.audioTime->start_time();
                         p.audioThread.logTimer =
                             std::chrono::steady_clock::now();
 
@@ -292,7 +292,7 @@ namespace tl
         }
 
         std::future<io::VideoData> Read::readVideo(
-            const otime::RationalTime& time, const io::Options& options)
+            const OTIO_NS::RationalTime& time, const io::Options& options)
         {
             TLRENDER_P();
             auto request = std::make_shared<Private::VideoRequest>();
@@ -320,7 +320,7 @@ namespace tl
         }
 
         std::future<io::AudioData> Read::readAudio(
-            const otime::TimeRange& timeRange, const io::Options& options)
+            const OTIO_NS::TimeRange& timeRange, const io::Options& options)
         {
             TLRENDER_P();
             auto request = std::make_shared<Private::AudioRequest>();
@@ -435,8 +435,8 @@ namespace tl
                         _cache->addVideo(cacheKey, data);
                     }
 
-                    p.videoThread.currentTime += otime::RationalTime(
-                        1.0, p.info.videoTime.duration().rate());
+                    p.videoThread.currentTime += OTIO_NS::RationalTime(
+                        1.0, p.info.videoTime->duration().rate());
                 }
 
                 // Logging.
@@ -479,7 +479,7 @@ namespace tl
             while (p.audioThread.running)
             {
                 std::shared_ptr<Private::AudioRequest> request;
-                const double sampleRate = p.info.audioTime.duration().rate();
+                const double sampleRate = p.info.audioTime->duration().rate();
                 size_t requestSampleCount = 0;
                 bool seek = false;
                 // Check requests.
@@ -541,7 +541,7 @@ namespace tl
                 if (request)
                 {
                     intersects =
-                        request->timeRange.intersects(p.info.audioTime);
+                        request->timeRange.intersects(p.info.audioTime.value());
                 }
 
                 while (request && intersects &&
@@ -564,11 +564,11 @@ namespace tl
                     if (intersects)
                     {
                         size_t offset = 0;
-                        if (audioData.time < p.info.audioTime.start_time())
+                        if (audioData.time < p.info.audioTime->start_time())
                         {
                             offset =
-                                (p.info.audioTime.start_time() - audioData.time)
-                                    .value();
+                                (p.info.audioTime->start_time() -
+                                 audioData.time).value();
                         }
                         p.readAudio->bufferCopy(
                             audioData.audio->getData() +
